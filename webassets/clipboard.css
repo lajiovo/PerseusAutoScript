@@ -168,10 +168,12 @@ textarea#textClipboard:focus {
     bottom: 0;
     left: 0;
     right: 0;
-    background: rgba(0, 0, 0, 0.75);
+    background: rgba(0, 0, 0, 0.85);
     display: flex;
-    justify-content: space-around;
-    padding: 4px 2px;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 2px;
+    padding: 3px 4px;
     opacity: 0;
     transition: opacity 0.2s;
 }
@@ -184,11 +186,12 @@ textarea#textClipboard:focus {
     background: none;
     border: none;
     color: white;
-    padding: 3px 6px;
+    padding: 2px 4px;
     cursor: pointer;
-    font-size: 0.75rem;
-    border-radius: 4px;
+    font-size: 0.68rem;
+    border-radius: 3px;
     transition: background 0.2s;
+    white-space: nowrap;
 }
 
 .btn-icon:hover {
