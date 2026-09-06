@@ -1,7 +1,52 @@
 /* 剪切板专用样式扩展 */
+.clipboard-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    align-items: start;
+}
+
+@media (max-width: 992px) {
+    .clipboard-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.col {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--card-border);
+    padding-bottom: 8px;
+}
+
+.card-header .card-title {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.btn-mini {
+    padding: 2px 8px;
+    font-size: 0.75rem;
+    border-radius: 4px;
+    border: none;
+    cursor: pointer;
+    transition: opacity 0.2s;
+}
+
+.btn-mini:hover {
+    opacity: 0.85;
+}
+
 textarea#textClipboard {
     width: 100%;
-    height: 300px;
+    height: 220px;
     background: rgba(15, 23, 42, 0.5);
     border: 1px solid var(--card-border);
     border-radius: 8px;
@@ -11,20 +56,70 @@ textarea#textClipboard {
     resize: vertical;
     outline: none;
     transition: border-color 0.2s;
+    line-height: 1.5;
 }
 
 textarea#textClipboard:focus {
     border-color: var(--primary);
 }
 
+/* 历史记录 */
+.history-list {
+    max-height: 350px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding-right: 4px;
+}
+
+.history-item {
+    background: rgba(15, 23, 42, 0.4);
+    border: 1px solid var(--card-border);
+    border-radius: 6px;
+    padding: 10px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.history-item:hover {
+    background: rgba(59, 130, 246, 0.1);
+    border-color: var(--primary);
+}
+
+.history-meta {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.75rem;
+    color: var(--text-sub);
+}
+
+.history-preview {
+    font-size: 0.85rem;
+    color: var(--text-main);
+    white-space: pre-wrap;
+    word-break: break-all;
+    max-height: 60px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+}
+
+/* 上传区域 */
 .upload-area {
     border: 2px dashed var(--card-border);
     border-radius: 12px;
-    padding: 30px;
+    padding: 24px;
     text-align: center;
     cursor: pointer;
     transition: all 0.2s;
     color: var(--text-sub);
+    font-size: 0.9rem;
 }
 
 .upload-area:hover {
@@ -33,12 +128,17 @@ textarea#textClipboard:focus {
     color: var(--primary);
 }
 
+/* 图片画廊 */
+.gallery-card {
+    min-height: 220px;
+}
+
 .image-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
     gap: 12px;
+    max-height: 320px;
     overflow-y: auto;
-    flex-grow: 1;
     padding-right: 4px;
 }
 
@@ -68,10 +168,10 @@ textarea#textClipboard:focus {
     bottom: 0;
     left: 0;
     right: 0;
-    background: rgba(0, 0, 0, 0.7);
+    background: rgba(0, 0, 0, 0.75);
     display: flex;
-    justify-content: center;
-    padding: 4px;
+    justify-content: space-around;
+    padding: 4px 2px;
     opacity: 0;
     transition: opacity 0.2s;
 }
@@ -84,51 +184,108 @@ textarea#textClipboard:focus {
     background: none;
     border: none;
     color: white;
-    padding: 4px 8px;
+    padding: 3px 6px;
     cursor: pointer;
-    font-size: 0.8rem;
+    font-size: 0.75rem;
     border-radius: 4px;
     transition: background 0.2s;
 }
 
 .btn-icon:hover {
-    background: rgba(255, 255, 255, 0.2);
+    background: rgba(255, 255, 255, 0.25);
 }
 
 .btn-icon.del:hover {
     color: var(--danger);
 }
 
+/* 文件列表 */
+.file-list {
+    max-height: 260px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding-right: 4px;
+}
+
+.file-item {
+    background: rgba(15, 23, 42, 0.4);
+    border: 1px solid var(--card-border);
+    border-radius: 6px;
+    padding: 10px 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: all 0.2s;
+}
+
+.file-item:hover {
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.file-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    overflow: hidden;
+}
+
+.file-name {
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--text-main);
+    text-decoration: none;
+    word-break: break-all;
+}
+
+.file-name:hover {
+    color: var(--primary);
+}
+
+.file-meta {
+    font-size: 0.75rem;
+    color: var(--text-sub);
+}
+
+.file-actions {
+    display: flex;
+    gap: 6px;
+}
+
 .status-text {
     font-size: 0.8rem;
     margin-top: 8px;
-    color: var(--text-sub);
+    color: var(--primary);
 }
 
 .loading {
     grid-column: 1 / -1;
     text-align: center;
-    padding: 40px;
+    padding: 30px;
     color: var(--text-sub);
+    font-size: 0.85rem;
 }
 
 .toast {
     position: fixed;
-    bottom: 20px;
+    bottom: 24px;
     left: 50%;
     transform: translateX(-50%);
-    background: var(--primary);
+    background: rgba(15, 23, 42, 0.95);
     color: white;
-    padding: 8px 20px;
+    padding: 8px 24px;
     border-radius: 20px;
     font-size: 0.9rem;
     z-index: 1000;
     opacity: 0;
-    transition: opacity 0.3s;
+    transition: opacity 0.25s, transform 0.25s;
     pointer-events: none;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+    border: 1px solid var(--card-border);
 }
 
 .toast.show {
     opacity: 1;
+    transform: translateX(-50%) translateY(-4px);
 }

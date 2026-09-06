@@ -761,6 +761,17 @@ os.makedirs(CLIPBOARD_DIR, exist_ok=True)
 def get_clipboard_text_path():
     return os.path.join(CLIPBOARD_DIR, "content.txt")
 
+def get_clipboard_history_path():
+    return os.path.join(CLIPBOARD_DIR, "text_history.json")
+
+def format_size(size_bytes):
+    if size_bytes < 1024:
+        return f"{size_bytes} B"
+    elif size_bytes < 1024 * 1024:
+        return f"{size_bytes / 1024:.1f} KB"
+    else:
+        return f"{size_bytes / (1024 * 1024):.1f} MB"
+
 def read_clipboard_cache():
     text_path = get_clipboard_text_path()
     text_content = ""
@@ -770,34 +781,72 @@ def read_clipboard_cache():
                 text_content = f.read()
         except Exception:
             pass
-            
+
+    history_path = get_clipboard_history_path()
+    history = []
+    if os.path.exists(history_path):
+        try:
+            with open(history_path, "r", encoding="utf-8") as f:
+                history = json.load(f)
+                if not isinstance(history, list):
+                    history = []
+        except Exception:
+            history = []
+
     images = []
+    files = []
+    internal_files = {"content.txt", "text_history.json"}
     if os.path.exists(CLIPBOARD_DIR):
         try:
-            valid_exts = (".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp")
-            files = sorted(os.listdir(CLIPBOARD_DIR), key=lambda x: os.path.getmtime(os.path.join(CLIPBOARD_DIR, x)), reverse=True)
-            for f in files:
-                if f.lower().endswith(valid_exts):
-                    images.append(f)
+            valid_img_exts = (".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".svg")
+            # 按修改时间降序排列
+            all_entries = sorted(
+                [f for f in os.listdir(CLIPBOARD_DIR) if f not in internal_files],
+                key=lambda x: os.path.getmtime(os.path.join(CLIPBOARD_DIR, x)),
+                reverse=True
+            )
+            for f in all_entries:
+                full_path = os.path.join(CLIPBOARD_DIR, f)
+                if os.path.isfile(full_path):
+                    stat = os.stat(full_path)
+                    mtime_str = datetime.datetime.fromtimestamp(stat.st_mtime).strftime("%Y-%m-%d %H:%M:%S")
+                    item_info = {
+                        "name": f,
+                        "size": format_size(stat.st_size),
+                        "time": mtime_str,
+                        "url": f"/clipboard/file/{f}"
+                    }
+                    if f.lower().endswith(valid_img_exts):
+                        images.append(item_info)
+                    else:
+                        files.append(item_info)
         except Exception:
             pass
-            
-    return {"text": text_content, "images": images}
+
+    return {
+        "text": text_content,
+        "history": history,
+        "images": images,
+        "files": files
+    }
 
 @app.route("/clipboard/file/<path:filename>", methods=["GET"])
 def serve_clipboard_file(filename):
-    """访问 servercache/clipboard 文件夹中的缓存图片/文件"""
-    return send_from_directory(CLIPBOARD_DIR, filename)
+    """访问或下载 servercache/clipboard 文件夹中的缓存图片/文件"""
+    as_attachment = parse_bool(request.args.get("download", False))
+    return send_from_directory(CLIPBOARD_DIR, filename, as_attachment=as_attachment)
 
 @app.route("/clipboard", methods=["GET", "POST"])
 def handle_clipboard():
     """
     剪贴板与缓存路由 /clipboard：
-    GET: 返回当前缓存的文本内容与图片列表
+    GET: 返回当前缓存的文本内容、历史记录、图片列表及文件列表
     POST: 
-      - 保存文本: 传 text 或 content
-      - 上传图片: multipart/form-data 文件域 file
+      - 保存文本: action=save_text & text=xxx (自动追加历史)
+      - 清空历史: action=clear_history
+      - 清空当前文本: action=clear_text
       - 删除文件: action=delete & filename=xxx
+      - 上传文件: multipart/form-data 文件域 file
     """
     if request.method == "GET":
         data = read_clipboard_cache()
@@ -806,11 +855,10 @@ def handle_clipboard():
         req_data = _collect_request_dict()
         action = req_data.get("action")
         
-        # 1. 删除文件请求
+        # 1. 删除文件
         if action == "delete":
             filename = req_data.get("filename")
             if filename:
-                # 防止目录遍历攻击
                 safe_name = os.path.basename(filename)
                 target_file = os.path.join(CLIPBOARD_DIR, safe_name)
                 if os.path.exists(target_file) and os.path.isfile(target_file):
@@ -818,38 +866,88 @@ def handle_clipboard():
                         os.remove(target_file)
                         return format_response({"status": "ok", "message": f"文件 {safe_name} 已删除", **read_clipboard_cache()}, 200)
                     except Exception as e:
-                        return format_response({"status": "error", "message": f"删除文件失败: {e}"}, 500)
-            return format_response({"status": "error", "message": "未指定有效文件名"}, 400)
+                        return format_response({"status": "error", "message": f"删除失败: {e}"}, 500)
+            return format_response({"status": "error", "message": "未指定文件名"}, 400)
 
-        # 2. 处理文件上传（图片）
-        if 'file' in request.files:
-            file = request.files['file']
-            if file and file.filename:
-                original_name = file.filename
-                ext = os.path.splitext(original_name)[1]
-                timestamp_name = f"{int(time.time() * 1000)}{ext}"
-                save_path = os.path.join(CLIPBOARD_DIR, timestamp_name)
-                try:
-                    file.save(save_path)
-                    return format_response({"status": "ok", "message": "图片上传成功", "filename": timestamp_name, **read_clipboard_cache()}, 200)
-                except Exception as e:
-                    return format_response({"status": "error", "message": f"图片保存失败: {e}"}, 500)
+        # 2. 清空历史
+        if action == "clear_history":
+            history_path = get_clipboard_history_path()
+            try:
+                with open(history_path, "w", encoding="utf-8") as f:
+                    json.dump([], f)
+                return format_response({"status": "ok", "message": "历史记录已清空", **read_clipboard_cache()}, 200)
+            except Exception as e:
+                return format_response({"status": "error", "message": f"操作失败: {e}"}, 500)
 
-        # 3. 处理文本更新
-        text = req_data.get("text")
-        if text is None:
-            text = req_data.get("content")
-            
-        if text is not None:
+        # 3. 清空当前文本
+        if action == "clear_text":
             text_path = get_clipboard_text_path()
             try:
                 with open(text_path, "w", encoding="utf-8") as f:
-                    f.write(str(text))
-                return format_response({"status": "ok", "message": "文本缓存更新成功", **read_clipboard_cache()}, 200)
+                    f.write("")
+                return format_response({"status": "ok", "message": "文本已清空", **read_clipboard_cache()}, 200)
             except Exception as e:
-                return format_response({"status": "error", "message": f"文本保存失败: {e}"}, 500)
+                return format_response({"status": "error", "message": f"操作失败: {e}"}, 500)
 
-        return format_response({"status": "error", "message": "无效的请求参数或没有提供有效负载"}, 400)
+        # 4. 上传文件 (通用)
+        if 'file' in request.files:
+            file = request.files['file']
+            if file and file.filename:
+                # 保留原始文件名但做安全处理，如果冲突则附加时间戳
+                original_name = os.path.basename(file.filename)
+                name, ext = os.path.splitext(original_name)
+                final_name = original_name
+                save_path = os.path.join(CLIPBOARD_DIR, final_name)
+                
+                # 如果文件已存在，则生成新名字
+                if os.path.exists(save_path):
+                    final_name = f"{name}_{int(time.time())}{ext}"
+                    save_path = os.path.join(CLIPBOARD_DIR, final_name)
+                
+                try:
+                    file.save(save_path)
+                    return format_response({"status": "ok", "message": "文件上传成功", "filename": final_name, **read_clipboard_cache()}, 200)
+                except Exception as e:
+                    return format_response({"status": "error", "message": f"保存失败: {e}"}, 500)
+
+        # 5. 保存文本 (包含历史逻辑)
+        text = req_data.get("text") or req_data.get("content")
+        if text is not None or action == "save_text":
+            text = text or ""
+            text_path = get_clipboard_text_path()
+            history_path = get_clipboard_history_path()
+            try:
+                # 保存当前文本
+                with open(text_path, "w", encoding="utf-8") as f:
+                    f.write(str(text))
+                
+                # 更新历史记录
+                if text.strip():
+                    history = []
+                    if os.path.exists(history_path):
+                        try:
+                            with open(history_path, "r", encoding="utf-8") as f:
+                                history = json.load(f)
+                        except Exception: pass
+                    
+                    # 如果和上一条内容不同，则存入
+                    if not history or history[0].get("content") != text:
+                        new_entry = {
+                            "id": int(time.time() * 1000),
+                            "time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                            "content": text
+                        }
+                        history.insert(0, new_entry)
+                        # 保留最近100条
+                        history = history[:100]
+                        with open(history_path, "w", encoding="utf-8") as f:
+                            json.dump(history, f, ensure_ascii=False, indent=2)
+
+                return format_response({"status": "ok", "message": "保存成功", **read_clipboard_cache()}, 200)
+            except Exception as e:
+                return format_response({"status": "error", "message": f"保存失败: {e}"}, 500)
+
+        return format_response({"status": "error", "message": "未知请求"}, 400)
 
 # 推送接收接口
 @app.route("/push", methods=["GET", "POST"])

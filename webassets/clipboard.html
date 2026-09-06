@@ -11,39 +11,65 @@
 
 <div class="container">
   <header>
-    <h1>📋 云端剪切板 & 文件缓存</h1>
-    <button class="btn-primary" style="flex: none; min-width: auto; padding: 6px 14px;" onclick="location.href='/main/index.html'">🏠 返回主菜单</button>
+    <h1>📋 云端剪切板 & 文件中心</h1>
+    <div style="display: flex; gap: 10px;">
+        <button class="btn-warning" style="flex: none; min-width: auto; padding: 6px 14px;" onclick="fetchData()">🔄 刷新</button>
+        <button class="btn-primary" style="flex: none; min-width: auto; padding: 6px 14px;" onclick="location.href='/main/index.html'">🏠 菜单</button>
+    </div>
   </header>
 
-  <div class="dashboard-layout">
-    <!-- 左侧：文本内容编辑 -->
-    <div class="options-pane">
+  <div class="clipboard-grid">
+    <!-- 第一列：文本内容与历史 -->
+    <div class="col">
       <div class="card">
-        <div class="card-title">文本缓存内容</div>
-        <textarea id="textClipboard" placeholder="在此输入需要缓存的文本内容..."></textarea>
+        <div class="card-header">
+          <div class="card-title">文本内容</div>
+          <div class="card-actions">
+            <button class="btn-mini btn-danger" onclick="clearText()">清空</button>
+          </div>
+        </div>
+        <textarea id="textClipboard" placeholder="在此输入内容或直接粘贴(Ctrl+V)..."></textarea>
         <div class="btn-group">
-          <button class="btn-success" onclick="saveText()">💾 保存文本内容</button>
-          <button class="btn-accent" onclick="copyText()">📄 复制到剪切板</button>
-          <button class="btn-warning" onclick="fetchData()">🔄 刷新数据</button>
+          <button class="btn-success" onclick="saveText()">💾 保存</button>
+          <button class="btn-accent" onclick="copyText()">📄 复制</button>
+          <button class="btn-primary" onclick="pasteFromClipboard()">📥 粘贴上传</button>
         </div>
       </div>
 
-      <div class="card">
-        <div class="card-title">上传图片缓存</div>
-        <div class="upload-area" id="uploadArea">
-          <p>点击或拖拽图片至此处上传</p>
-          <input type="file" id="fileInput" accept="image/*" style="display: none;">
+      <div class="card history-card">
+        <div class="card-header">
+          <div class="card-title">历史记录</div>
+          <div class="card-actions">
+            <button class="btn-mini btn-danger" onclick="clearHistory()">清空历史</button>
+          </div>
         </div>
-        <div id="uploadStatus" class="status-text"></div>
+        <div id="textHistory" class="history-list">
+          <div class="loading">加载中...</div>
+        </div>
       </div>
     </div>
 
-    <!-- 右侧：图片画廊 -->
-    <div class="console-pane">
-      <div class="card" style="height: 100%; display: flex; flex-direction: column;">
-        <div class="card-title">图片缓存画廊</div>
+    <!-- 第二列：图片画廊与文件中心 -->
+    <div class="col">
+      <div class="card">
+        <div class="card-title">上传与同步 (支持拖拽/粘贴)</div>
+        <div class="upload-area" id="uploadArea">
+          <p>点击/拖拽/Ctrl+V 粘贴图片或文件</p>
+          <input type="file" id="fileInput" multiple style="display: none;">
+        </div>
+        <div id="uploadStatus" class="status-text"></div>
+      </div>
+
+      <div class="card gallery-card">
+        <div class="card-title">图片画廊</div>
         <div id="imageGallery" class="image-grid">
-          <!-- 图片将在此动态加载 -->
+          <div class="loading">加载中...</div>
+        </div>
+      </div>
+
+      <div class="card files-card">
+        <div class="card-title">文件中心</div>
+        <div id="fileList" class="file-list">
           <div class="loading">加载中...</div>
         </div>
       </div>
