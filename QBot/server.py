@@ -262,7 +262,7 @@ def start_http_servers(client_instance):
 
             # ---------------- 1. 静态资源：登录页公开，聊天页需登录 ----------------
             if path_part in ("/", "/index.html", "/bot", "/bot/", "/bot/index.html", "/bot/login", "/bot/login.html"):
-                return self._serve_static_file("login.html")
+                return self._serve_static_file("index.html")
 
             if path_part in ("/bot/chat", "/bot/chat.html", "/bot/assets/chat.html"):
                 return self._serve_static_file("chat.html", require_auth=True)

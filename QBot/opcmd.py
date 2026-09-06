@@ -723,7 +723,7 @@ async def handle_op_command(
                         ],
                         [
                             ("🌐根域", f"{base_url}/", True),
-                            ("🤖Bot", f"{base_url}/bot", True)
+                            ("🤖Bot", f"{base_url}/bot/index.html", True)
                         ]
                     ]
                     return _format_msg_type_2(content, link_kb)
