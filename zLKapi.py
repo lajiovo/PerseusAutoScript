@@ -41,6 +41,10 @@ class LKApiManager:
                 self.bro.headless = headless
             if not self.bro.is_running():
                 await self.bro.start()
+                # 如果是无头模式，启动后尝试后台静默隐藏窗口
+                if self.bro.headless:
+                    from zLKbro import hide_browser_window_if_headless
+                    threading.Thread(target=hide_browser_window_if_headless, args=(10,), daemon=True).start()
         elif action == "close":
             if self.bro.is_running():
                 await self.bro.close()
@@ -95,10 +99,12 @@ class LKApiManager:
                 url = kwargs.get("url", "https://www.lightnovel.fun/category/lightnovel")
                 max_scrolls = kwargs.get("max_scrolls", 50)
                 res = await self.bro.scroll_and_collect_bookshelf(target_url=url, max_scrolls=max_scrolls, progress_callback=progress_cb)
-                task["result"] = f"成功抓取书架书籍 {len(res)} 本"
+                task["result"] = res.get("message")
+                task["message"] = res.get("message")
             elif action == "collect_current_page":
                 res = await self.bro.collect_current_page(progress_callback=progress_cb)
-                task["result"] = res
+                task["result"] = res.get("message")
+                task["message"] = res.get("message")
             elif action == "book_detail":
                 book_id = kwargs.get("book_id")
                 metadata, catalog = await self.bro.get_book_detail_and_catalog(book_id, progress_callback=progress_cb)
@@ -107,6 +113,11 @@ class LKApiManager:
                 book_id = kwargs.get("book_id")
                 await self.bro.crawl_all_chapters(book_id, progress_callback=progress_cb)
                 task["result"] = "全书章节爬取完成"
+            elif action == "crawl_selected":
+                book_id = kwargs.get("book_id")
+                chapter_urls = kwargs.get("chapter_urls", [])
+                await self.bro.crawl_selected_chapters(book_id, chapter_urls, progress_callback=progress_cb)
+                task["result"] = f"成功爬取选中章节 {len(chapter_urls)} 章"
             elif action == "redownload_images":
                 book_id = kwargs.get("book_id")
                 await self.bro.redownload_images(book_id, progress_callback=progress_cb)
@@ -125,7 +136,8 @@ class LKApiManager:
             if task["status"] != "cancelled":
                 task["status"] = "completed"
                 task["progress"] = 100
-                task["message"] = "任务执行成功"
+                if not task["message"] or task["message"] == "等待执行":
+                    task["message"] = "任务执行成功"
         except Exception as e:
             if task["status"] != "cancelled":
                 task["status"] = "failed"

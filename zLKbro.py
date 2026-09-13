@@ -10,6 +10,10 @@ from urllib.parse import urljoin
 from playwright.async_api import async_playwright
 import requests
 import urllib3
+import ctypes
+import win32gui
+import win32con
+import win32process
 
 from zConfig import get_config
 
@@ -52,6 +56,25 @@ def sanitize_filename(name: str) -> str:
 def get_url_hash(url: str) -> str:
     return hashlib.md5(url.encode("utf-8")).hexdigest()
 
+def hide_browser_window_if_headless(timeout=15):
+    """如果处于无头/隐藏模式，尝试通过窗口句柄强制隐藏新弹出的浏览器窗口（利用 Windows API 隐藏 GUI）"""
+    if os.name != 'nt':
+        return
+    start_t = time.time()
+    while time.time() - start_t < timeout:
+        try:
+            hwnd = win32gui.FindWindow(None, None)
+            # 查找所有带有 Chrome 标题或特征的窗口
+            def callback(h, _):
+                if win32gui.IsWindowVisible(h):
+                    title = win32gui.GetWindowText(h)
+                    if "LightNovel" in title or "Chrome" in title or "lightnovel" in title:
+                        win32gui.ShowWindow(h, win32con.SW_HIDE)
+            win32gui.EnumWindows(callback, None)
+        except Exception:
+            pass
+        time.sleep(0.5)
+
 class LKbro:
     def __init__(self, headless=True):
         self.headless = headless
@@ -89,6 +112,10 @@ class LKbro:
 
             self.playwright = await async_playwright().start()
             proxy_config = {"server": self.proxy} if self.proxy else None
+
+            # 若 headless=True 且系统允许，通过后台线程静默隐藏可能闪烁的窗口
+            if self.headless:
+                threading.Thread(target=hide_browser_window_if_headless, args=(10,), daemon=True).start()
 
             self.browser_context = await self.playwright.chromium.launch_persistent_context(
                 user_data_dir=self.user_data_dir,
@@ -136,7 +163,6 @@ class LKbro:
             self.page = self.browser_context.pages[0] if self.browser_context.pages else await self.browser_context.new_page()
             self._running = True
 
-            # 注册键盘事件监听：窗口模式下监听 Alt+C 快捷键自动爬取当前页
             if not self._keyboard_listener_started:
                 self._keyboard_listener_started = True
                 self.page.on("load", lambda _: asyncio.create_task(self._inject_alt_c_listener()))
@@ -152,8 +178,8 @@ class LKbro:
                             e.preventDefault();
                             fetch('/lkapi/collect_current_page', { method: 'POST' })
                                 .then(res => res.json())
-                                .then(data => console.log('【快捷键 Alt+C】触发爬取当前页成功:', data))
-                                .catch(err => console.error('【快捷键 Alt+C】触发失败:', err));
+                                .then(data => console.log('【快捷键 Alt+C】成功:', data))
+                                .catch(err => console.error('【快捷键 Alt+C】失败:', err));
                         }
                     });
                 }
@@ -181,14 +207,13 @@ class LKbro:
                 self.page = None
                 self._keyboard_listener_started = False
 
-    def is_running(self):
-        return self._running
-
     async def scroll_and_collect_bookshelf(self, target_url="https://www.lightnovel.fun/category/lightnovel", max_scrolls=50, progress_callback=None):
-        """向下滚动书架，检测到新书籍加入继续下滑，并精确统计原有书籍数与新发现书籍数"""
+        """向下滚动书架，自动下载封面并解析保存到本地"""
         await self.start()
         books_shelf_dir = os.path.join(self.server_cache_dir, "bookshelf")
         os.makedirs(books_shelf_dir, exist_ok=True)
+        img_dir = os.path.join(self.server_cache_dir, "bookshelf_images")
+        os.makedirs(img_dir, exist_ok=True)
 
         if progress_callback:
             progress_callback(0, f"正在访问书架页面: {target_url}")
@@ -198,13 +223,10 @@ class LKbro:
 
         collected_books = {}
         shelf_json_path = os.path.join(books_shelf_dir, "bookshelf.json")
-        initial_existing_count = 0
         if os.path.exists(shelf_json_path):
             try:
                 with open(shelf_json_path, "r", encoding="utf-8") as f:
-                    old_list = json.load(f)
-                    initial_existing_count = len(old_list)
-                    for item in old_list:
+                    for item in json.load(f):
                         collected_books[item["book_id"]] = item
             except Exception:
                 pass
@@ -219,7 +241,7 @@ class LKbro:
             
             current_scroll += 1
             html_content = await self.page.content()
-            books = self._parse_bookshelf_html(html_content)
+            books = await self._parse_and_download_bookshelf(html_content, img_dir)
 
             new_found_this_turn = 0
             for b in books:
@@ -227,6 +249,10 @@ class LKbro:
                     collected_books[b["book_id"]] = b
                     new_found_this_turn += 1
                     total_new_discovered += 1
+                else:
+                    # 确保已有记录也有本地封面
+                    if not collected_books[b["book_id"]].get("local_cover"):
+                        collected_books[b["book_id"]]["local_cover"] = b["local_cover"]
 
             if progress_callback:
                 progress_callback(
@@ -255,66 +281,10 @@ class LKbro:
         return {
             "total": len(bookshelf_list),
             "new_added": total_new_discovered,
-            "message": f"成功滚动抓取完毕！共找到 {len(bookshelf_list)} 本书，其中包含 {total_new_discovered} 本新书。"
+            "message": f"书架抓取完成！共发现 {len(bookshelf_list)} 本书，其中包含 {total_new_discovered} 本新书。"
         }
 
-    async def collect_current_page(self, progress_callback=None):
-        """窗口模式下：直接抓取当前页面中显示的内容（支持书架或书籍详情）"""
-        if not self._running or not self.page:
-            await self.start()
-
-        if progress_callback:
-            progress_callback(10, "正在读取浏览器当前活动页面...")
-
-        current_url = self.page.url
-        html_content = await self.page.content()
-
-        # 1. 若当前是书架/列表页
-        books = self._parse_bookshelf_html(html_content)
-        if books:
-            books_shelf_dir = os.path.join(self.server_cache_dir, "bookshelf")
-            os.makedirs(books_shelf_dir, exist_ok=True)
-            shelf_json_path = os.path.join(books_shelf_dir, "bookshelf.json")
-            collected_books = {}
-            existing_ids = set()
-            if os.path.exists(shelf_json_path):
-                try:
-                    with open(shelf_json_path, "r", encoding="utf-8") as f:
-                        old_list = json.load(f)
-                        for item in old_list:
-                            collected_books[item["book_id"]] = item
-                            existing_ids.add(item["book_id"])
-                except Exception:
-                    pass
-
-            new_added_count = 0
-            for b in books:
-                b_id = b["book_id"]
-                if b_id not in existing_ids:
-                    new_added_count += 1
-                collected_books[b_id] = b
-
-            with open(shelf_json_path, "w", encoding="utf-8") as f:
-                json.dump(list(collected_books.values()), f, ensure_ascii=False, indent=2)
-
-            msg = f"当前页抓取成功！共发现 {len(books)} 本书，其中包含 {new_added_count} 本新书。"
-            if progress_callback:
-                progress_callback(100, msg)
-            return {"type": "bookshelf", "total": len(books), "new_added": new_added_count, "message": msg, "url": current_url}
-
-        # 2. 若当前是具体书籍详情页 /book/xxx
-        match = re.search(r'/book/(\d+)', current_url)
-        if match:
-            book_id = match.group(1)
-            if progress_callback:
-                progress_callback(50, f"识别到当前页为书籍 ID: {book_id}，正在抓取详情与章节...")
-            meta, cat = await self.get_book_detail_and_catalog(book_id, progress_callback)
-            msg = f"书籍《{meta.get('title')}》详情与目录抓取成功！"
-            return {"type": "book", "book_id": book_id, "meta": meta, "message": msg, "url": current_url}
-
-        return {"type": "unknown", "message": "当前页面未匹配到书架或书籍详情结构", "url": current_url}
-
-    def _parse_bookshelf_html(self, html_content):
+    async def _parse_and_download_bookshelf(self, html_content, img_dir):
         books = []
         from bs4 import BeautifulSoup
         soup = BeautifulSoup(html_content, 'html.parser')
@@ -343,15 +313,90 @@ class LKbro:
             tag_spans = card.select(".category-book-tags span")
             tags = [s.get_text(strip=True) for s in tag_spans]
 
+            local_cover = ""
+            if cover_url:
+                full_c_url = urljoin(self.domain, html.unescape(cover_url))
+                c_hash = get_url_hash(full_c_url)
+                ext = ".jpg"
+                if ".png" in full_c_url.lower(): ext = ".png"
+                elif ".webp" in full_c_url.lower(): ext = ".webp"
+                local_fname = f"shelf_{c_hash}{ext}"
+                local_fpath = os.path.join(img_dir, local_fname)
+                if not os.path.exists(local_fpath) or os.path.getsize(local_fpath) == 0:
+                    try:
+                        resp = requests.get(full_c_url, headers={"Referer": self.domain}, timeout=10, verify=False)
+                        if resp.status_code == 200:
+                            with open(local_fpath, "wb") as f:
+                                f.write(resp.content)
+                    except Exception:
+                        pass
+                local_cover = f"/servercache/lk/bookshelf_images/{local_fname}"
+
             books.append({
                 "book_id": book_id,
                 "title": convert_t2s(title, True),
                 "cover_url": cover_url,
+                "local_cover": local_cover,
                 "update_time": update_time,
                 "tags": [convert_t2s(t, True) for t in tags],
                 "url": urljoin(self.domain, href)
             })
         return books
+
+    async def collect_current_page(self, progress_callback=None):
+        if not self._running or not self.page:
+            await self.start()
+
+        if progress_callback:
+            progress_callback(10, "正在读取当前页面...")
+
+        current_url = self.page.url
+        html_content = await self.page.content()
+
+        books_shelf_dir = os.path.join(self.server_cache_dir, "bookshelf")
+        os.makedirs(books_shelf_dir, exist_ok=True)
+        img_dir = os.path.join(self.server_cache_dir, "bookshelf_images")
+        os.makedirs(img_dir, exist_ok=True)
+
+        books = await self._parse_and_download_bookshelf(html_content, img_dir)
+        if books:
+            shelf_json_path = os.path.join(books_shelf_dir, "bookshelf.json")
+            collected_books = {}
+            existing_ids = set()
+            if os.path.exists(shelf_json_path):
+                try:
+                    with open(shelf_json_path, "r", encoding="utf-8") as f:
+                        for item in json.load(f):
+                            collected_books[item["book_id"]] = item
+                            existing_ids.add(item["book_id"])
+                except Exception:
+                    pass
+
+            new_added_count = 0
+            for b in books:
+                b_id = b["book_id"]
+                if b_id not in existing_ids:
+                    new_added_count += 1
+                collected_books[b_id] = b
+
+            with open(shelf_json_path, "w", encoding="utf-8") as f:
+                json.dump(list(collected_books.values()), f, ensure_ascii=False, indent=2)
+
+            msg = f"当前页抓取成功！共发现 {len(books)} 本书，其中包含 {new_added_count} 本新书。"
+            if progress_callback:
+                progress_callback(100, msg)
+            return {"type": "bookshelf", "total": len(books), "new_added": new_added_count, "message": msg, "url": current_url}
+
+        match = re.search(r'/book/(\d+)', current_url)
+        if match:
+            book_id = match.group(1)
+            if progress_callback:
+                progress_callback(50, f"识别到书籍 ID: {book_id}，正在解析详情...")
+            meta, cat = await self.get_book_detail_and_catalog(book_id, progress_callback)
+            msg = f"书籍《{meta.get('title')}》详情抓取成功！"
+            return {"type": "book", "book_id": book_id, "meta": meta, "message": msg, "url": current_url}
+
+        return {"type": "unknown", "message": "当前页面未匹配到有效书架或书籍详情", "url": current_url}
 
     async def get_book_detail_and_catalog(self, book_id: str, progress_callback=None):
         await self.start()
@@ -481,10 +526,8 @@ class LKbro:
             cover_full_url = urljoin(self.domain, html.unescape(cover_url))
             cover_hash = get_url_hash(cover_full_url)
             ext = ".jpg"
-            if ".png" in cover_full_url.lower():
-                ext = ".png"
-            elif ".webp" in cover_full_url.lower():
-                ext = ".webp"
+            if ".png" in cover_full_url.lower(): ext = ".png"
+            elif ".webp" in cover_full_url.lower(): ext = ".webp"
             cover_filename = f"cover_{cover_hash}{ext}"
             cover_path = os.path.join(img_dir, cover_filename)
             if not os.path.exists(cover_path) or os.path.getsize(cover_path) == 0:
@@ -616,10 +659,8 @@ class LKbro:
                     full_img_url = urljoin(self.domain, html.unescape(src))
                     img_hash = get_url_hash(full_img_url)
                     ext = ".jpg"
-                    if ".png" in full_img_url.lower():
-                        ext = ".png"
-                    elif ".webp" in full_img_url.lower():
-                        ext = ".webp"
+                    if ".png" in full_img_url.lower(): ext = ".png"
+                    elif ".webp" in full_img_url.lower(): ext = ".webp"
                     
                     img_filename = f"{img_hash}{ext}"
                     img_path = os.path.join(img_dir, img_filename)
@@ -687,4 +728,33 @@ class LKbro:
         with open(os.path.join(book_dir, "catalog.json"), "w", encoding="utf-8") as f:
             json.dump(catalog, f, ensure_ascii=False, indent=2)
 
+        return True
+
+    async def crawl_selected_chapters(self, book_id: str, chapter_urls: list, progress_callback=None):
+        """选择指定章节列表进行爬取下载"""
+        total = len(chapter_urls)
+        for idx, item in enumerate(chapter_urls):
+            ch_url = item["url"]
+            vol_name = item["vol_title"]
+            ch_title = item["title"]
+            if progress_callback:
+                progress_callback(int((idx + 1) / total * 100), f"正在爬取选中章节 [{vol_name}] {ch_title}")
+            await self.crawl_chapter(book_id, ch_url, vol_name, ch_title)
+
+        # 更新对应已下载状态
+        book_dir = os.path.join(self.server_cache_dir, "books", str(book_id))
+        cat_path = os.path.join(book_dir, "catalog.json")
+        if os.path.exists(cat_path):
+            try:
+                with open(cat_path, "r", encoding="utf-8") as f:
+                    cat = json.load(f)
+                target_urls = {i["url"] for i in chapter_urls}
+                for v in cat.get("volumes", []):
+                    for ch in v.get("chapters", []):
+                        if ch.get("url") in target_urls:
+                            ch["downloaded"] = True
+                with open(cat_path, "w", encoding="utf-8") as f:
+                    json.dump(cat, f, ensure_ascii=False, indent=2)
+            except Exception:
+                pass
         return True
