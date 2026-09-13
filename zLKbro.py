@@ -758,3 +758,6 @@ class LKbro:
             except Exception:
                 pass
         return True
+
+    def is_running(self):
+        return self._running
