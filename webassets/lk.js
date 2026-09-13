@@ -7,7 +7,9 @@ createApp({
     const tasks = ref([]);
     const broRunning = ref(false);
     const broHeadless = ref(true);
-    const showTasks = ref(false);
+
+    // 灵动岛展开控制
+    const showIsland = ref(false);
 
     const viewMode = ref("all"); // 'all' or 'cached'
     const filterStatus = ref("all");
@@ -66,6 +68,25 @@ createApp({
       }
     };
 
+    const toggleIsland = () => {
+      showIsland.value = !showIsland.value;
+    };
+
+    const activeTask = computed(() => {
+      const active = tasks.value.filter(t => t.status === 'running' || t.status === 'pending');
+      return active.length > 0 ? active[active.length - 1] : null;
+    });
+
+    const islandMainText = computed(() => {
+      if (activeTask.value) {
+        return activeTask.value.message || "任务处理中...";
+      }
+      if (broRunning.value) {
+        return broHeadless.value ? "LKbro 就绪 (无头)" : "LKbro 就绪 (窗口)";
+      }
+      return "LKbro 待机中";
+    });
+
     const startBrowser = async (headless) => {
       try {
         await fetch("/lkapi/browser", {
@@ -94,6 +115,7 @@ createApp({
 
     const openCustomUrlModal = () => {
       showCustomUrlModal.value = true;
+      showIsland.value = false;
     };
 
     const executeFetchCustomBookshelf = async () => {
@@ -106,7 +128,7 @@ createApp({
         const data = await res.json();
         if (data.status === "ok") {
           showCustomUrlModal.value = false;
-          showTasks.value = true;
+          showIsland.value = true;
           loadStatus();
         }
       } catch (e) {
@@ -137,8 +159,8 @@ createApp({
     const getBookBadge = (book) => {
       if (book.download_status === 'downloaded_all') return '已下全';
       if (book.download_status === 'downloading') return '下载中';
-      if (book.catalog_status === 'has_catalog') return '有列表';
-      return '未下载';
+      if (book.catalog_status === 'has_catalog') return '有目录';
+      return '未抓取';
     };
 
     const refreshAllData = () => {
@@ -150,14 +172,12 @@ createApp({
     const filteredBooks = computed(() => {
       const map = new Map();
 
-      // 先放入在线书架
       if (viewMode.value === "all") {
         for (const b of bookshelfBooks.value) {
           map.set(String(b.book_id), { ...b });
         }
       }
 
-      // 用本地已缓存书籍覆盖/扩充
       for (const cb of cachedBooks.value) {
         const id = String(cb.book_id);
         if (map.has(id)) {
@@ -177,7 +197,6 @@ createApp({
 
       let list = Array.from(map.values());
 
-      // 筛选：下载状态与章节列表状态
       if (filterStatus.value === "downloaded_all") {
         list = list.filter(b => b.download_status === "downloaded_all");
       } else if (filterStatus.value === "downloading") {
@@ -188,12 +207,10 @@ createApp({
         list = list.filter(b => b.catalog_status === "no_catalog");
       }
 
-      // 筛选：小红心/灰心/稍后再看
       if (filterHeart.value !== "all") {
         list = list.filter(b => b.heart === filterHeart.value);
       }
 
-      // 排序
       list.sort((a, b) => {
         if (sortBy.value === "title") {
           return (a.title || "").localeCompare(b.title || "");
@@ -207,19 +224,11 @@ createApp({
       return list;
     });
 
-    const runningTasksCount = computed(() => {
-      return tasks.value.filter(t => t.status === 'running' || t.status === 'pending').length;
-    });
-
-    const toggleTasksModal = () => {
-      showTasks.value = !showTasks.value;
-    };
-
     onMounted(() => {
       refreshAllData();
       timer = setInterval(() => {
         loadStatus();
-      }, 3000);
+      }, 2000);
     });
 
     onUnmounted(() => {
@@ -232,7 +241,9 @@ createApp({
       tasks,
       broRunning,
       broHeadless,
-      showTasks,
+      showIsland,
+      activeTask,
+      islandMainText,
       viewMode,
       filterStatus,
       filterHeart,
@@ -241,7 +252,7 @@ createApp({
       targetUrl,
       maxScrolls,
       filteredBooks,
-      runningTasksCount,
+      toggleIsland,
       startBrowser,
       closeBrowser,
       openCustomUrlModal,
@@ -250,8 +261,7 @@ createApp({
       toggleHeart,
       openBook,
       getBookBadge,
-      refreshAllData,
-      toggleTasksModal
+      refreshAllData
     };
   }
 }).mount("#app");

@@ -8,119 +8,139 @@
 </head>
 <body>
   <div id="app" class="detail-container">
+    <!-- 顶部状态栏与灵动岛 -->
     <header class="top-bar">
       <div class="logo-title">
-        <a href="/main/lk.html" class="back-btn" style="text-decoration: none; margin-right: 12px; color: #0366d6;">⬅ 返回书架</a>
+        <a href="/main/lk.html" class="back-btn" style="text-decoration: none; margin-right: 12px; color: var(--primary); font-size: 14px; font-weight: 600;">⬅ 返回书架</a>
         <h2>{{ bookMeta.title || ('Book ' + bookId) }}</h2>
       </div>
-      <div class="status-panel">
-        <span class="indicator" :class="{ active: broRunning }">
-          浏览器: {{ broRunning ? (broHeadless ? '运行中 (无头)' : '运行中 (界面)') : '已停止' }}
-        </span>
-        <button class="btn-sm" v-if="!broRunning" @click="startBrowser(true)">启动无头浏览器</button>
-        <button class="btn-sm" v-if="!broRunning" @click="startBrowser(false)">启动界面浏览器</button>
-        <button class="btn-danger-sm" v-if="broRunning" @click="closeBrowser">关闭浏览器</button>
 
-        <button class="btn-sm" @click="fetchCatalog">去爬取/刷新章节列表</button>
-        <button class="btn-sm primary" @click="crawlAll">爬取全部章节内容</button>
-        <button class="btn-sm" @click="redownloadImages">重新下载插图</button>
-        <button class="btn-sm" @click="showImagesModal = true">查看全部插图</button>
-        <button class="btn-sm" @click="toggleTasksModal">任务列表 ({{ runningTasksCount }})</button>
+      <!-- 灵动岛 -->
+      <div class="dynamic-island-wrapper">
+        <div class="dynamic-island" @click="toggleIsland">
+          <div class="island-status-dot" :class="{ active: broRunning }"></div>
+          <div class="island-content">
+            <span>{{ islandMainText }}</span>
+            <div class="island-mini-progress" v-if="activeTask">
+              <div class="island-mini-progress-bar" :style="{ width: activeTask.progress + '%' }"></div>
+            </div>
+            <span v-if="activeTask" style="font-size: 11px; opacity: 0.85;">{{ activeTask.progress }}%</span>
+          </div>
+        </div>
+
+        <!-- 展开面板 -->
+        <div class="island-expanded-card" v-if="showIsland">
+          <div class="island-header">
+            <div class="island-title">
+              <span>🖥️ LKbro 状态面板</span>
+            </div>
+            <span style="font-size: 11px; color: #94a3b8;">{{ broRunning ? (broHeadless ? '无头模式' : '界面模式') : '已休眠' }}</span>
+          </div>
+
+          <div class="island-actions">
+            <button class="island-btn island-btn-primary" v-if="!broRunning" @click="startBrowser(true)">启动无头</button>
+            <button class="island-btn island-btn-secondary" v-if="!broRunning" @click="startBrowser(false)">启动窗口</button>
+            <button class="island-btn island-btn-danger" v-if="broRunning" @click="closeBrowser">关闭浏览器</button>
+          </div>
+
+          <div class="island-tasks-list">
+            <div v-if="tasks.length === 0" style="text-align: center; color: #94a3b8; padding: 12px 0; font-size: 12px;">
+              当前没有正在执行的任务
+            </div>
+            <div class="island-task-item" v-for="t in tasks" :key="t.task_id">
+              <div class="island-task-top">
+                <strong style="max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">[{{ t.action }}] {{ t.message }}</strong>
+                <span style="color: #38bdf8;">{{ t.progress }}%</span>
+              </div>
+              <div class="island-task-prog-bg">
+                <div class="island-task-prog-fill" :style="{ width: t.progress + '%' }"></div>
+              </div>
+              <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: #94a3b8;">
+                <span>状态: {{ t.status }}</span>
+                <button v-if="t.status === 'running' || t.status === 'pending'" class="btn-danger-sm" style="font-size: 10px; padding: 2px 6px;" @click="cancelTask(t.task_id)">终止</button>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </header>
 
-    <div class="book-detail-main" style="padding: 20px;">
-      <div class="meta-card" style="display: flex; gap: 20px; background: #fff; padding: 20px; border-radius: 6px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-        <img :src="bookMeta.cover_url || '/main/default_cover.png'" style="width: 150px; height: 210px; object-fit: cover; border-radius: 4px;" />
-        <div style="flex: 1;">
-          <h2>{{ bookMeta.title }}</h2>
-          <p style="margin: 8px 0; color: #555;">作者: <strong>{{ bookMeta.author }}</strong></p>
-          <p style="margin: 8px 0; color: #666;">Book ID: {{ bookId }}</p>
-          <p style="margin: 8px 0; color: #888;">最近更新/抓取时间: {{ bookMeta.updated_at || '未抓取' }}</p>
-          <div style="margin-top: 15px; display: flex; gap: 10px;">
-            <button class="btn-sm" @click="makeEpub">打包选中分卷为 EPUB</button>
+    <div class="book-detail-main" style="max-width: 1200px; margin: 0 auto; padding: 28px 20px;">
+      <!-- 书籍头部信息卡片 -->
+      <div class="meta-card" style="display: flex; gap: 28px; background: #fff; padding: 24px; border-radius: var(--radius-lg); margin-bottom: 24px; box-shadow: var(--shadow-sm); border: 1px solid var(--border);">
+        <img :src="bookMeta.cover_url || '/main/default_cover.png'" style="width: 160px; height: 224px; object-fit: cover; border-radius: var(--radius-md); box-shadow: var(--shadow-md);" />
+        <div style="flex: 1; display: flex; flex-direction: column; justify-content: space-between;">
+          <div>
+            <h2 style="font-size: 22px; font-weight: 700; margin-bottom: 10px;">{{ bookMeta.title }}</h2>
+            <p style="margin: 6px 0; color: var(--text-muted); font-size: 14px;">作者: <strong style="color: var(--text-main);">{{ bookMeta.author }}</strong></p>
+            <p style="margin: 6px 0; color: var(--text-muted); font-size: 14px;">Book ID: <strong>{{ bookId }}</strong></p>
+            <p style="margin: 6px 0; color: var(--text-muted); font-size: 13px;">最近抓取: {{ bookMeta.updated_at || '未抓取' }}</p>
+          </div>
+          <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px;">
+            <button class="btn-sm" @click="fetchCatalog">📑 刷新章节列表</button>
+            <button class="btn-sm" style="background: #10b981;" @click="crawlAll">⬇️ 爬取全部章节内容</button>
+            <button class="btn-sm" style="background: #0284c7;" @click="makeEpub">📦 打包选中分卷 EPUB</button>
+            <button class="btn-sm" style="background: #64748b;" @click="showImagesModal = true">🖼️ 查看全书插图 ({{ bookImages.length }})</button>
+            <button class="btn-sm" style="background: #e11d48;" @click="redownloadImages">🔄 重新补齐插图</button>
           </div>
         </div>
       </div>
 
-      <div class="catalog-section" style="background: #fff; padding: 20px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-          <h3>章节目录</h3>
+      <!-- 章节目录与操作区 -->
+      <div class="catalog-section" style="background: #fff; padding: 24px; border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); border: 1px solid var(--border);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+          <h3 style="font-size: 16px; font-weight: 700;">章节列表 (共 {{ volumes.length }} 卷)</h3>
           <div style="display: flex; gap: 10px; align-items: center;">
-            <label style="font-size: 13px;">排序：</label>
-            <select v-model="chapterSort" class="sort-select" style="width: 140px;">
+            <label style="font-size: 13px; color: var(--text-muted);">章节排列：</label>
+            <select v-model="chapterSort" class="sidebar-select" style="width: 130px; padding: 6px 10px;">
               <option value="default">正序排列</option>
               <option value="reverse">倒序排列</option>
             </select>
           </div>
         </div>
 
-        <div v-if="volumes.length === 0" style="padding: 20px; text-align: center; color: #888;">
-          暂无章节列表，请点击顶部【去爬取/刷新章节列表】进行抓取
+        <div v-if="volumes.length === 0" style="padding: 40px; text-align: center; color: var(--text-muted);">
+          暂无章节列表，请点击上方【刷新章节列表】进行抓取
         </div>
 
-        <div v-for="(vol, vIdx) in volumes" :key="vIdx" style="margin-bottom: 24px; border-bottom: 1px dashed #eee; padding-bottom: 16px;">
-          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+        <div v-for="(vol, vIdx) in volumes" :key="vIdx" style="margin-bottom: 24px; border-bottom: 1px solid var(--border); padding-bottom: 20px;">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
             <div style="display: flex; align-items: center; gap: 10px;">
-              <input type="checkbox" :value="vol.vol_title" v-model="selectedVolumes" />
-              <h4 style="color: #0366d6;">{{ vol.vol_title }} ({{ vol.chapters.length }} 章)</h4>
+              <input type="checkbox" :value="vol.vol_title" v-model="selectedVolumes" style="width: 16px; height: 16px; accent-color: var(--primary);" />
+              <h4 style="color: var(--primary); font-size: 15px; font-weight: 600;">{{ vol.vol_title }} ({{ vol.chapters.length }} 章)</h4>
             </div>
-            <span style="font-size: 12px; color: #888;">
-              {{ vol.fetched ? '已获取全部章节' : '未完整获取' }}
+            <span style="font-size: 12px; color: var(--text-muted);">
+              {{ vol.fetched ? '已获取全部' : '待更新' }}
             </span>
           </div>
-          <div class="chapters-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px;">
-            <div v-for="(ch, cIdx) in sortedChapters(vol.chapters)" :key="cIdx" style="font-size: 13px; border: 1px solid #eee; padding: 8px 12px; border-radius: 4px; display: flex; justify-content: space-between; align-items: center;">
-              <span class="ch-title" style="cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 160px; font-weight: 500;" @click="readChapter(vol.vol_title, ch.title)" :title="ch.title">
+
+          <div class="chapters-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px;">
+            <div v-for="(ch, cIdx) in sortedChapters(vol.chapters)" :key="cIdx" style="font-size: 13px; border: 1px solid var(--border); padding: 10px 14px; border-radius: var(--radius-md); background: #fafafa; display: flex; justify-content: space-between; align-items: center; transition: background-color 0.15s;">
+              <span class="ch-title" style="cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 180px; font-weight: 500;" @click="readChapter(vol.vol_title, ch.title)" :title="ch.title">
                 {{ ch.title }}
               </span>
-              <span v-if="ch.downloaded" style="font-size: 11px; color: #28a745; margin-right: 4px;">[已下]</span>
-              <a :href="ch.url" target="_blank" style="font-size: 11px; color: #0366d6; text-decoration: none;">源链接</a>
+              <div>
+                <span v-if="ch.downloaded" style="font-size: 11px; color: #10b981; margin-right: 6px; font-weight: 600;">[已缓存]</span>
+                <a :href="ch.url" target="_blank" style="font-size: 11px; color: var(--primary); text-decoration: none;">源网</a>
+              </div>
             </div>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- 查看全部插图模态框 -->
+    <!-- 查看全部插图画廊 -->
     <div class="modal" v-if="showImagesModal">
-      <div class="modal-content" style="width: 800px; max-width: 95%;">
+      <div class="modal-content" style="width: 860px; max-width: 95%;">
         <div class="modal-header">
-          <h3>全书插图浏览 (共 {{ bookImages.length }} 张)</h3>
+          <h3 style="font-size: 16px;">全书插图画廊 ({{ bookImages.length }} 张)</h3>
           <button class="close-btn" @click="showImagesModal = false">×</button>
         </div>
-        <div class="modal-body" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; max-height: 500px; overflow-y: auto;">
-          <div v-if="bookImages.length === 0" style="grid-column: 1/-1; text-align: center; color: #888;">暂无已下载插图</div>
-          <div v-for="img in bookImages" :key="img.filename" style="border: 1px solid #eee; border-radius: 4px; overflow: hidden; text-align: center;">
-            <img :src="img.url" style="width: 100%; height: 160px; object-fit: cover;" />
-            <div style="font-size: 10px; padding: 4px; word-break: break-all; color: #666;">{{ img.filename }}</div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- 任务监控模态框 -->
-    <div class="modal" v-if="showTasks">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h3>后台任务管理器</h3>
-          <button class="close-btn" @click="toggleTasksModal">×</button>
-        </div>
-        <div class="modal-body">
-          <div v-if="tasks.length === 0" class="empty-state">暂无任务</div>
-          <div class="task-item" v-for="t in tasks" :key="t.task_id">
-            <div class="task-info">
-              <span class="task-title">[{{ t.action }}] {{ t.message }}</span>
-              <span class="task-progress">{{ t.progress }}%</span>
-            </div>
-            <div class="progress-bar">
-              <div class="bar" :style="{ width: t.progress + '%' }"></div>
-            </div>
-            <div class="task-footer">
-              <span class="task-status" :class="t.status">{{ t.status }}</span>
-              <span v-if="t.error" class="task-error" style="color: #cb2431;">{{ t.error }}</span>
-              <button v-if="t.status === 'running' || t.status === 'pending'" class="btn-danger-sm" @click="cancelTask(t.task_id)">终止</button>
-            </div>
+        <div class="modal-body" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 16px; padding: 20px; max-height: 540px; overflow-y: auto;">
+          <div v-if="bookImages.length === 0" style="grid-column: 1/-1; text-align: center; color: var(--text-muted); padding: 30px;">暂无已下载插图</div>
+          <div v-for="img in bookImages" :key="img.filename" style="border: 1px solid var(--border); border-radius: var(--radius-md); overflow: hidden; text-align: center; background: #fff; box-shadow: var(--shadow-sm);">
+            <img :src="img.url" style="width: 100%; height: 180px; object-fit: cover;" />
+            <div style="font-size: 11px; padding: 6px; word-break: break-all; color: var(--text-muted);">{{ img.filename }}</div>
           </div>
         </div>
       </div>
@@ -143,12 +163,12 @@
         const selectedVolumes = ref([]);
         const chapterSort = ref("default");
         const tasks = ref([]);
-        const showTasks = ref(false);
         const showImagesModal = ref(false);
         const bookImages = ref([]);
 
         const broRunning = ref(false);
         const broHeadless = ref(true);
+        const showIsland = ref(false);
 
         const loadCatalog = async () => {
           try {
@@ -175,19 +195,19 @@
 
         const fetchCatalog = async () => {
           await fetch(`/lkapi/book/${bookId}/detail`, { method: "POST" });
-          showTasks.value = true;
+          showIsland.value = true;
           loadStatus();
         };
 
         const crawlAll = async () => {
           await fetch(`/lkapi/book/${bookId}/crawl`, { method: "POST" });
-          showTasks.value = true;
+          showIsland.value = true;
           loadStatus();
         };
 
         const redownloadImages = async () => {
           await fetch(`/lkapi/book/${bookId}/redownload_images`, { method: "POST" });
-          showTasks.value = true;
+          showIsland.value = true;
           loadStatus();
         };
 
@@ -203,7 +223,7 @@
           const data = await res.json();
           if (data.status === "ok") {
             alert("EPUB 打包任务已创建！");
-            showTasks.value = true;
+            showIsland.value = true;
           }
         };
 
@@ -230,6 +250,25 @@
           } catch (e) {}
         };
 
+        const toggleIsland = () => {
+          showIsland.value = !showIsland.value;
+        };
+
+        const activeTask = computed(() => {
+          const active = tasks.value.filter(t => t.status === 'running' || t.status === 'pending');
+          return active.length > 0 ? active[active.length - 1] : null;
+        });
+
+        const islandMainText = computed(() => {
+          if (activeTask.value) {
+            return activeTask.value.message || "任务处理中...";
+          }
+          if (broRunning.value) {
+            return broHeadless.value ? "LKbro 就绪 (无头)" : "LKbro 就绪 (窗口)";
+          }
+          return "LKbro 待机";
+        });
+
         const startBrowser = async (headless) => {
           await fetch("/lkapi/browser", {
             method: "POST",
@@ -253,19 +292,11 @@
           loadStatus();
         };
 
-        const toggleTasksModal = () => {
-          showTasks.value = !showTasks.value;
-        };
-
-        const runningTasksCount = computed(() => {
-          return tasks.value.filter(t => t.status === 'running' || t.status === 'pending').length;
-        });
-
         onMounted(() => {
           loadCatalog();
           loadImages();
           loadStatus();
-          setInterval(loadStatus, 3000);
+          setInterval(loadStatus, 2000);
         });
 
         return {
@@ -275,11 +306,14 @@
           selectedVolumes,
           chapterSort,
           tasks,
-          showTasks,
           showImagesModal,
           bookImages,
           broRunning,
           broHeadless,
+          showIsland,
+          activeTask,
+          islandMainText,
+          toggleIsland,
           fetchCatalog,
           crawlAll,
           redownloadImages,
@@ -288,9 +322,7 @@
           readChapter,
           cancelTask,
           startBrowser,
-          closeBrowser,
-          toggleTasksModal,
-          runningTasksCount
+          closeBrowser
         };
       }
     }).mount("#app");

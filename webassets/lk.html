@@ -8,61 +8,130 @@
 </head>
 <body>
   <div id="app">
-    <!-- 顶部状态栏 -->
+    <!-- 顶部状态栏与灵动岛 -->
     <header class="top-bar">
       <div class="logo-title">
-        <h2>LK Reader & Spider</h2>
+        <h2>✨ LK Reader & Spider</h2>
       </div>
-      <div class="status-panel">
-        <span class="indicator" :class="{ active: broRunning }">
-          浏览器: {{ broRunning ? (broHeadless ? '运行中 (无头模式)' : '运行中 (界面模式)') : '已停止' }}
-        </span>
-        <button class="btn-sm" v-if="!broRunning" @click="startBrowser(true)">启动无头浏览器</button>
-        <button class="btn-sm" v-if="!broRunning" @click="startBrowser(false)">启动可见浏览器</button>
-        <button class="btn-danger-sm" v-if="broRunning" @click="closeBrowser">关闭浏览器</button>
-        
-        <button class="btn-sm" @click="toggleTasksModal">
-          任务列表 ({{ runningTasksCount }})
-        </button>
-        <button class="btn-sm" @click="openCustomUrlModal">爬取指定书架</button>
+
+      <!-- 灵动岛组件 (实时刷新与点击展开) -->
+      <div class="dynamic-island-wrapper">
+        <div class="dynamic-island" @click="toggleIsland">
+          <div class="island-status-dot" :class="{ active: broRunning }"></div>
+          <div class="island-content">
+            <span>{{ islandMainText }}</span>
+            <div class="island-mini-progress" v-if="activeTask">
+              <div class="island-mini-progress-bar" :style="{ width: activeTask.progress + '%' }"></div>
+            </div>
+            <span v-if="activeTask" style="font-size: 11px; opacity: 0.85;">{{ activeTask.progress }}%</span>
+          </div>
+        </div>
+
+        <!-- 灵动岛展开卡片 -->
+        <div class="island-expanded-card" v-if="showIsland">
+          <div class="island-header">
+            <div class="island-title">
+              <span>🖥️ 浏览器控制与任务调度</span>
+            </div>
+            <span style="font-size: 11px; color: #94a3b8;">{{ broRunning ? (broHeadless ? '无头运行中' : '界面模式') : '已休眠' }}</span>
+          </div>
+
+          <div class="island-actions">
+            <button class="island-btn island-btn-primary" v-if="!broRunning" @click="startBrowser(true)">启动无头</button>
+            <button class="island-btn island-btn-secondary" v-if="!broRunning" @click="startBrowser(false)">启动窗口</button>
+            <button class="island-btn island-btn-danger" v-if="broRunning" @click="closeBrowser">关闭浏览器</button>
+            <button class="island-btn island-btn-secondary" @click="openCustomUrlModal">爬取书架</button>
+          </div>
+
+          <div class="island-tasks-list">
+            <div v-if="tasks.length === 0" style="text-align: center; color: #94a3b8; padding: 12px 0; font-size: 12px;">
+              当前没有正在执行的任务
+            </div>
+            <div class="island-task-item" v-for="t in tasks" :key="t.task_id">
+              <div class="island-task-top">
+                <strong style="max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">[{{ t.action }}] {{ t.message }}</strong>
+                <span style="color: #38bdf8;">{{ t.progress }}%</span>
+              </div>
+              <div class="island-task-prog-bg">
+                <div class="island-task-prog-fill" :style="{ width: t.progress + '%' }"></div>
+              </div>
+              <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: #94a3b8;">
+                <span>状态: {{ t.status }}</span>
+                <button v-if="t.status === 'running' || t.status === 'pending'" class="btn-danger-sm" style="font-size: 10px; padding: 2px 6px;" @click="cancelTask(t.task_id)">终止</button>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </header>
 
     <div class="main-layout">
-      <!-- 侧边栏：筛选与排序 -->
+      <!-- 极度清晰分块的侧边栏 -->
       <aside class="sidebar">
-        <h3>书籍视图</h3>
-        <div class="filter-group">
-          <label><input type="radio" value="all" v-model="viewMode"> 线上书架与全部</label>
-          <label><input type="radio" value="cached" v-model="viewMode"> 仅本地缓存书籍</label>
+        <div class="sidebar-section">
+          <div class="sidebar-section-title">视图范围</div>
+          <div class="sidebar-pill-group">
+            <div class="sidebar-pill-item" :class="{ active: viewMode === 'all' }" @click="viewMode = 'all'">
+              <span>全部书籍与书架</span>
+              <span class="badge">{{ bookshelfBooks.length }}</span>
+            </div>
+            <div class="sidebar-pill-item" :class="{ active: viewMode === 'cached' }" @click="viewMode = 'cached'">
+              <span>仅本地缓存库</span>
+              <span class="badge">{{ cachedBooks.length }}</span>
+            </div>
+          </div>
         </div>
 
-        <h3>分类与筛选</h3>
-        <div class="filter-group">
-          <label><input type="radio" value="all" v-model="filterStatus"> 全部状态</label>
-          <label><input type="radio" value="downloaded_all" v-model="filterStatus"> ✅ 已下载全部章节</label>
-          <label><input type="radio" value="downloading" v-model="filterStatus"> ⏳ 正在下载章节内容</label>
-          <label><input type="radio" value="has_catalog" v-model="filterStatus"> 📑 已下载章节列表</label>
-          <label><input type="radio" value="no_catalog" v-model="filterStatus"> ❓ 未下载章节列表</label>
+        <div class="sidebar-section">
+          <div class="sidebar-section-title">下载及目录状态</div>
+          <div class="sidebar-pill-group">
+            <div class="sidebar-pill-item" :class="{ active: filterStatus === 'all' }" @click="filterStatus = 'all'">
+              <span>全部书籍状态</span>
+            </div>
+            <div class="sidebar-pill-item" :class="{ active: filterStatus === 'downloaded_all' }" @click="filterStatus = 'downloaded_all'">
+              <span>✅ 已下载全部章节</span>
+            </div>
+            <div class="sidebar-pill-item" :class="{ active: filterStatus === 'downloading' }" @click="filterStatus = 'downloading'">
+              <span>⏳ 正在下载章节内容</span>
+            </div>
+            <div class="sidebar-pill-item" :class="{ active: filterStatus === 'has_catalog' }" @click="filterStatus = 'has_catalog'">
+              <span>📑 已获取章节列表</span>
+            </div>
+            <div class="sidebar-pill-item" :class="{ active: filterStatus === 'no_catalog' }" @click="filterStatus = 'no_catalog'">
+              <span>❓ 未获取章节列表</span>
+            </div>
+          </div>
         </div>
 
-        <h3>标记状态</h3>
-        <div class="filter-group">
-          <label><input type="radio" value="all" v-model="filterHeart"> 全部标记</label>
-          <label><input type="radio" value="red" v-model="filterHeart"> ❤️ 收藏 (小红心)</label>
-          <label><input type="radio" value="gray" v-model="filterHeart"> 🤍 普通 (灰心)</label>
-          <label><input type="radio" value="later" v-model="filterHeart"> ⏱️ 稍后再看</label>
+        <div class="sidebar-section">
+          <div class="sidebar-section-title">标记状态</div>
+          <div class="sidebar-pill-group">
+            <div class="sidebar-pill-item" :class="{ active: filterHeart === 'all' }" @click="filterHeart = 'all'">
+              <span>全部标记</span>
+            </div>
+            <div class="sidebar-pill-item" :class="{ active: filterHeart === 'red' }" @click="filterHeart = 'red'">
+              <span>❤️ 收藏 (小红心)</span>
+            </div>
+            <div class="sidebar-pill-item" :class="{ active: filterHeart === 'gray' }" @click="filterHeart = 'gray'">
+              <span>🤍 普通 (灰心)</span>
+            </div>
+            <div class="sidebar-pill-item" :class="{ active: filterHeart === 'later' }" @click="filterHeart = 'later'">
+              <span>⏱️ 稍后再看</span>
+            </div>
+          </div>
         </div>
 
-        <h3>排序方式</h3>
-        <select v-model="sortBy" class="sort-select">
-          <option value="time">按抓取/更新时间</option>
-          <option value="title">按书名首字母</option>
-          <option value="id">按 Book ID</option>
-        </select>
+        <div class="sidebar-section">
+          <div class="sidebar-section-title">排序方式</div>
+          <select v-model="sortBy" class="sidebar-select">
+            <option value="time">按抓取/更新时间</option>
+            <option value="title">按书名字母排序</option>
+            <option value="id">按 Book ID 降序</option>
+          </select>
+        </div>
 
-        <div style="margin-top: 20px;">
-          <button class="btn-sm" style="width: 100%;" @click="refreshAllData">刷新数据</button>
+        <div style="margin-top: auto;">
+          <button class="btn-sm" style="width: 100%;" @click="refreshAllData">🔄 刷新数据</button>
         </div>
       </aside>
 
@@ -78,10 +147,8 @@
               <h4 class="book-title" :title="book.title" @click="openBook(book.book_id)">{{ book.title }}</h4>
               <div class="book-meta">
                 <span>ID: {{ book.book_id }}</span>
-                <span class="actions">
-                  <span class="heart-btn" @click="toggleHeart(book)">
-                    {{ book.heart === 'red' ? '❤️' : (book.heart === 'later' ? '⏱️' : '🤍') }}
-                  </span>
+                <span class="heart-btn" @click.stop="toggleHeart(book)">
+                  {{ book.heart === 'red' ? '❤️' : (book.heart === 'later' ? '⏱️' : '🤍') }}
                 </span>
               </div>
               <div class="book-tags" v-if="book.tags">
@@ -97,47 +164,20 @@
     <div class="modal" v-if="showCustomUrlModal">
       <div class="modal-content">
         <div class="modal-header">
-          <h3>爬取指定书架网页</h3>
+          <h3 style="font-size: 16px;">爬取指定书架网页</h3>
           <button class="close-btn" @click="showCustomUrlModal = false">×</button>
         </div>
-        <div class="modal-body">
-          <div style="margin-bottom: 12px;">
-            <label style="display: block; margin-bottom: 4px; font-size: 13px;">网页地址 (URL):</label>
-            <input type="text" v-model="targetUrl" style="width: 100%; padding: 6px; border: 1px solid #ccc; border-radius: 4px;" />
+        <div style="padding: 20px;">
+          <div style="margin-bottom: 14px;">
+            <label style="display: block; margin-bottom: 6px; font-size: 13px; font-weight: 500;">网页地址 (URL):</label>
+            <input type="text" v-model="targetUrl" class="sidebar-select" />
           </div>
-          <div style="margin-bottom: 12px;">
-            <label style="display: block; margin-bottom: 4px; font-size: 13px;">最大往下翻页/滚动次数:</label>
-            <input type="number" v-model="maxScrolls" style="width: 100%; padding: 6px; border: 1px solid #ccc; border-radius: 4px;" />
+          <div style="margin-bottom: 18px;">
+            <label style="display: block; margin-bottom: 6px; font-size: 13px; font-weight: 500;">向下滚动加载次数:</label>
+            <input type="number" v-model="maxScrolls" class="sidebar-select" />
           </div>
           <div style="text-align: right;">
             <button class="btn-sm" @click="executeFetchCustomBookshelf">开始抓取</button>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- 任务监控模态框 -->
-    <div class="modal" v-if="showTasks">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h3>后台任务管理器</h3>
-          <button class="close-btn" @click="toggleTasksModal">×</button>
-        </div>
-        <div class="modal-body">
-          <div v-if="tasks.length === 0" class="empty-state">暂无任务</div>
-          <div class="task-item" v-for="t in tasks" :key="t.task_id">
-            <div class="task-info">
-              <span class="task-title">[{{ t.action }}] {{ t.message }}</span>
-              <span class="task-progress">{{ t.progress }}%</span>
-            </div>
-            <div class="progress-bar">
-              <div class="bar" :style="{ width: t.progress + '%' }"></div>
-            </div>
-            <div class="task-footer">
-              <span class="task-status" :class="t.status">{{ t.status }}</span>
-              <span v-if="t.error" class="task-error" style="color: #cb2431;">{{ t.error }}</span>
-              <button v-if="t.status === 'running' || t.status === 'pending'" class="btn-danger-sm" @click="cancelTask(t.task_id)">终止</button>
-            </div>
           </div>
         </div>
       </div>
