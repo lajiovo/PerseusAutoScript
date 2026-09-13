@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>书籍详情与章节管理</title>
+  <link rel="stylesheet" href="/main/lk.css">
+</head>
+<body>
+  <div id="app" class="detail-container">
+    <header class="top-bar">
+      <div class="logo-title">
+        <a href="/main/lk.html" class="back-btn" style="text-decoration: none; margin-right: 12px; color: #0366d6;">⬅ 返回书架</a>
+        <h2>{{ bookMeta.title || ('Book ' + bookId) }}</h2>
+      </div>
+      <div class="status-panel">
+        <span class="indicator" :class="{ active: broRunning }">
+          浏览器: {{ broRunning ? (broHeadless ? '运行中 (无头)' : '运行中 (界面)') : '已停止' }}
+        </span>
+        <button class="btn-sm" v-if="!broRunning" @click="startBrowser(true)">启动无头浏览器</button>
+        <button class="btn-sm" v-if="!broRunning" @click="startBrowser(false)">启动界面浏览器</button>
+        <button class="btn-danger-sm" v-if="broRunning" @click="closeBrowser">关闭浏览器</button>
+
+        <button class="btn-sm" @click="fetchCatalog">去爬取/刷新章节列表</button>
+        <button class="btn-sm primary" @click="crawlAll">爬取全部章节内容</button>
+        <button class="btn-sm" @click="redownloadImages">重新下载插图</button>
+        <button class="btn-sm" @click="showImagesModal = true">查看全部插图</button>
+        <button class="btn-sm" @click="toggleTasksModal">任务列表 ({{ runningTasksCount }})</button>
+      </div>
+    </header>
+
+    <div class="book-detail-main" style="padding: 20px;">
+      <div class="meta-card" style="display: flex; gap: 20px; background: #fff; padding: 20px; border-radius: 6px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+        <img :src="bookMeta.cover_url || '/main/default_cover.png'" style="width: 150px; height: 210px; object-fit: cover; border-radius: 4px;" />
+        <div style="flex: 1;">
+          <h2>{{ bookMeta.title }}</h2>
+          <p style="margin: 8px 0; color: #555;">作者: <strong>{{ bookMeta.author }}</strong></p>
+          <p style="margin: 8px 0; color: #666;">Book ID: {{ bookId }}</p>
+          <p style="margin: 8px 0; color: #888;">最近更新/抓取时间: {{ bookMeta.updated_at || '未抓取' }}</p>
+          <div style="margin-top: 15px; display: flex; gap: 10px;">
+            <button class="btn-sm" @click="makeEpub">打包选中分卷为 EPUB</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="catalog-section" style="background: #fff; padding: 20px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+          <h3>章节目录</h3>
+          <div style="display: flex; gap: 10px; align-items: center;">
+            <label style="font-size: 13px;">排序：</label>
+            <select v-model="chapterSort" class="sort-select" style="width: 140px;">
+              <option value="default">正序排列</option>
+              <option value="reverse">倒序排列</option>
+            </select>
+          </div>
+        </div>
+
+        <div v-if="volumes.length === 0" style="padding: 20px; text-align: center; color: #888;">
+          暂无章节列表，请点击顶部【去爬取/刷新章节列表】进行抓取
+        </div>
+
+        <div v-for="(vol, vIdx) in volumes" :key="vIdx" style="margin-bottom: 24px; border-bottom: 1px dashed #eee; padding-bottom: 16px;">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <input type="checkbox" :value="vol.vol_title" v-model="selectedVolumes" />
+              <h4 style="color: #0366d6;">{{ vol.vol_title }} ({{ vol.chapters.length }} 章)</h4>
+            </div>
+            <span style="font-size: 12px; color: #888;">
+              {{ vol.fetched ? '已获取全部章节' : '未完整获取' }}
+            </span>
+          </div>
+          <div class="chapters-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px;">
+            <div v-for="(ch, cIdx) in sortedChapters(vol.chapters)" :key="cIdx" style="font-size: 13px; border: 1px solid #eee; padding: 8px 12px; border-radius: 4px; display: flex; justify-content: space-between; align-items: center;">
+              <span class="ch-title" style="cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 160px; font-weight: 500;" @click="readChapter(vol.vol_title, ch.title)" :title="ch.title">
+                {{ ch.title }}
+              </span>
+              <span v-if="ch.downloaded" style="font-size: 11px; color: #28a745; margin-right: 4px;">[已下]</span>
+              <a :href="ch.url" target="_blank" style="font-size: 11px; color: #0366d6; text-decoration: none;">源链接</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 查看全部插图模态框 -->
+    <div class="modal" v-if="showImagesModal">
+      <div class="modal-content" style="width: 800px; max-width: 95%;">
+        <div class="modal-header">
+          <h3>全书插图浏览 (共 {{ bookImages.length }} 张)</h3>
+          <button class="close-btn" @click="showImagesModal = false">×</button>
+        </div>
+        <div class="modal-body" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; max-height: 500px; overflow-y: auto;">
+          <div v-if="bookImages.length === 0" style="grid-column: 1/-1; text-align: center; color: #888;">暂无已下载插图</div>
+          <div v-for="img in bookImages" :key="img.filename" style="border: 1px solid #eee; border-radius: 4px; overflow: hidden; text-align: center;">
+            <img :src="img.url" style="width: 100%; height: 160px; object-fit: cover;" />
+            <div style="font-size: 10px; padding: 4px; word-break: break-all; color: #666;">{{ img.filename }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 任务监控模态框 -->
+    <div class="modal" v-if="showTasks">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>后台任务管理器</h3>
+          <button class="close-btn" @click="toggleTasksModal">×</button>
+        </div>
+        <div class="modal-body">
+          <div v-if="tasks.length === 0" class="empty-state">暂无任务</div>
+          <div class="task-item" v-for="t in tasks" :key="t.task_id">
+            <div class="task-info">
+              <span class="task-title">[{{ t.action }}] {{ t.message }}</span>
+              <span class="task-progress">{{ t.progress }}%</span>
+            </div>
+            <div class="progress-bar">
+              <div class="bar" :style="{ width: t.progress + '%' }"></div>
+            </div>
+            <div class="task-footer">
+              <span class="task-status" :class="t.status">{{ t.status }}</span>
+              <span v-if="t.error" class="task-error" style="color: #cb2431;">{{ t.error }}</span>
+              <button v-if="t.status === 'running' || t.status === 'pending'" class="btn-danger-sm" @click="cancelTask(t.task_id)">终止</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <script>
+    const { createApp, ref, computed, onMounted } = Vue;
+    createApp({
+      setup() {
+        const urlParams = new URLSearchParams(window.location.search);
+        let pathParts = window.location.pathname.split('/');
+        let lastPart = pathParts[pathParts.length - 1];
+        let idFromPath = (!lastPart.includes('.') && lastPart !== '') ? lastPart : null;
+        const bookId = urlParams.get("id") || idFromPath;
+
+        const bookMeta = ref({});
+        const volumes = ref([]);
+        const selectedVolumes = ref([]);
+        const chapterSort = ref("default");
+        const tasks = ref([]);
+        const showTasks = ref(false);
+        const showImagesModal = ref(false);
+        const bookImages = ref([]);
+
+        const broRunning = ref(false);
+        const broHeadless = ref(true);
+
+        const loadCatalog = async () => {
+          try {
+            const res = await fetch(`/lkapi/book/${bookId}/catalog`);
+            const data = await res.json();
+            if (data.status === "ok") {
+              volumes.value = data.catalog.volumes || [];
+              selectedVolumes.value = volumes.value.map(v => v.vol_title);
+            }
+          } catch (e) {
+            console.error("加载目录失败", e);
+          }
+        };
+
+        const loadImages = async () => {
+          try {
+            const res = await fetch(`/lkapi/book/${bookId}/images`);
+            const data = await res.json();
+            if (data.status === "ok") {
+              bookImages.value = data.images || [];
+            }
+          } catch (e) {}
+        };
+
+        const fetchCatalog = async () => {
+          await fetch(`/lkapi/book/${bookId}/detail`, { method: "POST" });
+          showTasks.value = true;
+          loadStatus();
+        };
+
+        const crawlAll = async () => {
+          await fetch(`/lkapi/book/${bookId}/crawl`, { method: "POST" });
+          showTasks.value = true;
+          loadStatus();
+        };
+
+        const redownloadImages = async () => {
+          await fetch(`/lkapi/book/${bookId}/redownload_images`, { method: "POST" });
+          showTasks.value = true;
+          loadStatus();
+        };
+
+        const makeEpub = async () => {
+          const res = await fetch(`/lkapi/book/${bookId}/epub`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              selected_volumes: selectedVolumes.value,
+              chapter_sort: chapterSort.value
+            })
+          });
+          const data = await res.json();
+          if (data.status === "ok") {
+            alert("EPUB 打包任务已创建！");
+            showTasks.value = true;
+          }
+        };
+
+        const sortedChapters = (chapters) => {
+          if (chapterSort.value === "reverse") {
+            return [...chapters].reverse();
+          }
+          return chapters;
+        };
+
+        const readChapter = (volTitle, chTitle) => {
+          window.location.href = `/main/reader.html?id=${bookId}&vol=${encodeURIComponent(volTitle)}&ch=${encodeURIComponent(chTitle)}`;
+        };
+
+        const loadStatus = async () => {
+          try {
+            const res = await fetch("/lkapi/status");
+            const data = await res.json();
+            if (data.status === "ok") {
+              tasks.value = data.tasks;
+              broRunning.value = data.browser.running;
+              broHeadless.value = data.browser.headless;
+            }
+          } catch (e) {}
+        };
+
+        const startBrowser = async (headless) => {
+          await fetch("/lkapi/browser", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "start", headless: headless })
+          });
+          loadStatus();
+        };
+
+        const closeBrowser = async () => {
+          await fetch("/lkapi/browser", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "close" })
+          });
+          loadStatus();
+        };
+
+        const cancelTask = async (taskId) => {
+          await fetch(`/lkapi/tasks/${taskId}/cancel`, { method: "POST" });
+          loadStatus();
+        };
+
+        const toggleTasksModal = () => {
+          showTasks.value = !showTasks.value;
+        };
+
+        const runningTasksCount = computed(() => {
+          return tasks.value.filter(t => t.status === 'running' || t.status === 'pending').length;
+        });
+
+        onMounted(() => {
+          loadCatalog();
+          loadImages();
+          loadStatus();
+          setInterval(loadStatus, 3000);
+        });
+
+        return {
+          bookId,
+          bookMeta,
+          volumes,
+          selectedVolumes,
+          chapterSort,
+          tasks,
+          showTasks,
+          showImagesModal,
+          bookImages,
+          broRunning,
+          broHeadless,
+          fetchCatalog,
+          crawlAll,
+          redownloadImages,
+          makeEpub,
+          sortedChapters,
+          readChapter,
+          cancelTask,
+          startBrowser,
+          closeBrowser,
+          toggleTasksModal,
+          runningTasksCount
+        };
+      }
+    }).mount("#app");
+  </script>
+</body>
+</html>

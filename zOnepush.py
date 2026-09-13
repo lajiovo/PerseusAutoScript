@@ -24,7 +24,9 @@ import asyncio
 import zCpolar
 from zLK import crawl_lightnovel_to_epub
 from zConfig import get_config
+from zLKserver import lk_bp
 app = Flask(__name__)
+app.register_blueprint(lk_bp)
 
 # 监听端口
 LISTEN_PORT = get_config("pushserver.listen_port", default=25566)
@@ -1168,6 +1170,12 @@ def handle_run():
     PerseusNotifyMsg(str(run_result),"")
     return format_response(run_result, 200)
 
+
+@app.route("/servercache/<path:filepath>", methods=["GET"])
+def serve_servercache(filepath):
+    """直接提供 servercache 下文件静态访问"""
+    cache_base = os.path.join(BASE_DIR, "servercache")
+    return send_from_directory(cache_base, filepath)
 
 # 1. 路由添加 default 参数，并同时匹配 /main/ 与 /main/<filename>
 @app.route("/main/", defaults={"filename": ""}, methods=["GET"])

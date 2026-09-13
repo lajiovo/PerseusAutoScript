@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>章节阅读</title>
+  <link rel="stylesheet" href="/main/lk.css">
+</head>
+<body>
+  <div id="app" style="max-width: 800px; margin: 0 auto; padding: 20px;">
+    <header class="top-bar" style="margin-bottom: 20px; border-radius: 6px;">
+      <a :href="`/main/book.html?id=${bookId}`" class="btn-sm" style="text-decoration: none; color: #fff;">⬅ 返回书籍详情</a>
+      <h2 style="font-size: 18px;">{{ chapterTitle }}</h2>
+      <div class="status-panel">
+        <span class="indicator" :class="{ active: broRunning }">
+          浏览器: {{ broRunning ? '运行中' : '未运行' }}
+        </span>
+        <button class="btn-sm" @click="toggleTasksModal">任务 ({{ runningTasksCount }})</button>
+      </div>
+    </header>
+
+    <div class="reader-content" style="background: #fff; padding: 40px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); line-height: 1.8;">
+      <div v-if="loading" style="text-align: center; color: #888;">正在加载章节段落与插图...</div>
+      <div v-else-if="paragraphs.length === 0" style="text-align: center; color: #888;">
+        暂未爬取该章节内容，请在书籍页面点击爬取。
+      </div>
+      <div v-else>
+        <div v-for="(item, idx) in paragraphs" :key="idx" style="margin-bottom: 16px;">
+          <p v-if="item.type === 'text'" style="text-indent: 2em; font-size: 16px;">{{ item.content }}</p>
+          <div v-if="item.type === 'image'" style="text-align: center; margin: 20px 0;">
+            <img :src="`/servercache/lk/books/${bookId}/images_mapped/${item.file}`" style="max-width: 100%; height: auto; border-radius: 4px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);" />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 任务监控模态框 -->
+    <div class="modal" v-if="showTasks">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>后台任务管理器</h3>
+          <button class="close-btn" @click="toggleTasksModal">×</button>
+        </div>
+        <div class="modal-body">
+          <div v-if="tasks.length === 0" class="empty-state">暂无任务</div>
+          <div class="task-item" v-for="t in tasks" :key="t.task_id">
+            <div class="task-info">
+              <span class="task-title">[{{ t.action }}] {{ t.message }}</span>
+              <span class="task-progress">{{ t.progress }}%</span>
+            </div>
+            <div class="progress-bar">
+              <div class="bar" :style="{ width: t.progress + '%' }"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <script>
+    const { createApp, ref, computed, onMounted } = Vue;
+    createApp({
+      setup() {
+        const urlParams = new URLSearchParams(window.location.search);
+        let pathParts = window.location.pathname.split('/');
+        let lastPart = pathParts[pathParts.length - 1];
+        let idFromPath = (!lastPart.includes('.') && lastPart !== '') ? lastPart : null;
+
+        const bookId = urlParams.get("id") || idFromPath;
+        const volName = urlParams.get("vol");
+        const chapterTitle = urlParams.get("ch");
+
+        const paragraphs = ref([]);
+        const loading = ref(true);
+        const tasks = ref([]);
+        const showTasks = ref(false);
+        const broRunning = ref(false);
+
+        const loadChapter = async () => {
+          loading.value = true;
+          try {
+            const res = await fetch(`/lkapi/book/${bookId}/chapter_content?vol=${encodeURIComponent(volName)}&ch=${encodeURIComponent(chapterTitle)}`);
+            const data = await res.json();
+            if (data.status === "ok" && data.chapter) {
+              paragraphs.value = data.chapter.paragraphs || [];
+            }
+          } catch (e) {
+            console.error("加载章节失败", e);
+          } finally {
+            loading.value = false;
+          }
+        };
+
+        const loadStatus = async () => {
+          try {
+            const res = await fetch("/lkapi/status");
+            const data = await res.json();
+            if (data.status === "ok") {
+              tasks.value = data.tasks;
+              broRunning.value = data.browser.running;
+            }
+          } catch (e) {}
+        };
+
+        const toggleTasksModal = () => {
+          showTasks.value = !showTasks.value;
+        };
+
+        const runningTasksCount = computed(() => {
+          return tasks.value.filter(t => t.status === 'running' || t.status === 'pending').length;
+        });
+
+        onMounted(() => {
+          loadChapter();
+          loadStatus();
+          setInterval(loadStatus, 3000);
+        });
+
+        return {
+          bookId,
+          chapterTitle,
+          paragraphs,
+          loading,
+          tasks,
+          showTasks,
+          broRunning,
+          toggleTasksModal,
+          runningTasksCount
+        };
+      }
+    }).mount("#app");
+  </script>
+</body>
+</html>

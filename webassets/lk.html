@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LK 轻小说管理</title>
+  <link rel="stylesheet" href="/main/lk.css">
+</head>
+<body>
+  <div id="app">
+    <!-- 顶部状态栏 -->
+    <header class="top-bar">
+      <div class="logo-title">
+        <h2>LK Reader & Spider</h2>
+      </div>
+      <div class="status-panel">
+        <span class="indicator" :class="{ active: broRunning }">
+          浏览器: {{ broRunning ? (broHeadless ? '运行中 (无头模式)' : '运行中 (界面模式)') : '已停止' }}
+        </span>
+        <button class="btn-sm" v-if="!broRunning" @click="startBrowser(true)">启动无头浏览器</button>
+        <button class="btn-sm" v-if="!broRunning" @click="startBrowser(false)">启动可见浏览器</button>
+        <button class="btn-danger-sm" v-if="broRunning" @click="closeBrowser">关闭浏览器</button>
+        
+        <button class="btn-sm" @click="toggleTasksModal">
+          任务列表 ({{ runningTasksCount }})
+        </button>
+        <button class="btn-sm" @click="openCustomUrlModal">爬取指定书架</button>
+      </div>
+    </header>
+
+    <div class="main-layout">
+      <!-- 侧边栏：筛选与排序 -->
+      <aside class="sidebar">
+        <h3>书籍视图</h3>
+        <div class="filter-group">
+          <label><input type="radio" value="all" v-model="viewMode"> 线上书架与全部</label>
+          <label><input type="radio" value="cached" v-model="viewMode"> 仅本地缓存书籍</label>
+        </div>
+
+        <h3>分类与筛选</h3>
+        <div class="filter-group">
+          <label><input type="radio" value="all" v-model="filterStatus"> 全部状态</label>
+          <label><input type="radio" value="downloaded_all" v-model="filterStatus"> ✅ 已下载全部章节</label>
+          <label><input type="radio" value="downloading" v-model="filterStatus"> ⏳ 正在下载章节内容</label>
+          <label><input type="radio" value="has_catalog" v-model="filterStatus"> 📑 已下载章节列表</label>
+          <label><input type="radio" value="no_catalog" v-model="filterStatus"> ❓ 未下载章节列表</label>
+        </div>
+
+        <h3>标记状态</h3>
+        <div class="filter-group">
+          <label><input type="radio" value="all" v-model="filterHeart"> 全部标记</label>
+          <label><input type="radio" value="red" v-model="filterHeart"> ❤️ 收藏 (小红心)</label>
+          <label><input type="radio" value="gray" v-model="filterHeart"> 🤍 普通 (灰心)</label>
+          <label><input type="radio" value="later" v-model="filterHeart"> ⏱️ 稍后再看</label>
+        </div>
+
+        <h3>排序方式</h3>
+        <select v-model="sortBy" class="sort-select">
+          <option value="time">按抓取/更新时间</option>
+          <option value="title">按书名首字母</option>
+          <option value="id">按 Book ID</option>
+        </select>
+
+        <div style="margin-top: 20px;">
+          <button class="btn-sm" style="width: 100%;" @click="refreshAllData">刷新数据</button>
+        </div>
+      </aside>
+
+      <!-- 主内容区：书架网格 -->
+      <main class="content">
+        <div class="books-grid">
+          <div class="book-card" v-for="book in filteredBooks" :key="book.book_id">
+            <div class="cover-wrapper" @click="openBook(book.book_id)">
+              <img :src="book.cover_url || '/main/default_cover.png'" alt="封面" loading="lazy">
+              <span class="status-badge" :class="book.download_status">{{ getBookBadge(book) }}</span>
+            </div>
+            <div class="book-info">
+              <h4 class="book-title" :title="book.title" @click="openBook(book.book_id)">{{ book.title }}</h4>
+              <div class="book-meta">
+                <span>ID: {{ book.book_id }}</span>
+                <span class="actions">
+                  <span class="heart-btn" @click="toggleHeart(book)">
+                    {{ book.heart === 'red' ? '❤️' : (book.heart === 'later' ? '⏱️' : '🤍') }}
+                  </span>
+                </span>
+              </div>
+              <div class="book-tags" v-if="book.tags">
+                <span class="tag" v-for="t in book.tags">{{ t }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <!-- 自定义书架网址输入模态框 -->
+    <div class="modal" v-if="showCustomUrlModal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>爬取指定书架网页</h3>
+          <button class="close-btn" @click="showCustomUrlModal = false">×</button>
+        </div>
+        <div class="modal-body">
+          <div style="margin-bottom: 12px;">
+            <label style="display: block; margin-bottom: 4px; font-size: 13px;">网页地址 (URL):</label>
+            <input type="text" v-model="targetUrl" style="width: 100%; padding: 6px; border: 1px solid #ccc; border-radius: 4px;" />
+          </div>
+          <div style="margin-bottom: 12px;">
+            <label style="display: block; margin-bottom: 4px; font-size: 13px;">最大往下翻页/滚动次数:</label>
+            <input type="number" v-model="maxScrolls" style="width: 100%; padding: 6px; border: 1px solid #ccc; border-radius: 4px;" />
+          </div>
+          <div style="text-align: right;">
+            <button class="btn-sm" @click="executeFetchCustomBookshelf">开始抓取</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 任务监控模态框 -->
+    <div class="modal" v-if="showTasks">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>后台任务管理器</h3>
+          <button class="close-btn" @click="toggleTasksModal">×</button>
+        </div>
+        <div class="modal-body">
+          <div v-if="tasks.length === 0" class="empty-state">暂无任务</div>
+          <div class="task-item" v-for="t in tasks" :key="t.task_id">
+            <div class="task-info">
+              <span class="task-title">[{{ t.action }}] {{ t.message }}</span>
+              <span class="task-progress">{{ t.progress }}%</span>
+            </div>
+            <div class="progress-bar">
+              <div class="bar" :style="{ width: t.progress + '%' }"></div>
+            </div>
+            <div class="task-footer">
+              <span class="task-status" :class="t.status">{{ t.status }}</span>
+              <span v-if="t.error" class="task-error" style="color: #cb2431;">{{ t.error }}</span>
+              <button v-if="t.status === 'running' || t.status === 'pending'" class="btn-danger-sm" @click="cancelTask(t.task_id)">终止</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <script src="/main/lk.js"></script>
+</body>
+</html>
