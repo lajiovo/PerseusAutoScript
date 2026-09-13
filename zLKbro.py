@@ -157,19 +157,19 @@ class LKbro:
     def is_running(self):
         return self._running
 
-    async def scroll_and_collect_bookshelf(self, target_url="https://www.lightnovel.fun/category/lightnovel", max_scrolls=30, progress_callback=None):
+    async def scroll_and_collect_bookshelf(self, target_url="https://www.lightnovel.fun/category/lightnovel", max_scrolls=50, progress_callback=None):
+        """向下滚动书架，检测到新的书籍元素加入，继续下滑，直到无新书籍或达到最大上限"""
         await self.start()
         books_shelf_dir = os.path.join(self.server_cache_dir, "bookshelf")
         os.makedirs(books_shelf_dir, exist_ok=True)
 
         if progress_callback:
-            progress_callback(0, f"正在打开书架页面: {target_url}")
+            progress_callback(0, f"正在访问书架页面: {target_url}")
 
         await self.page.goto(target_url, wait_until="domcontentloaded", timeout=60000)
         await self.page.wait_for_timeout(2000)
 
         collected_books = {}
-        # 尝试从本地加载已有书架缓存
         shelf_json_path = os.path.join(books_shelf_dir, "bookshelf.json")
         if os.path.exists(shelf_json_path):
             try:
@@ -180,37 +180,96 @@ class LKbro:
             except Exception:
                 pass
 
-        last_height = await self.page.evaluate("document.body.scrollHeight")
+        consecutive_no_new = 0
+        current_scroll = 0
 
-        for i in range(max_scrolls):
+        while current_scroll < max_scrolls:
             if not self._running:
                 break
             
+            current_scroll += 1
             html_content = await self.page.content()
             books = self._parse_bookshelf_html(html_content)
+
+            new_found_this_turn = 0
             for b in books:
                 if b["book_id"] not in collected_books:
                     collected_books[b["book_id"]] = b
+                    new_found_this_turn += 1
 
             if progress_callback:
-                progress_callback(int((i + 1) / max_scrolls * 100), f"滚动书架第 {i+1} 次，已发现 {len(collected_books)} 本书")
+                progress_callback(
+                    int((current_scroll / max_scrolls) * 100),
+                    f"第 {current_scroll} 次下滑，本轮新增 {new_found_this_turn} 本，总计 {len(collected_books)} 本"
+                )
 
+            # 如果检测到新加入元素，重置无新元素计数器
+            if new_found_this_turn > 0:
+                consecutive_no_new = 0
+            else:
+                consecutive_no_new += 1
+
+            # 连续 3 次下滑均无任何新书籍加入，说明已到达底部
+            if consecutive_no_new >= 3:
+                break
+
+            # 往下滚动
             await self.page.evaluate("window.scrollTo(0, document.body.scrollHeight);")
             await self.page.wait_for_timeout(2000)
 
-            new_height = await self.page.evaluate("document.body.scrollHeight")
-            if new_height == last_height:
-                await self.page.wait_for_timeout(1500)
-                new_height = await self.page.evaluate("document.body.scrollHeight")
-                if new_height == last_height:
-                    break
-            last_height = new_height
+            # 每获取一轮就增量写盘，保证数据不丢
+            with open(shelf_json_path, "w", encoding="utf-8") as f:
+                json.dump(list(collected_books.values()), f, ensure_ascii=False, indent=2)
 
         bookshelf_list = list(collected_books.values())
         with open(shelf_json_path, "w", encoding="utf-8") as f:
             json.dump(bookshelf_list, f, ensure_ascii=False, indent=2)
 
         return bookshelf_list
+
+    async def collect_current_page(self, progress_callback=None):
+        """窗口模式/已有页面下：直接抓取当前页面中显示的内容（支持书架或书籍详情）"""
+        if not self._running or not self.page:
+            await self.start()
+
+        if progress_callback:
+            progress_callback(10, "正在读取浏览器当前活动页面...")
+
+        current_url = self.page.url
+        html_content = await self.page.content()
+
+        # 1. 若当前是书架/列表类页面
+        books = self._parse_bookshelf_html(html_content)
+        if books:
+            books_shelf_dir = os.path.join(self.server_cache_dir, "bookshelf")
+            os.makedirs(books_shelf_dir, exist_ok=True)
+            shelf_json_path = os.path.join(books_shelf_dir, "bookshelf.json")
+            collected_books = {}
+            if os.path.exists(shelf_json_path):
+                try:
+                    with open(shelf_json_path, "r", encoding="utf-8") as f:
+                        for item in json.load(f):
+                            collected_books[item["book_id"]] = item
+                except Exception:
+                    pass
+            for b in books:
+                collected_books[b["book_id"]] = b
+            with open(shelf_json_path, "w", encoding="utf-8") as f:
+                json.dump(list(collected_books.values()), f, ensure_ascii=False, indent=2)
+            if progress_callback:
+                progress_callback(100, f"已从当前页提取 {len(books)} 本书架书籍")
+            return {"type": "bookshelf", "count": len(books), "url": current_url}
+
+        # 2. 若当前是具体某一本书籍详情页 /book/xxx
+        match = re.search(r'/book/(\d+)', current_url)
+        if match:
+            book_id = match.group(1)
+            if progress_callback:
+                progress_callback(50, f"识别到书籍详情页 ID: {book_id}，正在解析详情...")
+            meta, cat = await self.get_book_detail_and_catalog(book_id, progress_callback)
+            return {"type": "book", "book_id": book_id, "meta": meta, "catalog": cat, "url": current_url}
+
+        return {"type": "unknown", "message": "当前页面未能匹配到书籍或书架结构", "url": current_url}
 
     def _parse_bookshelf_html(self, html_content):
         books = []
@@ -366,7 +425,6 @@ class LKbro:
         img_dir = os.path.join(book_dir, "images_mapped")
         os.makedirs(img_dir, exist_ok=True)
 
-        # 下载封面并保存到对应文件夹，生成映射文件
         mapping_file_path = os.path.join(book_dir, "image_address_mapping.json")
         image_mapping_records = {}
         if os.path.exists(mapping_file_path):
@@ -408,7 +466,6 @@ class LKbro:
             json.dump(metadata, f, ensure_ascii=False, indent=2)
 
         catalog_path = os.path.join(book_dir, "catalog.json")
-        # 兼容保留现有自定义排序及已下载状态
         existing_catalog = {}
         if os.path.exists(catalog_path):
             try:

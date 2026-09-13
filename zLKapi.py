@@ -9,12 +9,10 @@ from zLKepub import generate_epub_for_book
 
 class LKApiManager:
     def __init__(self):
-        # 建立专用的常驻后台事件循环线程，所有 Playwright 操作在此独立线程中执行
         self.loop = asyncio.new_event_loop()
         self._thread = threading.Thread(target=self._start_loop, daemon=True)
         self._thread.start()
 
-        # 在专属事件循环内初始化 LKbro
         future = asyncio.run_coroutine_threadsafe(self._async_init(), self.loop)
         future.result()
 
@@ -34,7 +32,6 @@ class LKApiManager:
         }
 
     def set_browser_state_sync(self, action: str, headless: bool = None):
-        """同步包装器：在专属后台事件循环中安全执行浏览器状态切换"""
         future = asyncio.run_coroutine_threadsafe(self.set_browser_state(action, headless), self.loop)
         return future.result()
 
@@ -64,7 +61,6 @@ class LKApiManager:
         return False
 
     def add_task_sync(self, action, kwargs):
-        """同步包装器：向专属事件循环提交异步任务"""
         future = asyncio.run_coroutine_threadsafe(self.add_task(action, kwargs), self.loop)
         return future.result()
 
@@ -97,9 +93,12 @@ class LKApiManager:
         try:
             if action == "bookshelf":
                 url = kwargs.get("url", "https://www.lightnovel.fun/category/lightnovel")
-                max_scrolls = kwargs.get("max_scrolls", 20)
+                max_scrolls = kwargs.get("max_scrolls", 50)
                 res = await self.bro.scroll_and_collect_bookshelf(target_url=url, max_scrolls=max_scrolls, progress_callback=progress_cb)
                 task["result"] = f"成功抓取书架书籍 {len(res)} 本"
+            elif action == "collect_current_page":
+                res = await self.bro.collect_current_page(progress_callback=progress_cb)
+                task["result"] = res
             elif action == "book_detail":
                 book_id = kwargs.get("book_id")
                 metadata, catalog = await self.bro.get_book_detail_and_catalog(book_id, progress_callback=progress_cb)

@@ -24,7 +24,6 @@ def manage_browser():
         else:
             headless = bool(headless)
 
-    # 跨线程提交至常驻事件循环，杜绝 RuntimeError: is bound to a different event loop
     status = lk_api.set_browser_state_sync(action, headless)
     return jsonify({"status": "ok", "browser": status})
 
@@ -53,10 +52,16 @@ def cancel_task(task_id):
 def bookshelf_action():
     data = request.get_json(silent=True) or request.form.to_dict() or request.args.to_dict()
     url = data.get("url", "https://www.lightnovel.fun/category/lightnovel")
-    max_scrolls = int(data.get("max_scrolls", 20))
+    max_scrolls = int(data.get("max_scrolls", 50))
     
     task_id = lk_api.add_task_sync("bookshelf", {"url": url, "max_scrolls": max_scrolls})
-    return jsonify({"status": "ok", "task_id": task_id, "message": "书架抓取任务已创建"})
+    return jsonify({"status": "ok", "task_id": task_id, "message": "书架滚动抓取任务已创建"})
+
+@lk_bp.route("/collect_current_page", methods=["POST", "GET"])
+def collect_current_page_action():
+    """窗口模式下爬取当前页面接口"""
+    task_id = lk_api.add_task_sync("collect_current_page", {})
+    return jsonify({"status": "ok", "task_id": task_id, "message": "爬取当前页面任务已创建"})
 
 @lk_bp.route("/book/<book_id>/detail", methods=["GET", "POST"])
 def get_book_detail(book_id):
@@ -170,21 +175,6 @@ def get_book_catalog(book_id):
         with open(cat_path, "r", encoding="utf-8") as f:
             return jsonify({"status": "ok", "catalog": json.load(f)})
     return jsonify({"status": "error", "message": "目录不存在，请先获取书籍详情"}), 404
-
-@lk_bp.route("/book/<book_id>/custom_sort", methods=["POST"])
-def save_custom_sort(book_id):
-    data = request.get_json(silent=True) or {}
-    custom_sort = data.get("custom_sort", [])
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    cat_path = os.path.join(current_dir, "servercache", "lk", "books", str(book_id), "catalog.json")
-    if os.path.exists(cat_path):
-        with open(cat_path, "r", encoding="utf-8") as f:
-            cat = json.load(f)
-        cat["custom_sort"] = custom_sort
-        with open(cat_path, "w", encoding="utf-8") as f:
-            json.dump(cat, f, ensure_ascii=False, indent=2)
-        return jsonify({"status": "ok", "message": "自定义排序已保存"})
-    return jsonify({"status": "error", "message": "目录文件不存在"}), 404
 
 @lk_bp.route("/book/<book_id>/images", methods=["GET"])
 def get_book_images(book_id):

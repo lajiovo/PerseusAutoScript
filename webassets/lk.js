@@ -8,8 +8,12 @@ createApp({
     const broRunning = ref(false);
     const broHeadless = ref(true);
 
-    // 灵动岛展开控制
+    // 灵动岛与侧边栏折叠控制
     const showIsland = ref(false);
+    const sidebarCollapsed = ref(false);
+
+    // 视图模式：'grid' (大图网格/打竖) 或 'list' (列表小图/打横)
+    const layoutMode = ref("grid");
 
     const viewMode = ref("all"); // 'all' or 'cached'
     const filterStatus = ref("all");
@@ -18,7 +22,7 @@ createApp({
 
     const showCustomUrlModal = ref(false);
     const targetUrl = ref("https://www.lightnovel.fun/category/lightnovel");
-    const maxScrolls = ref(20);
+    const maxScrolls = ref(50);
 
     let timer = null;
 
@@ -63,13 +67,15 @@ createApp({
           broHeadless.value = data.browser.headless;
           tasks.value = data.tasks;
         }
-      } catch (e) {
-        console.error("加载状态失败", e);
-      }
+      } catch (e) {}
     };
 
     const toggleIsland = () => {
       showIsland.value = !showIsland.value;
+    };
+
+    const toggleSidebar = () => {
+      sidebarCollapsed.value = !sidebarCollapsed.value;
     };
 
     const activeTask = computed(() => {
@@ -84,7 +90,7 @@ createApp({
       if (broRunning.value) {
         return broHeadless.value ? "LKbro 就绪 (无头)" : "LKbro 就绪 (窗口)";
       }
-      return "LKbro 待机中";
+      return "LKbro 待机";
     });
 
     const startBrowser = async (headless) => {
@@ -136,13 +142,24 @@ createApp({
       }
     };
 
+    const collectCurrentPage = async () => {
+      try {
+        const res = await fetch("/lkapi/collect_current_page", { method: "POST" });
+        const data = await res.json();
+        if (data.status === "ok") {
+          showIsland.value = true;
+          loadStatus();
+        }
+      } catch (e) {
+        alert("爬取当前页请求失败: " + e);
+      }
+    };
+
     const cancelTask = async (taskId) => {
       try {
         await fetch(`/lkapi/tasks/${taskId}/cancel`, { method: "POST" });
         loadStatus();
-      } catch (e) {
-        console.error("取消任务失败", e);
-      }
+      } catch (e) {}
     };
 
     const toggleHeart = (book) => {
@@ -242,6 +259,8 @@ createApp({
       broRunning,
       broHeadless,
       showIsland,
+      sidebarCollapsed,
+      layoutMode,
       activeTask,
       islandMainText,
       viewMode,
@@ -253,10 +272,12 @@ createApp({
       maxScrolls,
       filteredBooks,
       toggleIsland,
+      toggleSidebar,
       startBrowser,
       closeBrowser,
       openCustomUrlModal,
       executeFetchCustomBookshelf,
+      collectCurrentPage,
       cancelTask,
       toggleHeart,
       openBook,

@@ -11,10 +11,13 @@
     <!-- 顶部状态栏与灵动岛 -->
     <header class="top-bar">
       <div class="logo-title">
+        <button class="toggle-sidebar-btn" @click="toggleSidebar" :title="sidebarCollapsed ? '展开侧边栏' : '折叠侧边栏'">
+          {{ sidebarCollapsed ? '▶' : '◀' }}
+        </button>
         <h2>✨ LK Reader & Spider</h2>
       </div>
 
-      <!-- 灵动岛组件 (实时刷新与点击展开) -->
+      <!-- 灵动岛组件 -->
       <div class="dynamic-island-wrapper">
         <div class="dynamic-island" @click="toggleIsland">
           <div class="island-status-dot" :class="{ active: broRunning }"></div>
@@ -33,14 +36,15 @@
             <div class="island-title">
               <span>🖥️ 浏览器控制与任务调度</span>
             </div>
-            <span style="font-size: 11px; color: #94a3b8;">{{ broRunning ? (broHeadless ? '无头运行中' : '界面模式') : '已休眠' }}</span>
+            <span style="font-size: 11px; color: #94a3b8;">{{ broRunning ? (broHeadless ? '无头运行中' : '窗口模式') : '已休眠' }}</span>
           </div>
 
           <div class="island-actions">
             <button class="island-btn island-btn-primary" v-if="!broRunning" @click="startBrowser(true)">启动无头</button>
             <button class="island-btn island-btn-secondary" v-if="!broRunning" @click="startBrowser(false)">启动窗口</button>
             <button class="island-btn island-btn-danger" v-if="broRunning" @click="closeBrowser">关闭浏览器</button>
-            <button class="island-btn island-btn-secondary" @click="openCustomUrlModal">爬取书架</button>
+            <button class="island-btn island-btn-accent" @click="openCustomUrlModal">滚动抓取书架</button>
+            <button class="island-btn island-btn-primary" style="grid-column: span 2;" @click="collectCurrentPage">🌐 窗口模式：爬取当前页面</button>
           </div>
 
           <div class="island-tasks-list">
@@ -66,8 +70,8 @@
     </header>
 
     <div class="main-layout">
-      <!-- 极度清晰分块的侧边栏 -->
-      <aside class="sidebar">
+      <!-- 可折叠侧边栏 -->
+      <aside class="sidebar" :class="{ collapsed: sidebarCollapsed }">
         <div class="sidebar-section">
           <div class="sidebar-section-title">视图范围</div>
           <div class="sidebar-pill-group">
@@ -131,28 +135,55 @@
         </div>
 
         <div style="margin-top: auto;">
-          <button class="btn-sm" style="width: 100%;" @click="refreshAllData">🔄 刷新数据</button>
+          <button class="btn-sm" style="width: 100%; justify-content: center;" @click="refreshAllData">🔄 刷新数据</button>
         </div>
       </aside>
 
-      <!-- 主内容区：书架网格 -->
+      <!-- 主内容区：工具栏 + 书架大图/小图展示 -->
       <main class="content">
-        <div class="books-grid">
+        <!-- 书架控制工具栏 -->
+        <div class="content-toolbar">
+          <div style="display: flex; align-items: center; gap: 12px; font-size: 13px; color: var(--text-muted);">
+            <span>显示总数: <strong>{{ filteredBooks.length }}</strong> 本书</span>
+          </div>
+
+          <div style="display: flex; align-items: center; gap: 14px;">
+            <!-- 爬取当前页快捷按钮 -->
+            <button class="btn-sm" style="background: #0284c7; padding: 6px 12px; font-size: 12px;" @click="collectCurrentPage">
+              🌐 爬取当前页面
+            </button>
+
+            <!-- 大图(竖)与小图(横)布局切换 -->
+            <div class="layout-switcher">
+              <button class="layout-btn" :class="{ active: layoutMode === 'grid' }" @click="layoutMode = 'grid'" title="大图网格视图 (打竖)">
+                📁 大图网格
+              </button>
+              <button class="layout-btn" :class="{ active: layoutMode === 'list' }" @click="layoutMode = 'list'" title="列表小图视图 (打横)">
+                📄 列表小图
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 书架书籍渲染容器 -->
+        <div class="books-grid" :class="[layoutMode === 'grid' ? 'view-grid' : 'view-list']">
           <div class="book-card" v-for="book in filteredBooks" :key="book.book_id">
             <div class="cover-wrapper" @click="openBook(book.book_id)">
               <img :src="book.cover_url || '/main/default_cover.png'" alt="封面" loading="lazy">
               <span class="status-badge" :class="book.download_status">{{ getBookBadge(book) }}</span>
             </div>
             <div class="book-info">
-              <h4 class="book-title" :title="book.title" @click="openBook(book.book_id)">{{ book.title }}</h4>
+              <div>
+                <h4 class="book-title" :title="book.title" @click="openBook(book.book_id)">{{ book.title }}</h4>
+                <div class="book-tags" v-if="book.tags && layoutMode === 'grid'">
+                  <span class="tag" v-for="t in book.tags">{{ t }}</span>
+                </div>
+              </div>
               <div class="book-meta">
                 <span>ID: {{ book.book_id }}</span>
                 <span class="heart-btn" @click.stop="toggleHeart(book)">
                   {{ book.heart === 'red' ? '❤️' : (book.heart === 'later' ? '⏱️' : '🤍') }}
                 </span>
-              </div>
-              <div class="book-tags" v-if="book.tags">
-                <span class="tag" v-for="t in book.tags">{{ t }}</span>
               </div>
             </div>
           </div>
@@ -160,24 +191,24 @@
       </main>
     </div>
 
-    <!-- 自定义书架网址输入模态框 -->
+    <!-- 自定义书架网址滚动抓取模态框 -->
     <div class="modal" v-if="showCustomUrlModal">
       <div class="modal-content">
         <div class="modal-header">
-          <h3 style="font-size: 16px;">爬取指定书架网页</h3>
+          <h3 style="font-size: 16px;">滚动抓取书架网页</h3>
           <button class="close-btn" @click="showCustomUrlModal = false">×</button>
         </div>
         <div style="padding: 20px;">
           <div style="margin-bottom: 14px;">
-            <label style="display: block; margin-bottom: 6px; font-size: 13px; font-weight: 500;">网页地址 (URL):</label>
+            <label style="display: block; margin-bottom: 6px; font-size: 13px; font-weight: 500;">书架网页地址 (URL):</label>
             <input type="text" v-model="targetUrl" class="sidebar-select" />
           </div>
           <div style="margin-bottom: 18px;">
-            <label style="display: block; margin-bottom: 6px; font-size: 13px; font-weight: 500;">向下滚动加载次数:</label>
+            <label style="display: block; margin-bottom: 6px; font-size: 13px; font-weight: 500;">最大滚动加载次数 (自动检测新书继续下滑):</label>
             <input type="number" v-model="maxScrolls" class="sidebar-select" />
           </div>
           <div style="text-align: right;">
-            <button class="btn-sm" @click="executeFetchCustomBookshelf">开始抓取</button>
+            <button class="btn-sm" @click="executeFetchCustomBookshelf">开始滚动抓取</button>
           </div>
         </div>
       </div>
