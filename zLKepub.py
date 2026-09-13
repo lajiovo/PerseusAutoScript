@@ -19,7 +19,7 @@ def generate_epub_for_book(book_id: str, output_dir: str = None, selected_volume
         raise FileNotFoundError(f"未找到 book_id [{book_id}] 的缓存目录")
 
     if not output_dir:
-        output_dir = os.path.join(current_dir, "browser_downloads")
+        output_dir = os.path.join(current_dir, "Novels2")
     os.makedirs(output_dir, exist_ok=True)
 
     metadata_path = os.path.join(book_dir, "metadata.json")
@@ -80,7 +80,8 @@ def generate_epub_for_book(book_id: str, output_dir: str = None, selected_volume
             ch_json_filename = f"{sanitize_filename(ch_title)}.json"
             ch_json_path = os.path.join(vol_dir, ch_json_filename)
 
-            paragraphs_html = []
+            text_htmls = []
+            image_htmls = []
             ch_images = []
 
             if os.path.exists(ch_json_path):
@@ -90,17 +91,19 @@ def generate_epub_for_book(book_id: str, output_dir: str = None, selected_volume
                         items = ch_data.get("paragraphs", [])
                         for item in items:
                             if item.get("type") == "text":
-                                paragraphs_html.append(f'<p class="ln-paragraph" style="text-indent:2em;">{item.get("content", "")}</p>')
+                                text_htmls.append(f'<p class="ln-paragraph" style="text-indent:2em;">{item.get("content", "")}</p>')
                             elif item.get("type") == "image":
                                 img_filename = item.get("file")
                                 if img_filename:
                                     img_full_path = os.path.join(img_mapped_dir, img_filename)
                                     if os.path.exists(img_full_path) and os.path.getsize(img_full_path) > 0:
                                         ch_images.append((img_filename, img_full_path))
-                                        paragraphs_html.append(f'<p style="text-align:center;"><img src="images/{img_filename}" style="max-width:100%;height:auto;"/></p>')
+                                        image_htmls.append(f'<p style="text-align:center; margin: 15px 0;"><img src="images/{img_filename}" style="max-width:100%;height:auto;"/></p>')
                 except Exception:
                     pass
 
+            # 将插图重新排布在各章节之首，文本排在插图之后
+            paragraphs_html = image_htmls + text_htmls
             if not paragraphs_html:
                 paragraphs_html.append(f'<p>暂无内容或未爬取</p>')
 

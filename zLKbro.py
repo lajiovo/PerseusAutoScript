@@ -324,13 +324,19 @@ class LKbro:
                 local_fpath = os.path.join(img_dir, local_fname)
                 if not os.path.exists(local_fpath) or os.path.getsize(local_fpath) == 0:
                     try:
-                        resp = requests.get(full_c_url, headers={"Referer": self.domain}, timeout=10, verify=False)
-                        if resp.status_code == 200:
+                        proxies = {"http": self.proxy, "https": self.proxy} if self.proxy else None
+                        resp = requests.get(full_c_url, headers={"Referer": self.domain}, proxies=proxies, timeout=10, verify=False)
+                        if resp.status_code == 200 and resp.content and len(resp.content) > 100:
                             with open(local_fpath, "wb") as f:
                                 f.write(resp.content)
+                        else:
+                            if os.path.exists(local_fpath):
+                                os.remove(local_fpath)
                     except Exception:
-                        pass
-                local_cover = f"/servercache/lk/bookshelf_images/{local_fname}"
+                        if os.path.exists(local_fpath) and os.path.getsize(local_fpath) == 0:
+                            os.remove(local_fpath)
+                if os.path.exists(local_fpath) and os.path.getsize(local_fpath) > 0:
+                    local_cover = f"/servercache/lk/bookshelf_images/{local_fname}"
 
             books.append({
                 "book_id": book_id,
@@ -410,6 +416,15 @@ class LKbro:
         for _ in range(3):
             await self.page.evaluate("window.scrollBy(0, 800)")
             await self.page.wait_for_timeout(500)
+
+        # 自动点开所有折叠的目录按钮
+        try:
+            expand_btns = await self.page.query_selector_all(".chapter-toggle-row button, .chapter-expand-button, button[aria-label='展开目录'], div[data-v-d3b51b4c] button")
+            for btn in expand_btns:
+                await btn.click(force=True)
+                await self.page.wait_for_timeout(300)
+        except Exception:
+            pass
 
         html_content = await self.page.content()
         from bs4 import BeautifulSoup
@@ -533,14 +548,20 @@ class LKbro:
             cover_path = os.path.join(img_dir, cover_filename)
             if not os.path.exists(cover_path) or os.path.getsize(cover_path) == 0:
                 try:
-                    resp = requests.get(cover_full_url, headers={"Referer": self.domain}, timeout=15, verify=False)
-                    if resp.status_code == 200:
+                    proxies = {"http": self.proxy, "https": self.proxy} if self.proxy else None
+                    resp = requests.get(cover_full_url, headers={"Referer": self.domain}, proxies=proxies, timeout=15, verify=False)
+                    if resp.status_code == 200 and resp.content and len(resp.content) > 100:
                         with open(cover_path, "wb") as f:
                             f.write(resp.content)
+                    else:
+                        if os.path.exists(cover_path):
+                            os.remove(cover_path)
                 except Exception:
-                    pass
-            image_mapping_records[cover_full_url] = cover_filename
-            local_cover = f"/servercache/lk/books/{book_id}/images_mapped/{cover_filename}"
+                    if os.path.exists(cover_path) and os.path.getsize(cover_path) == 0:
+                        os.remove(cover_path)
+            if os.path.exists(cover_path) and os.path.getsize(cover_path) > 0:
+                image_mapping_records[cover_full_url] = cover_filename
+                local_cover = f"/servercache/lk/books/{book_id}/images_mapped/{cover_filename}"
 
         metadata = {
             "book_id": str(book_id),
@@ -592,17 +613,23 @@ class LKbro:
 
         total = len(mapping)
         idx = 0
+        proxies = {"http": self.proxy, "https": self.proxy} if self.proxy else None
         for url, filename in mapping.items():
             idx += 1
             if progress_callback:
                 progress_callback(int(idx / total * 100), f"重新下载插图: {filename}")
+            target_path = os.path.join(img_dir, filename)
             try:
-                resp = requests.get(url, headers={"Referer": self.domain}, timeout=15, verify=False)
-                if resp.status_code == 200:
-                    with open(os.path.join(img_dir, filename), "wb") as f:
+                resp = requests.get(url, headers={"Referer": self.domain}, proxies=proxies, timeout=15, verify=False)
+                if resp.status_code == 200 and resp.content and len(resp.content) > 100:
+                    with open(target_path, "wb") as f:
                         f.write(resp.content)
+                else:
+                    if os.path.exists(target_path) and os.path.getsize(target_path) == 0:
+                        os.remove(target_path)
             except Exception:
-                pass
+                if os.path.exists(target_path) and os.path.getsize(target_path) == 0:
+                    os.remove(target_path)
         return True
 
     async def crawl_chapter(self, book_id: str, chapter_url: str, vol_name: str, chapter_title: str, progress_callback=None):
@@ -651,11 +678,20 @@ class LKbro:
         paragraphs_and_images = []
         image_mapping = {}
 
-        elements = soup.find_all(['p', 'div', 'img'])
-        for el in elements:
-            if el.name == 'img' or el.find('img'):
-                img_tags = [el] if el.name == 'img' else el.find_all('img')
-                for img in img_tags:
+        proxies = {"http": self.proxy, "https": self.proxy} if self.proxy else None
+        
+        # 稳健解析所有文本段落与插图
+        for el in soup.find_all(['p', 'div', 'img']):
+            # 如果标签本身是 img 或者包含 img
+            if el.name == 'img':
+                imgs = [el]
+            elif el.find('img'):
+                imgs = el.find_all('img')
+            else:
+                imgs = []
+
+            if imgs:
+                for img in imgs:
                     src = img.get('src') or img.get('data-src')
                     if not src:
                         continue
@@ -670,25 +706,33 @@ class LKbro:
 
                     if not os.path.exists(img_path) or os.path.getsize(img_path) == 0:
                         try:
-                            resp = requests.get(full_img_url, headers={"Referer": self.domain}, timeout=15, verify=False)
-                            if resp.status_code == 200:
+                            resp = requests.get(full_img_url, headers={"Referer": self.domain}, proxies=proxies, timeout=15, verify=False)
+                            if resp.status_code == 200 and resp.content and len(resp.content) > 100:
                                 with open(img_path, "wb") as f:
                                     f.write(resp.content)
+                            else:
+                                if os.path.exists(img_path) and os.path.getsize(img_path) == 0:
+                                    os.remove(img_path)
                         except Exception:
-                            pass
+                            if os.path.exists(img_path) and os.path.getsize(img_path) == 0:
+                                os.remove(img_path)
 
-                    image_mapping[img_hash] = img_filename
-                    image_mapping_records[full_img_url] = img_filename
+                    if os.path.exists(img_path) and os.path.getsize(img_path) > 0:
+                        image_mapping[img_hash] = img_filename
+                        image_mapping_records[full_img_url] = img_filename
 
-                    paragraphs_and_images.append({
-                        "type": "image",
-                        "url": full_img_url,
-                        "hash": img_hash,
-                        "file": img_filename
-                    })
+                        paragraphs_and_images.append({
+                            "type": "image",
+                            "url": full_img_url,
+                            "hash": img_hash,
+                            "file": img_filename
+                        })
             else:
                 text = el.get_text(strip=True)
                 if text and len(text) > 0:
+                    # 避免把重复的父级div文本和子级p文本重复添加
+                    if el.name == 'div' and el.find('p'):
+                        continue
                     paragraphs_and_images.append({
                         "type": "text",
                         "content": convert_t2s(text, True)

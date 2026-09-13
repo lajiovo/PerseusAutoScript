@@ -169,7 +169,7 @@
         <div class="books-grid" :class="[layoutMode === 'grid' ? 'view-grid' : 'view-list']">
           <div class="book-card" v-for="book in filteredBooks" :key="book.book_id">
             <div class="cover-wrapper" @click="openBook(book.book_id)">
-              <img :src="book.local_cover || book.cover_url || '/main/default_cover.png'" @error="e => { if(book.cover_url && e.target.src !== book.cover_url) e.target.src = book.cover_url; else e.target.src = '/main/default_cover.png'; }" alt="封面" loading="lazy">
+              <img :src="book.local_cover || '/main/default_cover.png'" @error="e => { e.target.src = '/main/default_cover.png'; }" alt="封面" loading="lazy">
               <span class="status-badge" :class="book.download_status">{{ getBookBadge(book) }}</span>
             </div>
             <div class="book-info">
