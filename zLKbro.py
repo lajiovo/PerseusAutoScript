@@ -522,6 +522,7 @@ class LKbro:
             except Exception:
                 pass
 
+        local_cover = ""
         if cover_url:
             cover_full_url = urljoin(self.domain, html.unescape(cover_url))
             cover_hash = get_url_hash(cover_full_url)
@@ -539,12 +540,14 @@ class LKbro:
                 except Exception:
                     pass
             image_mapping_records[cover_full_url] = cover_filename
+            local_cover = f"/servercache/lk/books/{book_id}/images_mapped/{cover_filename}"
 
         metadata = {
             "book_id": str(book_id),
             "title": convert_t2s(title, True),
             "author": convert_t2s(author, True),
             "cover_url": cover_url,
+            "local_cover": local_cover,
             "updated_at": datetime.now().isoformat()
         }
 

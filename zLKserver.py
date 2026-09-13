@@ -13,6 +13,13 @@ def get_status():
         "tasks": lk_api.get_task_list()
     })
 
+@lk_bp.route("/servercache/<path:filepath>", methods=["GET"])
+def serve_lk_servercache(filepath):
+    """直接提供 servercache/lk 下文件静态访问，支持前端直接渲染本地缓存封面与插图"""
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    cache_base = os.path.join(current_dir, "servercache", "lk")
+    return send_from_directory(cache_base, filepath)
+
 @lk_bp.route("/browser", methods=["POST"])
 def manage_browser():
     data = request.get_json(silent=True) or request.form.to_dict() or request.args.to_dict()
@@ -123,6 +130,7 @@ def get_all_cached_books():
             title = f"Book_{b_id}"
             author = "未知"
             cover_url = ""
+            local_cover = ""
             if os.path.exists(meta_path):
                 try:
                     with open(meta_path, "r", encoding="utf-8") as f:
@@ -130,8 +138,16 @@ def get_all_cached_books():
                         title = m.get("title", title)
                         author = m.get("author", author)
                         cover_url = m.get("cover_url", cover_url)
+                        local_cover = m.get("local_cover", "")
                 except Exception:
                     pass
+            
+            if not local_cover and os.path.exists(os.path.join(b_path, "images_mapped")):
+                # 查找是否存在 cover_* 文件
+                for fname in os.listdir(os.path.join(b_path, "images_mapped")):
+                    if fname.startswith("cover_"):
+                        local_cover = f"/servercache/lk/books/{b_id}/images_mapped/{fname}"
+                        break
 
             catalog_status = "no_catalog"
             download_status = "none"
@@ -165,6 +181,7 @@ def get_all_cached_books():
                 "title": title,
                 "author": author,
                 "cover_url": cover_url,
+                "local_cover": local_cover,
                 "catalog_status": catalog_status,
                 "download_status": download_status,
                 "total_chapters": total_chapters,
