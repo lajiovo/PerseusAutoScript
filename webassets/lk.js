@@ -8,14 +8,11 @@ createApp({
     const broRunning = ref(false);
     const broHeadless = ref(true);
 
-    // 灵动岛与侧边栏折叠控制
     const showIsland = ref(false);
     const sidebarCollapsed = ref(false);
-
-    // 视图模式：'grid' (大图网格/打竖) 或 'list' (列表小图/打横)
     const layoutMode = ref("grid");
 
-    const viewMode = ref("all"); // 'all' or 'cached'
+    const viewMode = ref("all");
     const filterStatus = ref("all");
     const filterHeart = ref("all");
     const sortBy = ref("time");
@@ -38,9 +35,7 @@ createApp({
             download_status: 'none'
           }));
         }
-      } catch (e) {
-        console.error("加载书架失败", e);
-      }
+      } catch (e) {}
     };
 
     const loadCachedBooks = async () => {
@@ -53,9 +48,7 @@ createApp({
             heart: localStorage.getItem(`heart_${b.book_id}`) || 'gray'
           }));
         }
-      } catch (e) {
-        console.error("加载本地缓存书籍失败", e);
-      }
+      } catch (e) {}
     };
 
     const loadStatus = async () => {
@@ -65,7 +58,9 @@ createApp({
         if (data.status === "ok") {
           broRunning.value = data.browser.running;
           broHeadless.value = data.browser.headless;
-          tasks.value = data.tasks;
+          // 自动清理已完成或失败、取消超过一定时间的任务，或仅保留最多最近 10 条
+          const rawTasks = data.tasks || [];
+          tasks.value = rawTasks.slice(-10).reverse();
         }
       } catch (e) {}
     };
@@ -80,7 +75,7 @@ createApp({
 
     const activeTask = computed(() => {
       const active = tasks.value.filter(t => t.status === 'running' || t.status === 'pending');
-      return active.length > 0 ? active[active.length - 1] : null;
+      return active.length > 0 ? active[0] : null;
     });
 
     const islandMainText = computed(() => {
@@ -94,29 +89,21 @@ createApp({
     });
 
     const startBrowser = async (headless) => {
-      try {
-        await fetch("/lkapi/browser", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "start", headless: headless })
-        });
-        loadStatus();
-      } catch (e) {
-        alert("启动浏览器失败: " + e);
-      }
+      await fetch("/lkapi/browser", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "start", headless: headless })
+      });
+      loadStatus();
     };
 
     const closeBrowser = async () => {
-      try {
-        await fetch("/lkapi/browser", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "close" })
-        });
-        loadStatus();
-      } catch (e) {
-        alert("关闭浏览器失败: " + e);
-      }
+      await fetch("/lkapi/browser", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "close" })
+      });
+      loadStatus();
     };
 
     const openCustomUrlModal = () => {
@@ -125,41 +112,31 @@ createApp({
     };
 
     const executeFetchCustomBookshelf = async () => {
-      try {
-        const res = await fetch("/lkapi/bookshelf", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ url: targetUrl.value, max_scrolls: maxScrolls.value })
-        });
-        const data = await res.json();
-        if (data.status === "ok") {
-          showCustomUrlModal.value = false;
-          showIsland.value = true;
-          loadStatus();
-        }
-      } catch (e) {
-        alert("启动抓取失败: " + e);
+      const res = await fetch("/lkapi/bookshelf", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: targetUrl.value, max_scrolls: maxScrolls.value })
+      });
+      const data = await res.json();
+      if (data.status === "ok") {
+        showCustomUrlModal.value = false;
+        showIsland.value = true;
+        loadStatus();
       }
     };
 
     const collectCurrentPage = async () => {
-      try {
-        const res = await fetch("/lkapi/collect_current_page", { method: "POST" });
-        const data = await res.json();
-        if (data.status === "ok") {
-          showIsland.value = true;
-          loadStatus();
-        }
-      } catch (e) {
-        alert("爬取当前页请求失败: " + e);
+      const res = await fetch("/lkapi/collect_current_page", { method: "POST" });
+      const data = await res.json();
+      if (data.status === "ok") {
+        showIsland.value = true;
+        loadStatus();
       }
     };
 
     const cancelTask = async (taskId) => {
-      try {
-        await fetch(`/lkapi/tasks/${taskId}/cancel`, { method: "POST" });
-        loadStatus();
-      } catch (e) {}
+      await fetch(`/lkapi/tasks/${taskId}/cancel`, { method: "POST" });
+      loadStatus();
     };
 
     const toggleHeart = (book) => {
@@ -245,7 +222,9 @@ createApp({
       refreshAllData();
       timer = setInterval(() => {
         loadStatus();
-      }, 2000);
+        loadBookshelf();
+        loadCachedBooks();
+      }, 3000);
     });
 
     onUnmounted(() => {
