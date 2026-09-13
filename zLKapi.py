@@ -1,4 +1,5 @@
 import asyncio
+import threading
 import uuid
 import time
 import os
@@ -8,10 +9,23 @@ from zLKepub import generate_epub_for_book
 
 class LKApiManager:
     def __init__(self):
-        # 严格单例：全局唯一浏览器实例
-        self.bro = LKbro(headless=True)
+        # 建立专用的常驻后台事件循环线程，所有 Playwright 操作在此独立线程中执行
+        self.loop = asyncio.new_event_loop()
+        self._thread = threading.Thread(target=self._start_loop, daemon=True)
+        self._thread.start()
+
+        # 在专属事件循环内初始化 LKbro
+        future = asyncio.run_coroutine_threadsafe(self._async_init(), self.loop)
+        future.result()
+
         self.tasks = {}
-        self._task_lock = asyncio.Lock()
+
+    def _start_loop(self):
+        asyncio.set_event_loop(self.loop)
+        self.loop.run_forever()
+
+    async def _async_init(self):
+        self.bro = LKbro(headless=True)
 
     def get_bro_status(self):
         return {
@@ -19,8 +33,12 @@ class LKApiManager:
             "headless": self.bro.headless
         }
 
+    def set_browser_state_sync(self, action: str, headless: bool = None):
+        """同步包装器：在专属后台事件循环中安全执行浏览器状态切换"""
+        future = asyncio.run_coroutine_threadsafe(self.set_browser_state(action, headless), self.loop)
+        return future.result()
+
     async def set_browser_state(self, action: str, headless: bool = None):
-        """控制浏览器启动、关闭、以及设置 headless 模式"""
         if action == "start":
             if headless is not None:
                 self.bro.headless = headless
@@ -45,6 +63,11 @@ class LKApiManager:
             return True
         return False
 
+    def add_task_sync(self, action, kwargs):
+        """同步包装器：向专属事件循环提交异步任务"""
+        future = asyncio.run_coroutine_threadsafe(self.add_task(action, kwargs), self.loop)
+        return future.result()
+
     async def add_task(self, action, kwargs):
         task_id = str(uuid.uuid4())[:8]
         task_item = {
@@ -58,7 +81,7 @@ class LKApiManager:
             "result": None
         }
         self.tasks[task_id] = task_item
-        asyncio.create_task(self._run_task_worker(task_id, action, kwargs))
+        self.loop.create_task(self._run_task_worker(task_id, action, kwargs))
         return task_id
 
     async def _run_task_worker(self, task_id, action, kwargs):

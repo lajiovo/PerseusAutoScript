@@ -24,12 +24,8 @@ def manage_browser():
         else:
             headless = bool(headless)
 
-    import asyncio
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    status = loop.run_until_complete(lk_api.set_browser_state(action, headless))
-    loop.close()
-
+    # 跨线程提交至常驻事件循环，杜绝 RuntimeError: is bound to a different event loop
+    status = lk_api.set_browser_state_sync(action, headless)
     return jsonify({"status": "ok", "browser": status})
 
 @lk_bp.route("/tasks", methods=["GET"])
@@ -59,39 +55,22 @@ def bookshelf_action():
     url = data.get("url", "https://www.lightnovel.fun/category/lightnovel")
     max_scrolls = int(data.get("max_scrolls", 20))
     
-    import asyncio
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    task_id = loop.run_until_complete(lk_api.add_task("bookshelf", {"url": url, "max_scrolls": max_scrolls}))
-    loop.close()
-
+    task_id = lk_api.add_task_sync("bookshelf", {"url": url, "max_scrolls": max_scrolls})
     return jsonify({"status": "ok", "task_id": task_id, "message": "书架抓取任务已创建"})
 
 @lk_bp.route("/book/<book_id>/detail", methods=["GET", "POST"])
 def get_book_detail(book_id):
-    import asyncio
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    task_id = loop.run_until_complete(lk_api.add_task("book_detail", {"book_id": book_id}))
-    loop.close()
+    task_id = lk_api.add_task_sync("book_detail", {"book_id": book_id})
     return jsonify({"status": "ok", "task_id": task_id, "message": "书籍详情解析任务已创建"})
 
 @lk_bp.route("/book/<book_id>/crawl", methods=["POST"])
 def crawl_book(book_id):
-    import asyncio
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    task_id = loop.run_until_complete(lk_api.add_task("crawl_all", {"book_id": book_id}))
-    loop.close()
+    task_id = lk_api.add_task_sync("crawl_all", {"book_id": book_id})
     return jsonify({"status": "ok", "task_id": task_id, "message": "全书爬取任务已创建"})
 
 @lk_bp.route("/book/<book_id>/redownload_images", methods=["POST"])
 def redownload_book_images(book_id):
-    import asyncio
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    task_id = loop.run_until_complete(lk_api.add_task("redownload_images", {"book_id": book_id}))
-    loop.close()
+    task_id = lk_api.add_task_sync("redownload_images", {"book_id": book_id})
     return jsonify({"status": "ok", "task_id": task_id, "message": "重新下载插图任务已创建"})
 
 @lk_bp.route("/book/<book_id>/epub", methods=["POST"])
@@ -100,15 +79,11 @@ def make_epub(book_id):
     selected_vols = data.get("selected_volumes")
     chapter_sort = data.get("chapter_sort", "default")
 
-    import asyncio
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    task_id = loop.run_until_complete(lk_api.add_task("epub", {
+    task_id = lk_api.add_task_sync("epub", {
         "book_id": book_id,
         "selected_volumes": selected_vols,
         "chapter_sort": chapter_sort
-    }))
-    loop.close()
+    })
     return jsonify({"status": "ok", "task_id": task_id, "message": "EPUB 打包任务已创建"})
 
 @lk_bp.route("/bookshelf/data", methods=["GET"])
@@ -122,7 +97,6 @@ def get_bookshelf_data():
 
 @lk_bp.route("/books/all", methods=["GET"])
 def get_all_cached_books():
-    """汇总获取已缓存的所有书籍状态：包括未下载章节列表、已下载章节列表、正在下载、已下载全部等"""
     current_dir = os.path.dirname(os.path.abspath(__file__))
     books_dir = os.path.join(current_dir, "servercache", "lk", "books")
     result = []
