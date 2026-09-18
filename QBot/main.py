@@ -17,6 +17,7 @@ from config import (
     apply_sdk_patch,
 )
 from game import GameSystem
+from morecmd import MoreCommandSystem
 from opcmd import handle_op_command
 from server import start_http_servers
 from yz import YunzaiWSClient
@@ -39,6 +40,7 @@ class MyClient(botpy.Client):
         self.bot_loop = None
         self.data_mgr = BotDataManager()
         self.game_sys = GameSystem(self.data_mgr)
+        self.more_cmd_sys = MoreCommandSystem(self.data_mgr)
         # 实例化 YunzaiWSClient
         self.youzai_mgr = YunzaiWSClient(self)
 
@@ -716,6 +718,14 @@ class MyClient(botpy.Client):
                 await self.send_reply(yz_res, target_id, raw_message.id, is_c2c=is_c2c)
                 return None
             return yz_res
+
+        # ------------------- #morecmd / 前置指令转发 -------------------
+        more_res = self.more_cmd_sys.handle_command(cmd, parts, sender_openid)
+        if more_res is not None:
+            if isinstance(more_res, dict):
+                await self.send_reply(more_res, target_id, raw_message.id, is_c2c=is_c2c)
+                return None
+            return more_res
 
         # ------------------- #game 等其他指令分发与动态消息类型处理 -------------------
         game_res = self.game_sys.handle_command(cmd, parts, sender_openid)

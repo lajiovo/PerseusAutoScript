@@ -159,6 +159,35 @@
                     </div>
                 </div>
 
+                <!-- 资源监控与任务状态看板 (追加展示，含绝对时间渲染) -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+                    <!-- 左侧：资源监控解析内容 -->
+                    <div class="bg-slate-100/50 dark:bg-slate-900/50 p-4 rounded-xl border border-slate-200/60 dark:border-slate-800">
+                        <div class="flex items-center justify-between mb-2.5 pb-1.5 border-b border-slate-200/40 dark:border-slate-800/60">
+                            <h4 class="font-bold text-xs uppercase tracking-wider text-indigo-600 dark:text-indigo-400 flex items-center gap-1.5">
+                                <i class="fa-solid fa-server"></i> 资源监控解析内容
+                            </h4>
+                            <span id="resourceUpdatedTime" class="text-[10px] text-slate-400 font-mono">更新时间: --</span>
+                        </div>
+                        <div id="resourceMonitorContainer" class="space-y-2 max-h-60 overflow-y-auto pr-1">
+                            <p class="text-xs text-slate-500 dark:text-slate-400 text-center py-4">正在加载资源监控数据...</p>
+                        </div>
+                    </div>
+
+                    <!-- 右侧：任务状态（运行中、队列中、等待中） -->
+                    <div class="bg-slate-100/50 dark:bg-slate-900/50 p-4 rounded-xl border border-slate-200/60 dark:border-slate-800">
+                        <div class="flex items-center justify-between mb-2.5 pb-1.5 border-b border-slate-200/40 dark:border-slate-800/60">
+                            <h4 class="font-bold text-xs uppercase tracking-wider text-purple-600 dark:text-purple-400 flex items-center gap-1.5">
+                                <i class="fa-solid fa-list-check"></i> 任务状态监控 (运行/队列/等待)
+                            </h4>
+                            <span id="tasksUpdatedTime" class="text-[10px] text-slate-400 font-mono">更新时间: --</span>
+                        </div>
+                        <div id="tasksMonitorContainer" class="space-y-3 max-h-60 overflow-y-auto pr-1">
+                            <p class="text-xs text-slate-500 dark:text-slate-400 text-center py-4">正在加载任务状态数据...</p>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- 仪表盘 HTML 缓存容器 -->
                 <div id="indexDashboardContainer" class="bg-slate-100/40 dark:bg-slate-900/40 p-4 rounded-xl border border-slate-200/50 dark:border-slate-800 overflow-x-auto">
                     <p class="text-xs text-slate-500 dark:text-slate-400 text-center py-2">正在加载仪表盘缓存数据...</p>
@@ -562,6 +591,115 @@
                             container.innerHTML = '<p class="text-xs text-slate-500 dark:text-slate-400 text-center py-2">暂无仪表盘缓存数据，请先执行任务获取。</p>';
                         }
                     }
+                }
+
+                // 加载资源监控数据 (/main/ap/get 结构化数据中的 resources)
+                try {
+                    const resJsonRes = await fetch('/main/ap/get');
+                    if (resJsonRes.ok) {
+                        const jsonFull = await resJsonRes.json();
+                        const apDataObj = jsonFull.data || jsonFull;
+                        const resources = apDataObj.resources || [];
+                        const resContainer = document.getElementById('resourceMonitorContainer');
+                        const resTimeEl = document.getElementById('resourceUpdatedTime');
+                        if (resTimeEl && apDataObj.updated_at) {
+                            resTimeEl.textContent = '更新时间: ' + apDataObj.updated_at;
+                        }
+                        if (resContainer) {
+                            if (resources.length > 0) {
+                                resContainer.innerHTML = resources.map(item => {
+                                    const timeDisplay = item.formatted_time || (item.timestamp ? new Date(item.timestamp).toLocaleString('zh-CN', { hour12: false }) : (item.time_text || '刚刚'));
+                                    return `
+                                        <div class="bg-white/70 dark:bg-slate-800/70 p-2.5 rounded-lg border border-slate-200/50 dark:border-slate-700/50 flex items-center justify-between text-xs">
+                                            <div>
+                                                <span class="font-bold text-slate-800 dark:text-slate-200">${item.name || '资源项'}</span>
+                                                <span class="ml-2 px-1.5 py-0.5 rounded text-[10px] bg-indigo-100 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 font-mono">${item.amount || '0'}</span>
+                                            </div>
+                                            <div class="text-[11px] font-mono text-slate-500 dark:text-slate-400" title="绝对时间格式化显示">
+                                                <i class="fa-regular fa-clock text-[10px] mr-1"></i>${timeDisplay}
+                                            </div>
+                                        </div>
+                                    `;
+                                }).join('');
+                            } else {
+                                resContainer.innerHTML = '<p class="text-xs text-slate-500 dark:text-slate-400 text-center py-4">暂无资源监控数据</p>';
+                            }
+                        }
+                    }
+                } catch (e2) {
+                    console.error('加载资源监控数据失败:', e2);
+                }
+
+                // 加载任务状态监控数据 (/main/ap/tasks)
+                try {
+                    const tasksRes = await fetch('/main/ap/tasks');
+                    if (tasksRes.ok) {
+                        const tasksJson = await tasksRes.json();
+                        const tData = tasksJson.data || tasksJson;
+                        const running = tData.running || [];
+                        const queued = tData.queued || [];
+                        const waiting = tData.waiting || [];
+                        
+                        const tasksTimeEl = document.getElementById('tasksUpdatedTime');
+                        if (tasksTimeEl && tData.updated_at) {
+                            tasksTimeEl.textContent = '更新时间: ' + tData.updated_at;
+                        }
+
+                        const tasksContainer = document.getElementById('tasksMonitorContainer');
+                        if (tasksContainer) {
+                            let htmlBuf = '';
+                            
+                            // 渲染运行中
+                            if (running.length > 0) {
+                                htmlBuf += `<div class="mb-2"><span class="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase">🟢 运行中 (${running.length})</span><div class="space-y-1.5 mt-1">`;
+                                running.forEach(t => {
+                                    const tTime = t.formatted_time || (t.timestamp ? new Date(t.timestamp).toLocaleString('zh-CN', { hour12: false }) : (t.time_text || '实时'));
+                                    htmlBuf += `
+                                        <div class="bg-emerald-50/60 dark:bg-emerald-950/30 p-2 rounded border border-emerald-200/50 dark:border-emerald-800/50 flex items-center justify-between text-xs">
+                                            <span class="font-medium text-emerald-900 dark:text-emerald-200 truncate max-w-[160px]">${t.title || '运行任务'}</span>
+                                            <span class="text-[10px] font-mono text-emerald-600 dark:text-emerald-400"><i class="fa-regular fa-clock mr-0.5"></i>${tTime}</span>
+                                        </div>`;
+                                });
+                                htmlBuf += `</div></div>`;
+                            }
+
+                            // 渲染队列中
+                            if (queued.length > 0) {
+                                htmlBuf += `<div class="mb-2"><span class="text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase">🟡 队列中 (${queued.length})</span><div class="space-y-1.5 mt-1">`;
+                                queued.forEach(t => {
+                                    const tTime = t.formatted_time || (t.timestamp ? new Date(t.timestamp).toLocaleString('zh-CN', { hour12: false }) : (t.time_text || '排队中'));
+                                    htmlBuf += `
+                                        <div class="bg-amber-50/60 dark:bg-amber-950/30 p-2 rounded border border-amber-200/50 dark:border-amber-800/50 flex items-center justify-between text-xs">
+                                            <span class="font-medium text-amber-900 dark:text-amber-200 truncate max-w-[160px]">${t.title || '队列任务'}</span>
+                                            <span class="text-[10px] font-mono text-amber-600 dark:text-amber-400"><i class="fa-regular fa-clock mr-0.5"></i>${tTime}</span>
+                                        </div>`;
+                                });
+                                htmlBuf += `</div></div>`;
+                            }
+
+                            // 渲染等待中
+                            if (waiting.length > 0) {
+                                htmlBuf += `<div><span class="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">⚪ 等待中 (${waiting.length})</span><div class="space-y-1.5 mt-1">`;
+                                waiting.forEach(t => {
+                                    const tTime = t.formatted_time || (t.timestamp ? new Date(t.timestamp).toLocaleString('zh-CN', { hour12: false }) : (t.time_text || '等待中'));
+                                    htmlBuf += `
+                                        <div class="bg-white/60 dark:bg-slate-800/60 p-2 rounded border border-slate-200/40 dark:border-slate-700/50 flex items-center justify-between text-xs">
+                                            <span class="font-medium text-slate-700 dark:text-slate-300 truncate max-w-[160px]">${t.title || '等待任务'}</span>
+                                            <span class="text-[10px] font-mono text-slate-500 dark:text-slate-400"><i class="fa-regular fa-clock mr-0.5"></i>${tTime}</span>
+                                        </div>`;
+                                });
+                                htmlBuf += `</div></div>`;
+                            }
+
+                            if (running.length === 0 && queued.length === 0 && waiting.length === 0) {
+                                tasksContainer.innerHTML = '<p class="text-xs text-slate-500 dark:text-slate-400 text-center py-4">当前无活跃任务</p>';
+                            } else {
+                                tasksContainer.innerHTML = htmlBuf;
+                            }
+                        }
+                    }
+                } catch (e3) {
+                    console.error('加载任务状态监控数据失败:', e3);
                 }
             } catch (e) {
                 console.error('加载首页系统状态或仪表盘失败:', e);

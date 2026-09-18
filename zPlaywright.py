@@ -439,6 +439,33 @@ def main(
         except Exception as dash_err:
             print(f"⚠️ 提取或提交仪表盘内容时出现异常: {dash_err}")
 
+        # 同时抓取包含运行中、队列中、等待中任务状态的 HTML 元素 (#pywebio-scope-running, #pywebio-scope-pending，或对应容器) 并发送至 /main/ap/set2
+        try:
+            running_html = ""
+            pending_html = ""
+            try:
+                running_html = page.locator("#pywebio-scope-running").inner_html(timeout=3000)
+            except Exception:
+                pass
+            try:
+                pending_html = page.locator("#pywebio-scope-pending").inner_html(timeout=3000)
+            except Exception:
+                pass
+
+            combined_task_html = f'<div id="pywebio-scope-running">{running_html}</div><div id="pywebio-scope-pending">{pending_html}</div>'
+            print("📋 成功捕获到任务状态 HTML 内容，正在提交给 127.0.0.1:25566/main/ap/set2 ...")
+            req_data2 = json.dumps({"html": combined_task_html}).encode("utf-8")
+            req2 = urllib.request.Request(
+                "http://127.0.0.1:25566/main/ap/set2",
+                data=req_data2,
+                headers={"Content-Type": "application/json"},
+                method="POST"
+            )
+            with urllib.request.urlopen(req2, timeout=5) as resp2:
+                print(f"✅ 任务状态数据提交成功，响应状态码: {resp2.status}")
+        except Exception as task_err:
+            print(f"⚠️ 提取或提交任务状态内容时出现异常: {task_err}")
+
         # 顺序执行任务列表
         for task in task_list:
             ensure_alas_overview(page)

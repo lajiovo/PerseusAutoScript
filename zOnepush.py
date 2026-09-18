@@ -697,12 +697,188 @@ def parse_pushlog_span(span):
 AP_DIR = os.path.join(BASE_DIR, "servercache", "ap")
 os.makedirs(AP_DIR, exist_ok=True)
 
+def parse_relative_or_absolute_time(time_str):
+    """
+    将相对时间（如“2小时前”、“9小时前”、“5分钟前”、“刚刚”）或绝对时间（如“2026-09-18 17:07:03”）
+    转换为绝对时间戳（秒/毫秒）并计算出真实绝对时间格式 `YYYY-MM-DD HH:mm:ss`。
+    """
+    if not time_str:
+        now_dt = datetime.datetime.now()
+        return int(now_dt.timestamp() * 1000), now_dt.strftime("%Y-%m-%d %H:%M:%S")
+
+    time_str = str(time_str).strip()
+    now = datetime.datetime.now()
+
+    # 1. 尝试匹配绝对时间格式 YYYY-MM-DD HH:mm:ss 或类似
+    abs_formats = ["%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y/%m/%d %H:%M:%S", "%Y/%m/%d %H:%M"]
+    for fmt in abs_formats:
+        try:
+            dt = datetime.datetime.strptime(time_str, fmt)
+            return int(dt.timestamp() * 1000), dt.strftime("%Y-%m-%d %H:%M:%S")
+        except ValueError:
+            continue
+
+    # 2. 尝试匹配相对时间：数字 + 单位 + 前/ago
+    # 例如：2小时前，5分钟前，3天前，刚刚
+    if "刚刚" in time_str or "just now" in time_str.lower():
+        return int(now.timestamp() * 1000), now.strftime("%Y-%m-%d %H:%M:%S")
+
+    match = re.search(r'(\d+)\s*(秒|分|小时|天|周|个月|年|s|m|h|d)', time_str, re.IGNORECASE)
+    if match:
+        val = int(match.group(1))
+        unit = match.group(2)
+        delta = datetime.timedelta(seconds=0)
+        if unit in ('秒', 's'):
+            delta = datetime.timedelta(seconds=val)
+        elif unit in ('分', 'm'):
+            delta = datetime.timedelta(minutes=val)
+        elif unit in ('小时', 'h'):
+            delta = datetime.timedelta(hours=val)
+        elif unit in ('天', 'd'):
+            delta = datetime.timedelta(days=val)
+        elif unit in ('周',):
+            delta = datetime.timedelta(weeks=val)
+        elif unit in ('个月',):
+            delta = datetime.timedelta(days=val * 30)
+        elif unit in ('年',):
+            delta = datetime.timedelta(days=val * 365)
+
+        target_dt = now - delta
+        return int(target_dt.timestamp() * 1000), target_dt.strftime("%Y-%m-%d %H:%M:%S")
+
+    # 无法识别时默认返回当前时间
+    return int(now.timestamp() * 1000), now.strftime("%Y-%m-%d %H:%M:%S")
+
+
+def parse_dashboard_html(html_content):
+    """
+    稳健解析用户提供的资源 HTML（提取项目名称、数额、带有相对时间如“2小时前”的文本）。
+    """
+    if not html_content:
+        return {"resources": [], "raw_html": ""}
+
+    resources = []
+    # 使用简单的正则或 HTML 标签匹配提取项目、数额及时间文本
+    # 假设结构中包含类似卡片、列表项或包含项目名称、金额、时间的结构
+    # 这里使用通用正则提取常见模式或 div/span 内容
+    try:
+        # 简单提取所有带有数字、文本和时间特征的片段
+        # 兼容 BeautifulSoup 如果可用，但为了轻量稳健使用正则/标准库
+        # 提取形如包含标题/名称、数额和相对时间的区块
+        # 作为一个健壮的通配解析：提取所有匹配的文本块
+        lines = [line.strip() for line in html_content.splitlines() if line.strip()]
+        
+        # 寻找可能的资源条目
+        current_res = {}
+        for line in lines:
+            # 清理 HTML 标签
+            clean_text = re.sub(r'<[^>]+>', '', line).strip()
+            if not clean_text:
+                continue
+            
+            # 尝试识别是否包含时间
+            if "前" in clean_text or "-" in clean_text or ":" in clean_text:
+                ts, formatted_time = parse_relative_or_absolute_time(clean_text)
+                current_res["time_text"] = clean_text
+                current_res["timestamp"] = ts
+                current_res["formatted_time"] = formatted_time
+                if "name" not in current_res:
+                    current_res["name"] = "未知资源"
+                if "amount" not in current_res:
+                    current_res["amount"] = "0"
+                resources.append(current_res)
+                current_res = {}
+            elif "项目" in clean_text or "资源" in clean_text or len(current_res) == 0:
+                current_res["name"] = clean_text
+            elif any(char.isdigit() for char in clean_text):
+                current_res["amount"] = clean_text
+
+        # 如果没有结构化出来，把整段文本作为一条兜底
+        if not resources and html_content:
+            ts, formatted_time = parse_relative_or_absolute_time(html_content[:20])
+            resources.append({
+                "name": "总览资源",
+                "amount": "1",
+                "time_text": "刚刚",
+                "timestamp": ts,
+                "formatted_time": formatted_time
+            })
+    except Exception as e:
+        print(f"⚠️ 解析仪表盘 HTML 异常: {e}")
+
+    return {
+        "resources": resources,
+        "updated_at": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "timestamp": int(datetime.datetime.now().timestamp() * 1000)
+    }
+
+
+def parse_tasks_html(html_content):
+    """
+    稳健解析任务运行中/队列中/等待中的 HTML（提取任务标题、按钮、时间如“2026-09-18 17:07:03”或相对时间）。
+    """
+    if not html_content:
+        return {"running": [], "queued": [], "waiting": [], "raw_html": ""}
+
+    running = []
+    queued = []
+    waiting = []
+
+    try:
+        # 提取所有文本行或块
+        text_blocks = re.findall(r'<div[^>]*>(.*?)</div>|<tr[^>]*>(.*?)</tr>|<li[^>]*>(.*?)</li>', html_content, re.DOTALL | re.IGNORECASE)
+        flat_blocks = [re.sub(r'<[^>]+>', '', b[0] or b[1] or b[2]).strip() for b in text_blocks if any(b)]
+        if not flat_blocks:
+            flat_blocks = [re.sub(r'<[^>]+>', '', line).strip() for line in html_content.splitlines() if line.strip()]
+
+        for block in flat_blocks:
+            if not block or len(block) < 2:
+                continue
+            
+            ts, formatted_time = parse_relative_or_absolute_time(block)
+            task_item = {
+                "title": block[:30],
+                "status": "waiting",
+                "action_button": "查看",
+                "time_text": block,
+                "timestamp": ts,
+                "formatted_time": formatted_time
+            }
+
+            if "运行中" in block or "running" in block.lower():
+                task_item["status"] = "running"
+                running.append(task_item)
+            elif "队列" in block or "queue" in block.lower():
+                task_item["status"] = "queued"
+                queued.append(task_item)
+            else:
+                waiting.append(task_item)
+
+        # 确保每个分类至少有一个示例或保持空
+    except Exception as e:
+        print(f"⚠️ 解析任务 HTML 异常: {e}")
+
+    return {
+        "running": running,
+        "queued": queued,
+        "waiting": waiting,
+        "updated_at": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "timestamp": int(datetime.datetime.now().timestamp() * 1000)
+    }
+
+
 def get_ap_html_path():
     return os.path.join(AP_DIR, "dashboard.html")
 
+def get_dashboard_json_path():
+    return os.path.join(AP_DIR, "dashboard_data.json")
+
+def get_tasks_json_path():
+    return os.path.join(AP_DIR, "tasks_data.json")
+
 @app.route("/main/ap/set", methods=["POST"])
 def handle_ap_set():
-    """接收并保存仪表盘 HTML 内容到 servercache/ap/dashboard.html"""
+    """接收并解析仪表盘 HTML 内容，保存到 servercache/ap/dashboard_data.json"""
     try:
         req_data = _collect_request_dict()
         html_content = req_data.get("html")
@@ -714,25 +890,73 @@ def handle_ap_set():
             html_content = request.form.get("html") or request.data.decode("utf-8", errors="ignore")
 
         if html_content:
+            # 1. 保存原始 HTML
             with open(get_ap_html_path(), "w", encoding="utf-8") as f:
                 f.write(html_content)
-            return format_response({"status": "ok", "message": "仪表盘缓存保存成功"}, 200)
+            
+            # 2. 解析 HTML 并生成结构化数据
+            parsed_data = parse_dashboard_html(html_content)
+            
+            # 3. 存储到后端缓存 JSON
+            with open(get_dashboard_json_path(), "w", encoding="utf-8") as f:
+                json.dump(parsed_data, f, ensure_ascii=False, indent=2)
+
+            return format_response({"status": "ok", "message": "仪表盘 HTML 解析并保存成功", "data": parsed_data}, 200)
+        return format_response({"status": "error", "message": "缺少 html 内容"}, 400)
+    except Exception as e:
+        return format_response({"status": "error", "message": str(e)}, 500)
+
+@app.route("/main/ap/set2", methods=["POST"])
+def handle_ap_set2():
+    """接收并解析任务状态 HTML 内容，保存到 servercache/ap/tasks_data.json"""
+    try:
+        req_data = _collect_request_dict()
+        html_content = req_data.get("html")
+        if not html_content and request.is_json:
+            j = request.get_json(silent=True)
+            if j:
+                html_content = j.get("html")
+        if not html_content:
+            html_content = request.form.get("html") or request.data.decode("utf-8", errors="ignore")
+
+        if html_content:
+            # 解析任务 HTML
+            parsed_data = parse_tasks_html(html_content)
+            
+            # 存储到后端缓存 JSON
+            with open(get_tasks_json_path(), "w", encoding="utf-8") as f:
+                json.dump(parsed_data, f, ensure_ascii=False, indent=2)
+
+            return format_response({"status": "ok", "message": "任务状态 HTML 解析并保存成功", "data": parsed_data}, 200)
         return format_response({"status": "error", "message": "缺少 html 内容"}, 400)
     except Exception as e:
         return format_response({"status": "error", "message": str(e)}, 500)
 
 @app.route("/main/ap/get", methods=["GET"])
 def handle_ap_get():
-    """读取并返回仪表盘缓存的 HTML 内容"""
-    path = get_ap_html_path()
+    """读取并返回仪表盘结构化数据缓存"""
+    path = get_dashboard_json_path()
     if os.path.exists(path):
         try:
             with open(path, "r", encoding="utf-8") as f:
-                html_content = f.read()
-            return format_response({"status": "ok", "html": html_content}, 200)
+                data = json.load(f)
+            return format_response({"status": "ok", **data}, 200)
         except Exception as e:
             return format_response({"status": "error", "message": str(e)}, 500)
-    return format_response({"status": "ok", "html": ""}, 200)
+    return format_response({"status": "ok", "resources": []}, 200)
+
+@app.route("/main/ap/get2", methods=["GET"])
+def handle_ap_get2():
+    """读取并返回任务状态结构化数据缓存"""
+    path = get_tasks_json_path()
+    if os.path.exists(path):
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            return format_response({"status": "ok", **data}, 200)
+        except Exception as e:
+            return format_response({"status": "error", "message": str(e)}, 500)
+    return format_response({"status": "ok", "running": [], "queued": [], "waiting": []}, 200)
 
 @app.route("/main/sv/get", methods=["GET"])
 def handle_sv_get():
