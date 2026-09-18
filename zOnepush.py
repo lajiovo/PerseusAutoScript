@@ -576,6 +576,11 @@ def start_alas_mumu_check_timer():
             try:
                 print("⏰ 触发定时任务: 正在运行 alas_mumu_check...")
                 run_alas_mumu_check()
+                with stats_lock:
+                    stats = _load_stats()
+                    stats["auto_check_count"] += 1
+                    _save_stats(stats)
+                print("⏱️ [统计模块] autocheck处理次数+1")
                 # 1. 运行前检查签到记录文件
                 log_path = 'last_checkin.txt'
                 today_str = datetime.date.today().isoformat()  # YYYY-MM-DD
@@ -1420,6 +1425,11 @@ def receive_push():
     print("消息完整字典：")
     print(json.dumps(msg_dict, ensure_ascii=False, indent=4))
     print("========================================\n")
+    with stats_lock:
+        stats = _load_stats()
+        stats["push_handle_count"] += 1
+        _save_stats(stats)
+    print("⏱️ [统计模块] push处理次数+1")
 
     if HANDLEPUSH:
         push_res = Handlepush(msg_dict)
@@ -1472,6 +1482,11 @@ def handle_start():
     try:
         print("▶️ 收到 /start 请求，正在运行 run_alas_mumu_check...")
         run_alas_mumu_check()
+        with stats_lock:
+            stats = _load_stats()
+            stats["auto_check_count"] += 1
+            _save_stats(stats)
+        print("⏱️ [统计模块] autocheck处理次数+1")
     except Exception as e:
         print(f"⚠️ 运行 run_alas_mumu_check 出现异常: {e}")
         
