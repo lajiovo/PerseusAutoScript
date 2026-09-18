@@ -1,33 +1,36 @@
 # 代理设置
+# 统一调用此处的地址
 proxy:
-  http: "http://192.168.10.13:1082"
-  socks: "socks5://192.168.10.13:1082"
+  http: "http://192.168.10.x:1082"
+  socks: "socks5://192.168.10.x:1082"
 
 # ==================== zAlas ====================
 alas:
-  # Alas 启动器路径
+  # ⚠ Alas 启动器路径
   alas_path: "D:\\???\\AzurPilot\\alas-launcher.exe"
-  # 目标进程名称
+  # 进程名称
   target_process: "alas-launcher.exe"
-  # 目标窗口标题
+  # 窗口标题
   target_title: "AzurPilot"
 
 # ==================== zBarkCustom ====================
 bark:
-  # 设备 Key 列表
+  # Key 列表
+  # App上自己查，需要通知几个设备就填几个
   key_list:
     - ""
-  alarm: "alarm"
   # 提示音效
+  alarm: "alarm"
   normal: "alarm"
-  # icon
+  # 消息图标
+  # 默认是biligamewiki上的perseus的juus
   icon1: "https://patchwiki.biligame.com/images/blhx/0/05/3bi61qmjssvlemdug8rag683vcj2ziy.png"
   icon2: "https://patchwiki.biligame.com/images/blhx/0/0f/m5rycu93qc94r5lyst8862wnbvehjle.png"
   icon3: "https://patchwiki.biligame.com/images/blhx/9/9a/onh0ri4tx1wjuhhtxegjqqcobv7wdjc.png"
 
-# ==================== BanMuMu 屏蔽/清理配置 ====================
+# ==================== BanMuMu 清理配置 ====================
 banmumu:
-  # 需要清理的文件夹配置
+  # 需要清理的文件夹
   folder_targets:
     dir: "C:\\Users\\???\\AppData\\Roaming\\Netease\\MuMuPlayer\\data"
     items:
@@ -49,9 +52,10 @@ banmumu:
 # ==================== Cpolar 内网穿透配置 ====================
 cpolar:
   # Cpolar 安装目录
-  dir: "D:\\???\\cpolar'sFloder'"
+  dir: "D:\\???\\cpolar"
 
-  # Cpolar Authtoken (若已在命令行配置过可留空)
+  # Cpolar Authtoken
+  # 如果无法正常使用，就在这里填入以保底
   authtoken: ""
 
 # ==================== FFmpeg 音频处理配置 ====================
@@ -59,7 +63,7 @@ ffmpeg:
   # 路径配置
   paths:
     # 源文件目录
-    src_dir: "D:\\???\\musicdl'sFloder\\data\\downloads"
+    src_dir: "D:\\???\\musicdl\\data\\downloads"
     # 目标文件目录
     dst_dir: "D:\\???\\Music"
 
@@ -70,7 +74,7 @@ ffmpeg:
     # 输出比特率
     bitrate: "64k"
 
-# ==================== LK (轻小说) 配置 ====================
+# ==================== LK 爬虫配置 ====================
 lk:
   # 基础配置
   site:
@@ -78,30 +82,35 @@ lk:
     viewport:
       width: 393
       height: 852
+
     # 目标域名
     domain: "https://www.lightnovel.fun"
+
     # 认证文件路径
+    # 不登录的话就不需要
     auth_file: "lkauth.json"
     # 缓存目录
     cache_dir: "lkcache"
 
-  # 默认下载
-  default_book: "0"
+  # 默认下载bookid
+  default_book: "91"
 
+  # 导出文件夹
   novel_dir : "Novels"
 
-# ==================== MuMu 模拟器配置 ====================
+# ==================== zMumu 配置 ====================
 mumu:
   # 路径配置
   paths:
-    # MuMu 主程序路径
-    main_path: "D:\\???\\Mumu'Floder\\MuMuPlayer\\nx_main\\MuMuNxMain.exe"
-    # MuMu 实例设备路径
-    device_path: "D:\\???\\Mumu'Floder\\MuMuPlayer\\nx_device\\12.0\\shell\\MuMuNxDevice.exe"
+    # ⚠ MuMu 主程序路径
+    main_path: "D:\\???\\MuMuPlayer\\nx_main\\MuMuNxMain.exe"
+    # ⚠ MuMu 实例设备路径
+    device_path: "D:\\???\\MuMuPlayer\\nx_device\\12.0\\shell\\MuMuNxDevice.exe"
 
   # 窗口控制配置
   window:
-    # 是否隐藏窗口控制 (True = 隐藏启动, False = 正常显示启动)
+    # 是否隐藏窗口控制
+    # 默认false
     hide_mumu: false
 
   # 运行与检测参数设置
@@ -116,10 +125,10 @@ mumu:
     # 最多尝试次数（初始 1 次 + kill 后重试 1 次）
     max_attempts: 2
 
-# ==================== MusicDL 网络代理/监听配置 ====================
+# ==================== MusicDL 转发配置 ====================
 musicdl:
   network:
-    # 目标地址（本地绑定的应用）
+    # 目标地址
     target_host: "127.0.0.1"
     target_port: 37777
 
@@ -134,17 +143,17 @@ pushserver:
 
   # QBot 相关配置
   qbot:
-    # Python 后台运行环境 (pythonw.exe) 路径
+    # ⚠ Python 后台运行环境 (pythonw.exe) 路径
     pythonw_path: "C:\\Users\\???\\AppData\\Local\\Programs\\Python\\Python314\\pythonw.exe"
-    # QBot 主脚本路径
+    # ⚠ QBot 主脚本路径
     script_path: "D:\\???\\Perseus\\QBot\\main.py"
-    # 专用的精准识别标记（写在命令行参数中）
+    # 专用的精准识别标记
     identifier: "--PERSEUS_QBOT_INSTANCE"
 
   # MusicDL 配置
   music:
     # MusicDL 桌面程序路径
-    exe_path: "D:\\???\\musicdl'Floder\\music-dl-desktop-rust.exe"
+    exe_path: "D:\\???\\musicdl\\music-dl-desktop-rust.exe"
     # 服务端口
     port: 37777
 
@@ -161,13 +170,14 @@ logger:
 
 # ==================== Bot 机器人配置 ====================
 bot:
-  # 应用 ID
+  # ⚠ Bot ID和密钥
+  # 你创建的QQ机器人的时候会有，直接粘贴进来
   app_id: "xxx"
-  # 应用密钥
   app_secret: "xxx"
-  # 默认 op
+  # ⚠ 默认 op id
+  # 在日志找到你发送的消息对应的你ID
   default_op: "xxx"
-  # 机器人艾特前缀标识
+  # 机器人ID
   target_bot_prefix: "<@xxx>"
 
   opcmd:
@@ -181,6 +191,7 @@ bot:
     # Alas 错误日志专有路径
     alas_error_log_path: "D:\\???\\AzurPilot\\log\\error\\alas"
 
+    # ⚠ 重启主程序的路径
     beginvbs: "D:\\???\\Perseus\\begin.vbs"
 
     # 需要被掩码隐藏的敏感路径字符串列表
@@ -191,6 +202,8 @@ bot:
     # 替换后的掩码字符串
     mask_replacement: "D:\\***"
 
-    # 关于云崽
+    # 云崽配置
+    # ⚠ node路径
     node : "C:\\Program Files\\nodejs\\node.exe"
+    # ⚠ yunzai安装文件夹
     yzdir : "D:\\???\\Perseus\\yunzai"

@@ -67,8 +67,8 @@ Perseus/
 ├── QBot/                     # QBot 机器人独立服务目录
 │   ├── assets/               # 静态资源文件
 │   │    ├── index.html       # 主页面
-│   │    ├── login.html
-│   │    └── chat.html
+│   │    ├── login.html       # 已废弃
+│   │    └── chat.html        # 已废弃
 │   ├── temp_images/          # 云崽图片消息缓存
 │   ├── botdata/              # 机器人数据
 │   │    ├── c2chistory/      # 私聊聊天记录
@@ -77,8 +77,7 @@ Perseus/
 │   │    ├── userdata/        # 用户的游戏数据
 │   │    ├── userinfo/        # 用户信息
 │   │    ├── extra.json       # 其他信息
-│   │    ├── opsetting.json   # 管理员设置
-│   │    └── pushhistory.json # 已废弃
+│   │    └── opsetting.json   # 管理员设置
 │   ├── log/                  # 机器人板块日志
 │   ├── config.py             # QBot 配置脚本
 │   ├── game.py               # 简易互动小游戏逻辑
@@ -93,6 +92,7 @@ Perseus/
 ├── brocache/                 # zBrowser的文件
 ├── servercache/              # 大本营的缓存文件
 │   ├── clipboard/            # clipboard缓存
+│   ├── lk/                   # （实验性）
 │   └── pushlog/              # push消息日志
 ├── browser_downloads/        # zBrowser的下载文件
 ├── lkcache/                  # LK板块的缓存文件
@@ -105,7 +105,11 @@ Perseus/
 ├── quick_tools/              # 轻量化快捷小工具目录
 ├── webassets/                # Web 后台/控制面板前端静态资源
 │   ├── index.html            # 导航页
-│   └── dash.html             # 仪表盘 控制页
+│   ├── dash.html             # 仪表盘 控制页
+│   ├── clipboard.html        # 在线剪切板
+│   ├── lk.html               # （实验性）LK爬虫主页
+│   ├── book.html             # （实验性）LK爬虫书籍页
+│   └── reader.html           # （实验性）LK爬虫阅读页
 ├── begin.vbs                 # 一级启动入口
 ├── Begin.example.bat         # 二级启动入口 示例
 ├── begin.pyw                 # 三级启动入口
@@ -126,6 +130,10 @@ Perseus/
 ├── zEditProxy.py             # 程序与系统 Git 代理一键修改
 ├── zFfmpeg.py                # FFmpeg 音频压缩
 ├── zLK.py                    # 轻之国度电子书抓取、解析与 EPUB 打包
+├── zLKbro.py                 # （实验性）轻之国度爬虫浏览器
+├── zLKepub.py                # （实验性）轻之国度爬虫打包
+├── zLKapi.py                 # （实验性）轻之国度爬虫接口
+├── zLKserver.py              # （实验性）轻之国度爬虫路由
 ├── zMainHandler.py           # 消息转发和指令处理
 ├── zMumu.py                  # MuMu 模拟器进程相关
 ├── zMusicDL.py               # MusicDL 音乐服务启动与局域网广播
@@ -168,8 +176,6 @@ Perseus/
 
 ### 2. 核心 API 路由
 *   `/push`：接收外部 Push 消息并分发处理。
-*   `/cp/start`：开启 Cpolar 隧道。
-*   `/lk/<book_id>`：提交异步 LK 爬取任务。
 *   `/bot/start`：重启机器人进程。
 *   ...
 
