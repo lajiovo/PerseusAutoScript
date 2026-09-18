@@ -19,16 +19,50 @@ class MoreCommandSystem:
         """
         lower_cmd = cmd.lower()
         
-        # 资源监控相关指令：ap, ziyuan, 监控
+        # 资源监控相关指令：ap, ziyuan, 监控, 资源
         if lower_cmd in ("ap", "ziyuan", "监控", "资源"):
             return self._get_resource_status()
             
         # 任务状态相关指令：task, tasks, 任务, 状态
         if lower_cmd in ("task", "tasks", "任务", "状态"):
             return self._get_task_status()
+
+        # 综合统计相关指令：统计, status, botstatus, stats
+        if lower_cmd in ("统计", "status", "botstatus", "stats"):
+            return self._get_comprehensive_stats()
             
         # 未匹配到相关指令
         return None
+
+    def _get_comprehensive_stats(self):
+        """请求本地 /main/stats/get 获取 zOnepush 与 QBot 的综合统计数据并格式化展示"""
+        try:
+            url = f"{self.api_base_url}/main/stats/get"
+            resp = requests.get(url, timeout=5)
+            if resp.status_code == 200:
+                data = resp.json()
+                z_stats = data.get("zOnepush", {})
+                b_stats = data.get("qbot", {})
+
+                lines = ["📈 【综合统计与运行状态】"]
+                lines.append(f"• 自动化检查次数: {z_stats.get('auto_check_count', 0)} 次")
+                lines.append(f"• Push 处理次数: {z_stats.get('push_handle_count', 0)} 次")
+                lines.append(f"• 累计运行时长: {z_stats.get('total_runtime_hours', 0)} 小时 ({z_stats.get('total_runtime_seconds', 0)}秒)")
+
+                if b_stats and b_stats.get("status") == "success":
+                    lines.append(f"\n🤖 【Bot 运行统计】")
+                    lines.append(f"• 消息总通量: {b_stats.get('total_messages', 0)} 条")
+                    lines.append(f"• 回复量: {b_stats.get('reply_count', 0)} 条")
+                    lines.append(f"• 处理量: {b_stats.get('processed_count', 0)} 次")
+                    lines.append(f"• 活跃群聊数: {b_stats.get('active_groups_count', 0)} 个")
+                else:
+                    lines.append(f"\n🤖 【Bot 运行统计】: 离线或未连接")
+
+                return "\n".join(lines)
+            else:
+                return f"❌ 获取综合统计失败 (HTTP {resp.status_code})"
+        except Exception as e:
+            return f"❌ 获取综合统计异常: {str(e)}"
 
     def _get_resource_status(self):
         """请求本地 /main/ap/get 获取资源监控数据并格式化展示"""

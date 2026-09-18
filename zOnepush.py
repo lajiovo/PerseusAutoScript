@@ -499,7 +499,63 @@ def start_qbot_process():
         print(f"❌ 启动 QBot 进程失败: {e}")
 
 
-# ==================== 定时器及基础状态管理 ====================
+# ==================== 统计模块（累计运行时长、自动化检查总次数、Push总处理次数） ====================
+
+STATS_FILE = os.path.join(BASE_DIR, "servercache", "stats.json")
+stats_lock = threading.Lock()
+
+def _load_stats():
+    os.makedirs(os.path.dirname(STATS_FILE), exist_ok=True)
+    if os.path.exists(STATS_FILE):
+        try:
+            with open(STATS_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                if isinstance(data, dict):
+                    return {
+                        "auto_check_count": int(data.get("auto_check_count", 0)),
+                        "push_handle_count": int(data.get("push_handle_count", 0)),
+                        "total_runtime_seconds": float(data.get("total_runtime_seconds", 0.0))
+                    }
+        except Exception:
+            pass
+    return {
+        "auto_check_count": 0,
+        "push_handle_count": 0,
+        "total_runtime_seconds": 0.0
+    }
+
+def _save_stats(stats):
+    os.makedirs(os.path.dirname(STATS_FILE), exist_ok=True)
+    try:
+        with open(STATS_FILE, "w", encoding="utf-8") as f:
+            json.dump(stats, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        print(f"⚠️ 保存统计数据失败: {e}")
+
+def increment_stat(key, amount=1):
+    with stats_lock:
+        stats = _load_stats()
+        if key in stats:
+            stats[key] += amount
+            _save_stats(stats)
+
+def _runtime_persistence_loop():
+    """后台线程：每 10 分钟自动将运行时长（秒数）累加并持久化一次"""
+    interval = 600  # 10 分钟 = 600 秒
+    while True:
+        time.sleep(interval)
+        try:
+            with stats_lock:
+                stats = _load_stats()
+                stats["total_runtime_seconds"] += interval
+                _save_stats(stats)
+            print("⏱️ [统计模块] 累计运行时长已更新并持久化 (+10分钟)")
+        except Exception as e:
+            print(f"⚠️ 运行时长持久化线程异常: {e}")
+
+# 启动后台累计运行时长持久化线程
+threading.Thread(target=_runtime_persistence_loop, daemon=True).start()
+
 
 def stop_timer():
     """停止后台定时检查线程"""
@@ -958,25 +1014,61 @@ def handle_ap_get2():
             return format_response({"status": "error", "message": str(e)}, 500)
     return format_response({"status": "ok", "running": [], "queued": [], "waiting": []}, 200)
 
-@app.route("/main/sv/get", methods=["GET"])
-def handle_sv_get():
-    """返回 HANDLEPUSH状态，zMumu.is_mumu_running()，zAlas.is_process_running()"""
+@app.route("/main/stats/get", methods=["GET"])
+def handle_main_stats_get():
+    """返回 zOnepush 自身统计数据，并尝试请求本地运行的 QBot (/bot/status/get 或 /bot/api/stats) 聚合完整统计信息"""
+    stats = _load_stats()
+    
+    bot_stats = None
     try:
-        mumu_running = zMumu.is_mumu_running()
+        import urllib.request
+        req = urllib.request.Request("http://127.0.0.1:25567/bot/status/get", method="GET")
+        with urllib.request.urlopen(req, timeout=1.5) as resp:
+            if resp.status == 200:
+                body = resp.read().decode("utf-8")
+                bot_data = json.loads(body)
+                if bot_data.get("status") == "success":
+                    bot_stats = bot_data
     except Exception:
-        mumu_running = False
-
-    try:
-        alas_running = zAlas.is_process_running()
-    except Exception:
-        alas_running = False
+        try:
+            import urllib.request
+            req = urllib.request.Request("http://127.0.0.1:25567/bot/api/stats", method="GET")
+            with urllib.request.urlopen(req, timeout=1.5) as resp:
+                if resp.status == 200:
+                    body = resp.read().decode("utf-8")
+                    bot_data = json.loads(body)
+                    if bot_data.get("status") == "success":
+                        bot_stats = bot_data.get("data")
+        except Exception:
+            pass
 
     return format_response({
         "status": "ok",
-        "handlepush": HANDLEPUSH,
-        "mumu_running": mumu_running,
-        "alas_running": alas_running
+        "zOnepush": {
+            "auto_check_count": stats["auto_check_count"],
+            "push_handle_count": stats["push_handle_count"],
+            "total_runtime_seconds": stats["total_runtime_seconds"],
+            "total_runtime_hours": round(stats["total_runtime_seconds"] / 3600.0, 2)
+        },
+        "qbot": bot_stats
     }, 200)
+
+@app.route("/main/bot/get", methods=["GET"])
+def handle_main_bot_get():
+    """请求本地 http://127.0.0.1:25567/bot/status/get 获取 QBot 统计并返回给前端"""
+    try:
+        import urllib.request
+        req = urllib.request.Request("http://127.0.0.1:25567/bot/status/get", method="GET")
+        with urllib.request.urlopen(req, timeout=2.0) as resp:
+            body = resp.read().decode("utf-8")
+            data = json.loads(body)
+            return format_response(data, resp.status)
+    except Exception as e:
+        return format_response({
+            "status": "error",
+            "message": f"获取 QBot 状态失败: {str(e)}"
+        }, 502)
+
 
 
 # ==================== 剪切板缓存与文件管理 (servercache/clipboard) ====================

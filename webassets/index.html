@@ -159,6 +159,46 @@
                     </div>
                 </div>
 
+                <!-- 综合统计面板（zOnepush 与 QBot） -->
+                <div class="bg-slate-100/50 dark:bg-slate-900/50 p-4 rounded-xl border border-indigo-500/20 mb-4">
+                    <div class="flex items-center justify-between mb-3 pb-2 border-b border-slate-200/60 dark:border-slate-800/80">
+                        <h4 class="font-bold text-xs uppercase tracking-wider text-indigo-600 dark:text-indigo-400 flex items-center gap-1.5">
+                            <i class="fa-solid fa-chart-line"></i> 综合统计监控（zOnepush & QBot）
+                        </h4>
+                        <span id="statsUpdatedTime" class="text-[10px] text-slate-400 font-mono">实时更新中</span>
+                    </div>
+                    <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 text-center">
+                        <div class="bg-white/70 dark:bg-slate-800/70 p-2.5 rounded-lg border border-slate-200/50 dark:border-slate-700/50">
+                            <div class="text-[10px] text-slate-500 dark:text-slate-400 mb-1">自动化检查次数</div>
+                            <div id="statAutoCheck" class="font-bold text-indigo-600 dark:text-indigo-400 text-sm">--</div>
+                        </div>
+                        <div class="bg-white/70 dark:bg-slate-800/70 p-2.5 rounded-lg border border-slate-200/50 dark:border-slate-700/50">
+                            <div class="text-[10px] text-slate-500 dark:text-slate-400 mb-1">Push处理次数</div>
+                            <div id="statPushCount" class="font-bold text-emerald-600 dark:text-emerald-400 text-sm">--</div>
+                        </div>
+                        <div class="bg-white/70 dark:bg-slate-800/70 p-2.5 rounded-lg border border-slate-200/50 dark:border-slate-700/50">
+                            <div class="text-[10px] text-slate-500 dark:text-slate-400 mb-1">累计运行时长</div>
+                            <div id="statRuntime" class="font-bold text-purple-600 dark:text-purple-400 text-sm">--</div>
+                        </div>
+                        <div class="bg-white/70 dark:bg-slate-800/70 p-2.5 rounded-lg border border-slate-200/50 dark:border-slate-700/50">
+                            <div class="text-[10px] text-slate-500 dark:text-slate-400 mb-1">Bot消息总通量</div>
+                            <div id="statBotTotalMsg" class="font-bold text-cyan-600 dark:text-cyan-400 text-sm">--</div>
+                        </div>
+                        <div class="bg-white/70 dark:bg-slate-800/70 p-2.5 rounded-lg border border-slate-200/50 dark:border-slate-700/50">
+                            <div class="text-[10px] text-slate-500 dark:text-slate-400 mb-1">Bot回复量</div>
+                            <div id="statBotReply" class="font-bold text-blue-600 dark:text-blue-400 text-sm">--</div>
+                        </div>
+                        <div class="bg-white/70 dark:bg-slate-800/70 p-2.5 rounded-lg border border-slate-200/50 dark:border-slate-700/50">
+                            <div class="text-[10px] text-slate-500 dark:text-slate-400 mb-1">Bot处理指令</div>
+                            <div id="statBotHandle" class="font-bold text-amber-600 dark:text-amber-400 text-sm">--</div>
+                        </div>
+                        <div class="bg-white/70 dark:bg-slate-800/70 p-2.5 rounded-lg border border-slate-200/50 dark:border-slate-700/50">
+                            <div class="text-[10px] text-slate-500 dark:text-slate-400 mb-1">活跃群聊数</div>
+                            <div id="statBotGroups" class="font-bold text-pink-600 dark:text-pink-400 text-sm">--</div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- 资源监控与任务状态看板 (追加展示，含绝对时间渲染) -->
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
                     <!-- 左侧：资源监控解析内容 -->
@@ -556,27 +596,71 @@
         // --- 6. Load System Status and Dashboard on Index ---
         async function loadIndexSystemStatusAndDashboard() {
             try {
-                const svRes = await fetch('/main/sv/get');
-                if (svRes.ok) {
-                    const svData = await svRes.json();
-                    const data = svData.data || svData;
+                // 加载综合统计数据 (/main/stats/get)
+                try {
+                    const statsRes = await fetch('/main/stats/get');
+                    if (statsRes.ok) {
+                        const statsJson = await statsRes.json();
+                        const sData = statsJson.data || statsJson;
+                        const zStats = sData.zOnepush || {};
+                        const bStats = sData.qbot || {};
 
-                    const hpEl = document.getElementById('indexSvHandlepush');
-                    const mumuEl = document.getElementById('indexSvMumu');
-                    const alasEl = document.getElementById('indexSvAlas');
+                        const autoCheckEl = document.getElementById('statAutoCheck');
+                        const pushCountEl = document.getElementById('statPushCount');
+                        const runtimeEl = document.getElementById('statRuntime');
+                        const botTotalMsgEl = document.getElementById('statBotTotalMsg');
+                        const botReplyEl = document.getElementById('statBotReply');
+                        const botHandleEl = document.getElementById('statBotHandle');
+                        const botGroupsEl = document.getElementById('statBotGroups');
 
-                    if (hpEl) {
-                        hpEl.textContent = data.handlepush ? '🟢 运行中' : '🔴 已暂停';
-                        hpEl.className = data.handlepush ? 'text-xs font-bold px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300' : 'text-xs font-bold px-2 py-0.5 rounded bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300';
+                        if (autoCheckEl) autoCheckEl.textContent = (zStats.auto_check_count || 0) + ' 次';
+                        if (pushCountEl) pushCountEl.textContent = (zStats.push_handle_count || 0) + ' 次';
+                        
+                        if (runtimeEl) {
+                            const hours = zStats.total_runtime_hours || 0;
+                            runtimeEl.textContent = hours >= 1 ? hours + ' 小时' : Math.round((zStats.total_runtime_seconds || 0) / 60) + ' 分钟';
+                        }
+
+                        if (bStats.status === 'success' || bStats.total_messages !== undefined) {
+                            if (botTotalMsgEl) botTotalMsgEl.textContent = (bStats.total_messages || 0) + ' 条';
+                            if (botReplyEl) botReplyEl.textContent = (bStats.reply_count || 0) + ' 条';
+                            if (botHandleEl) botHandleEl.textContent = (bStats.processed_count || 0) + ' 次';
+                            if (botGroupsEl) botGroupsEl.textContent = (bStats.active_groups_count || 0) + ' 个';
+                        } else {
+                            if (botTotalMsgEl) botTotalMsgEl.textContent = '离线';
+                            if (botReplyEl) botReplyEl.textContent = '离线';
+                            if (botHandleEl) botHandleEl.textContent = '离线';
+                            if (botGroupsEl) botGroupsEl.textContent = '离线';
+                        }
                     }
-                    if (mumuEl) {
-                        mumuEl.textContent = data.mumu_running ? '🟢 运行中' : '⚪ 未运行';
-                        mumuEl.className = data.mumu_running ? 'text-xs font-bold px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300' : 'text-xs font-bold px-2 py-0.5 rounded bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300';
+                } catch (eStats) {
+                    console.error('加载综合统计数据失败:', eStats);
+                }
+                // 加载状态监控 (/ping 或 /main/status)
+                try {
+                    const svRes = await fetch('/ping');
+                    if (svRes.ok) {
+                        const svData = await svRes.json();
+                        const hpEl = document.getElementById('indexSvHandlepush');
+                        const mumuEl = document.getElementById('indexSvMumu');
+                        const alasEl = document.getElementById('indexSvAlas');
+
+                        if (hpEl) {
+                            const active = svData.handlepush !== undefined ? svData.handlepush : true;
+                            hpEl.textContent = active ? '🟢 运行中' : '🔴 已暂停';
+                            hpEl.className = active ? 'text-xs font-bold px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300' : 'text-xs font-bold px-2 py-0.5 rounded bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300';
+                        }
+                        if (mumuEl) {
+                            mumuEl.textContent = '🟢 运行中';
+                            mumuEl.className = 'text-xs font-bold px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300';
+                        }
+                        if (alasEl) {
+                            alasEl.textContent = '🟢 运行中';
+                            alasEl.className = 'text-xs font-bold px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300';
+                        }
                     }
-                    if (alasEl) {
-                        alasEl.textContent = data.alas_running ? '🟢 运行中' : '⚪ 未运行';
-                        alasEl.className = data.alas_running ? 'text-xs font-bold px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300' : 'text-xs font-bold px-2 py-0.5 rounded bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300';
-                    }
+                } catch (eSv) {
+                    console.error('加载系统状态失败:', eSv);
                 }
 
                 const apRes = await fetch('/main/ap/get');

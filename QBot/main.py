@@ -43,6 +43,30 @@ class MyClient(botpy.Client):
         self.more_cmd_sys = MoreCommandSystem(self.data_mgr)
         # 实例化 YunzaiWSClient
         self.youzai_mgr = YunzaiWSClient(self)
+        
+        # 统计信息计数器（从 data_mgr 的 extra 恢复或初始化）
+        saved_stats = self.data_mgr.get_extra_data("bot_stats", {})
+        self.stats_total_messages = saved_stats.get("total_messages", 0)  # 消息总通量（接收+发送或总接收量）
+        self.stats_received_messages = saved_stats.get("received_messages", 0)  # 接收量
+        self.stats_reply_count = saved_stats.get("reply_count", 0)        # 回复量
+        self.stats_processed_count = saved_stats.get("processed_count", 0)    # 处理量（指令/事件处理数）
+        self.active_groups = set(saved_stats.get("active_groups", []))        # 活跃群聊集合
+
+    def save_bot_stats(self):
+        """将 QBot 统计信息保存到 data_mgr 的 extra 字段中进行持久化与管理"""
+        uptime = int(time.time() - getattr(self, "start_time", time.time()))
+        status_data = {
+            "status": "success",
+            "uptime": uptime,
+            "total_messages": self.stats_total_messages,
+            "received_messages": self.stats_received_messages,
+            "reply_count": self.stats_reply_count,
+            "processed_count": self.stats_processed_count,
+            "active_groups_count": len(self.active_groups),
+            "active_groups": list(self.active_groups),
+            "system_active": self.data_mgr.is_system_active()
+        }
+        self.data_mgr.set_extra_data("bot_stats", status_data)
 
     async def on_ready(self):
         logging.info(f"robot 「{self.robot.name}」 已成功上线！")
@@ -560,6 +584,8 @@ class MyClient(botpy.Client):
         self, res: dict, target_id: str, msg_id: str, is_c2c: bool = False
     ):
         """统一合并的回复发送函数，根据 res 数据字典中的 msg_type 参数分发逻辑"""
+        self.stats_reply_count += 1
+        self.stats_total_messages += 1
         msg_type = res.get("msg_type", 0)
         reply_content = res.get("content", "")
         msg_seq = res.get("msg_seq", None)
@@ -751,6 +777,11 @@ class MyClient(botpy.Client):
         )
         sender_openid = sender_openid.upper()
 
+        self.stats_total_messages += 1
+        self.stats_received_messages += 1
+        if group_id:
+            self.active_groups.add(group_id)
+
         logging.info(
             f"[{event_name}] 群消息 | 群ID: {group_id} | 发送者: {sender_openid} |"
             f" 内容: {content}"
@@ -773,6 +804,7 @@ class MyClient(botpy.Client):
             content = "#" + content[1:].lstrip("#").strip()
 
         if content.startswith("#"):
+            self.stats_processed_count += 1
             reply_text = await self.process_command(
                 content, sender_openid, message, group_id, is_c2c=False
             )
@@ -781,6 +813,8 @@ class MyClient(botpy.Client):
                     await self.api.post_group_message(
                         group_openid=group_id, msg_type=0, msg_id=msg_id, content=reply_text
                     )
+                    self.stats_reply_count += 1
+                    self.stats_total_messages += 1
                     # 自动记录机器人的文本回复
                     self.data_mgr.append_group_message(
                         group_id=group_id, user_id="BOT", content=reply_text, role="assistant"
@@ -796,6 +830,9 @@ class MyClient(botpy.Client):
             getattr(author, "user_openid", "未知用户") if author else "未知用户"
         )
         sender_openid = sender_openid.upper()
+
+        self.stats_total_messages += 1
+        self.stats_received_messages += 1
 
         logging.info(
             f"[{event_name}] 单聊消息 | 发送者: {sender_openid} | 内容: {content}"
@@ -814,6 +851,7 @@ class MyClient(botpy.Client):
             content = "#" + content[1:].lstrip("#").strip()
 
         if content.startswith("#"):
+            self.stats_processed_count += 1
             reply_text = await self.process_command(
                 content, sender_openid, message, "", is_c2c=True
             )
@@ -822,6 +860,8 @@ class MyClient(botpy.Client):
                     await self.send_c2c_text(
                         user_openid=sender_openid, content=reply_text, msg_id=msg_id
                     )
+                    self.stats_reply_count += 1
+                    self.stats_total_messages += 1
                     # 自动记录机器人的文本回复
                     self.data_mgr.append_c2c_message(
                         user_id=sender_openid, content=reply_text, role="assistant"
