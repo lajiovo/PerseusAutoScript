@@ -67,34 +67,66 @@ class PlaywrightWorker(threading.Thread):
 
     def run(self):
         with sync_playwright() as p:
-            print("[系统] 启动 Chromium 引擎中...")
-            self.browser = p.chromium.launch(
-                headless=False,  # 保持可视化以支持用户手动通过 Cloudflare 验证
-                args=[
+            print("[系统] 启动 Chromium/Chrome 引擎中...")
+            
+            # 创建持久化缓存目录保存 Cookie 和 Session，避免反复验证
+            user_data_dir = BASE_CACHE_DIR / "user_data"
+            user_data_dir.mkdir(parents=True, exist_ok=True)
+            
+            launch_args = {
+                "user_data_dir": str(user_data_dir),
+                "headless": False,
+                "ignore_default_args": ["--enable-automation"],
+                "args": [
                     '--disable-blink-features=AutomationControlled',
-                    '--no-sandbox',
                     '--disable-infobars',
                     '--disable-dev-shm-usage',
-                    '--window-size=1366,768'
-                ]
-            )
-            self.context = self.browser.new_context(
-                viewport={'width': 1366, 'height': 768},
-                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-                locale="zh-CN",
-                timezone_id="Asia/Shanghai"
-            )
+                    '--start-maximized'
+                ],
+                "viewport": None
+            }
+            
+            try:
+                # 优先调起本地安装的官方 Google Chrome，通过率远高于 Playwright 自带 Chromium
+                print("[系统] 尝试调用本地真实 Google Chrome 浏览器...")
+                self.context = p.chromium.launch_persistent_context(channel="chrome", **launch_args)
+            except Exception as e:
+                print(f"[提示] 未检测到本地 Chrome ({e})，回退到 Playwright 默认 Chromium...")
+                self.context = p.chromium.launch_persistent_context(**launch_args)
             
             # 深入注入脚本抹除自动化特征
             self.context.add_init_script("""
+                // 擦除实例与原型链上的 webdriver 标记
                 Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
-                window.chrome = { runtime: {} };
-                Object.defineProperty(navigator, 'languages', {get: () => ['zh-CN', 'zh', 'en']});
+                try {
+                    delete Object.getPrototypeOf(navigator).webdriver;
+                } catch(e) {}
+                
+                // 补充标准 Chrome 运行时对象
+                window.chrome = {
+                    runtime: {},
+                    loadTimes: function() {},
+                    csi: function() {},
+                    app: {}
+                };
+                
+                // 伪装标准语言与插件列表
+                Object.defineProperty(navigator, 'languages', {get: () => ['zh-CN', 'zh', 'en-US', 'en']});
                 Object.defineProperty(navigator, 'plugins', {get: () => [1, 2, 3, 4, 5]});
+                
+                // 绕过 Permissions API 检测
+                if (window.navigator.permissions) {
+                    const origQuery = window.navigator.permissions.query;
+                    window.navigator.permissions.query = (params) => (
+                        params.name === 'notifications' ?
+                        Promise.resolve({ state: Notification.permission }) :
+                        origQuery(params)
+                    );
+                }
             """)
             
-            self.page = self.context.new_page()
-            print("[系统] 浏览器后台线程加载完成，准备接收指令。")
+            self.page = self.context.pages[0] if self.context.pages else self.context.new_page()
+            print("[系统] 浏览器后台线程加载完成，持久化 Session 已激活。")
             
             while True:
                 task = self.task_queue.get()
@@ -110,41 +142,42 @@ class PlaywrightWorker(threading.Thread):
                 finally:
                     self.task_queue.task_done()
             
-            self.browser.close()
+            self.context.close()
 
     def wait_for_cf_pass(self, selector, timeout=180):
         """
         检测页面是否有人机验证/Cloudflare 防护。
-        若发现验证，则循环等待用户在浏览器界面中手动点击完成，直到目标 selector 渲染。
+        若发现验证，暂停脚本干扰，等待用户在浏览器界面中手动点击完成。
         """
         start = time.time()
         notified = False
         while time.time() - start < timeout:
             try:
-                # 检查目标元素是否存在
+                # 检查目标元素是否存在，如果存在则说明已成功突破防护
                 if self.page.query_selector(selector):
                     if notified:
-                        print("[日志] 人机验证已通过，继续执行抓取任务...")
+                        print("[日志] ✅ 人机验证已成功通过，继续执行后续任务...")
                     return True
 
                 title = self.page.title()
-                content = self.page.content()
                 
-                # 判断 Cloudflare / 五秒盾 / 人机验证标志
-                if any(k in title or k in content for k in ["Just a moment", "验证", "Cloudflare", "安全检查", "cf-challenge"]):
+                # 仅通过页面标题快速判断，避免频繁读取 content() 干扰 Cloudflare 脚本运行
+                if any(k in title for k in ["Just a moment", "验证", "Cloudflare", "安全检查", "cf-challenge"]):
                     if not notified:
                         print("\n" + "="*50)
-                        print("[提示] ⚠️ 检测到人机验证/Cloudflare 防护！")
-                        print("[提示] 👉 请在弹出的 Chrome 浏览器窗口中手动点击或完成验证。")
+                        print("[提示] ⚠️ 检测到 Cloudflare / 人机验证防护！")
+                        print("[提示] 👉 请直接在弹出的 Chrome 浏览器窗口中用鼠标手动点击完成验证。")
+                        print("[提示] 💡 注意：脚本已暂停任何后台点击干扰，手动通过后将自动恢复运行。")
                         print("="*50 + "\n")
                         notified = True
+                    
                     time.sleep(2)
                 else:
                     time.sleep(1)
             except Exception:
                 time.sleep(1)
                 
-        print(f"[错误] 等待页面元素 '{selector}' 超时，请确认网络连接或手动验证。")
+        print(f"[错误] 等待页面元素 '{selector}' 超时，请确认网络连接或手动通过验证。")
         return False
 
     def handle_task(self, task):
