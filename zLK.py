@@ -1208,8 +1208,8 @@ def launch_gui():
                 root.after(0, lambda: messagebox.showinfo("完成", f"任务已成功完成！\n导出文件数量: {len(res)}"))
                 root.after(0, load_cache_metadata)
             except Exception as e:
-                root.after(0, lambda: lbl_status.config(text=f"状态: 处理失败 ({e})", foreground="red"))
-                root.after(0, lambda: messagebox.showerror("错误", f"执行发生错误:\n{e}"))
+                root.after(0, lambda err=e: lbl_status.config(text=f"状态: 处理失败 ({err})", foreground="red"))
+                root.after(0, lambda err=e: messagebox.showerror("错误", f"执行发生错误:\n{err}"))
             finally:
                 root.after(0, lambda: btn_start.config(state=tk.NORMAL))
 

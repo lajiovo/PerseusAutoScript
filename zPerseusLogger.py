@@ -72,7 +72,14 @@ if not isinstance(sys.stdout, LoggerWriter):
         logger.addHandler(console_handler)
 
     # 3. 文件日志 Handler（始终启用）
-    file_handler = RotatingFileHandler(
+    class SafeRotatingFileHandler(RotatingFileHandler):
+        def doRollover(self):
+            try:
+                super().doRollover()
+            except Exception:
+                pass
+
+    file_handler = SafeRotatingFileHandler(
         filename=log_path,
         maxBytes=MAX_BYTES,
         backupCount=BACKUP_COUNT,
