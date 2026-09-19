@@ -351,6 +351,7 @@ async def crawl_lightnovel_to_epub(
     only_redownload_images: bool = False,
     to_simplified: bool = True,
     use_cache_only: bool = False,
+    no_download_images: bool = False,
 ):
     """轻之国度小说爬取并合成 EPUB 主模块函数"""
     headers = {"User-Agent": USER_AGENT, "Referer": DOMAIN}
@@ -415,6 +416,21 @@ async def crawl_lightnovel_to_epub(
 
         if not use_cache_only:
             # 在线爬取模式
+            # 尝试在在线模式下也定位本地已有缓存目录，以便实现已爬取章节优先读取
+            if os.path.exists(CACHE_DIR):
+                for dname in os.listdir(CACHE_DIR):
+                    dpath = os.path.join(CACHE_DIR, dname)
+                    if os.path.isdir(dpath):
+                        meta_p = os.path.join(dpath, "metadata.json")
+                        if os.path.exists(meta_p):
+                            try:
+                                meta = json.load(open(meta_p, "r", encoding="utf-8"))
+                                if str(meta.get("book_id")) == str(book_id):
+                                    target_book_dir = dpath
+                                    break
+                            except Exception:
+                                pass
+
             browser = await p.chromium.launch(
                 headless=headless, proxy={"server": PROXY_SERVER} if PROXY_SERVER else None
             )
@@ -533,6 +549,12 @@ async def crawl_lightnovel_to_epub(
                     "crawled_at": datetime.now().isoformat(),
                 },
             )
+
+            if not target_book_dir and os.path.exists(CACHE_DIR):
+                safe_b = sanitize_filename(book_title)
+                cand_p = os.path.join(CACHE_DIR, safe_b)
+                if os.path.exists(cand_p):
+                    target_book_dir = cand_p
 
             print(f"[✓] 书名: {convert_t2s(book_title, to_simplified)} | 作者: {convert_t2s(author, to_simplified)}")
 
@@ -743,7 +765,7 @@ async def crawl_lightnovel_to_epub(
                 with open(existing_cover_file, "rb") as f:
                     cover_img_data = f.read()
                 cover_ext = os.path.splitext(existing_cover_file)[1] or ".jpg"
-            elif cover_url and not use_cache_only:
+            elif cover_url and not use_cache_only and not no_download_images:
                 print(f"[+] 正在下载封面图片: {cover_url}")
                 c_data, c_ext = download_image(cover_url, headers, cookies_dict)
                 if c_data:
@@ -885,7 +907,7 @@ async def crawl_lightnovel_to_epub(
                         if local_img_name:
                             break
 
-                    if not local_img_name and not use_cache_only:
+                    if not local_img_name and not use_cache_only and not no_download_images:
                         print(f"    [+] 补齐/重新下载图片 ({img_hash}): {img_url}")
                         ch_img_dir = get_image_save_dir(book_title, raw_vol_title)
                         img_data, img_ext = download_image(img_url, headers, cookies_dict)
@@ -1103,6 +1125,7 @@ def launch_gui():
 
     var_cache_only = tk.BooleanVar(value=False)
     var_redownload_img = tk.BooleanVar(value=False)
+    var_no_download_img = tk.BooleanVar(value=False)
     var_to_simplified = tk.BooleanVar(value=True)
     var_headless = tk.BooleanVar(value=False)
 
@@ -1111,6 +1134,9 @@ def launch_gui():
 
     chk_redownload_img = ttk.Checkbutton(opt_frame, text="仅补齐/重载图片 (only_redownload)", variable=var_redownload_img)
     chk_redownload_img.pack(side=tk.LEFT, padx=(0, 15))
+
+    chk_no_download_img = ttk.Checkbutton(opt_frame, text="不下载图片 (no_download_images)", variable=var_no_download_img)
+    chk_no_download_img.pack(side=tk.LEFT, padx=(0, 15))
 
     chk_to_simplified = ttk.Checkbutton(opt_frame, text="繁体转简体 (to_simplified)", variable=var_to_simplified)
     chk_to_simplified.pack(side=tk.LEFT, padx=(0, 15))
@@ -1158,6 +1184,7 @@ def launch_gui():
                         only_redownload_images=var_redownload_img.get(),
                         to_simplified=var_to_simplified.get(),
                         use_cache_only=var_cache_only.get(),
+                        no_download_images=var_no_download_img.get(),
                     )
                 )
                 root.after(0, lambda: lbl_status.config(text=f"状态: 任务完成，成功导出 {len(res)} 个 EPUB", foreground="green"))
