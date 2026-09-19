@@ -93,7 +93,9 @@ Perseus/
 ├── servercache/              # 大本营的缓存文件
 │   ├── clipboard/            # clipboard缓存
 │   ├── lk/                   # （实验性）
-│   └── pushlog/              # push消息日志
+│   ├── ap/                   # ap状态暂存
+│   ├── pushlog/              # push消息日志
+│   └── stats.json            # 大本营统计信息
 ├── browser_downloads/        # zBrowser的下载文件
 ├── lkcache/                  # LK板块的缓存文件
 │   └── <book-name>/          # 单书籍缓存
@@ -134,6 +136,7 @@ Perseus/
 ├── zLKepub.py                # （实验性）轻之国度爬虫打包
 ├── zLKapi.py                 # （实验性）轻之国度爬虫接口
 ├── zLKserver.py              # （实验性）轻之国度爬虫路由
+├── zLNL.py                   # （开发中）哔哩轻小说爬虫
 ├── zMainHandler.py           # 消息转发和指令处理
 ├── zMumu.py                  # MuMu 模拟器进程相关
 ├── zMusicDL.py               # MusicDL 音乐服务启动与局域网广播
