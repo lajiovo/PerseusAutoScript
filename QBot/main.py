@@ -51,6 +51,7 @@ class MyClient(botpy.Client):
         self.stats_reply_count = saved_stats.get("reply_count", 0)        # 回复量
         self.stats_processed_count = saved_stats.get("processed_count", 0)    # 处理量（指令/事件处理数）
         self.active_groups = set(saved_stats.get("active_groups", []))        # 活跃群聊集合
+        self.save_bot_stats()
 
     def save_bot_stats(self):
         """将 QBot 统计信息保存到 data_mgr 的 extra 字段中进行持久化与管理"""
@@ -116,6 +117,9 @@ class MyClient(botpy.Client):
             "content": content,
             "msg_id": msg_id,
         }
+        self.stats_reply_count += 1
+        self.stats_total_messages += 1
+        self.save_bot_stats()
         if ref_msg_id:
             kwargs["message_reference"] = {"message_id": ref_msg_id}
         if msg_seq is not None:
@@ -137,6 +141,9 @@ class MyClient(botpy.Client):
             "msg_type": 0,
             "content": content,
         }
+        self.stats_reply_count += 1
+        self.stats_total_messages += 1
+        self.save_bot_stats()
         if msg_id:
             payload["msg_id"] = msg_id
         if ref_msg_id:
@@ -168,6 +175,9 @@ class MyClient(botpy.Client):
             "markdown": markdown,
             "msg_id": msg_id,
         }
+        self.stats_reply_count += 1
+        self.stats_total_messages += 1
+        self.save_bot_stats()
         if keyboard:
             kwargs["keyboard"] = keyboard
         if msg_seq is not None:
@@ -189,6 +199,9 @@ class MyClient(botpy.Client):
             "msg_type": 2,
             "markdown": {"content": content},
         }
+        self.stats_reply_count += 1
+        self.stats_total_messages += 1
+        self.save_bot_stats()
         if msg_id:
             payload["msg_id"] = msg_id
         if keyboard:
@@ -213,6 +226,9 @@ class MyClient(botpy.Client):
         msg_seq: int = None,
     ):
         """通过自定义模板 ID 和参数列表发送 Markdown 消息"""
+        self.stats_reply_count += 1
+        self.stats_total_messages += 1
+        self.save_bot_stats()
         params = [
             MessageMarkdownParams(key=k, values=v if isinstance(v, list) else [v])
             for k, v in params_dict.items()
@@ -246,6 +262,9 @@ class MyClient(botpy.Client):
     ):
         """支持本地路径或网络 URL 发送群图片 (msg_type=7)"""
         logging.info(f"🖼️ 正在处理群图片发送: {file_path_or_url}")
+        self.stats_reply_count += 1
+        self.stats_total_messages += 1
+        self.save_bot_stats()
 
         if file_path_or_url.startswith("http://") or file_path_or_url.startswith(
             "https://"
@@ -300,6 +319,9 @@ class MyClient(botpy.Client):
     ):
         """支持本地路径或网络 URL 发送单聊图片 (msg_type=7)"""
         logging.info(f"🖼️ 正在处理单聊图片发送: {file_path_or_url}")
+        self.stats_reply_count += 1
+        self.stats_total_messages += 1
+        self.save_bot_stats()
 
         if file_path_or_url.startswith("http://") or file_path_or_url.startswith(
             "https://"
@@ -373,6 +395,8 @@ class MyClient(botpy.Client):
                 },
             },
         }
+        self.stats_reply_count += 1
+        self.stats_total_messages += 1
         if msg_id:
             payload["msg_id"] = msg_id
         if msg_seq is not None:
@@ -384,6 +408,7 @@ class MyClient(botpy.Client):
             group_openid=group_openid,
         )
         logging.info(f"🃏 [图文卡片发送成功] OpenID: {group_openid}")
+        self.save_bot_stats()
 
     # --- 指令面板 & 自定义菜单 ---
     async def create_panel(
@@ -515,6 +540,7 @@ class MyClient(botpy.Client):
 
     async def shutdown_system(self, reason: str = "系统下线"):
         logging.info(f"🛑 正在执行系统退出程序... 原因: {reason}")
+        self.save_bot_stats()
         if hasattr(self, "youzai_mgr") and self.youzai_mgr:
             await self.youzai_mgr.close_connection()
         await self.notify_group_3(
@@ -584,8 +610,8 @@ class MyClient(botpy.Client):
         self, res: dict, target_id: str, msg_id: str, is_c2c: bool = False
     ):
         """统一合并的回复发送函数，根据 res 数据字典中的 msg_type 参数分发逻辑"""
-        self.stats_reply_count += 1
-        self.stats_total_messages += 1
+        # self.stats_reply_count += 1
+        # self.stats_total_messages += 1
         msg_type = res.get("msg_type", 0)
         reply_content = res.get("content", "")
         msg_seq = res.get("msg_seq", None)
@@ -671,6 +697,7 @@ class MyClient(botpy.Client):
                 self.data_mgr.append_group_message(
                     group_id=target_id, user_id="BOT", content=reply_content, role="assistant"
                 )
+        self.save_bot_stats()
 
     async def process_command(
         self,
@@ -813,7 +840,7 @@ class MyClient(botpy.Client):
                     await self.api.post_group_message(
                         group_openid=group_id, msg_type=0, msg_id=msg_id, content=reply_text
                     )
-                    self.stats_reply_count += 1
+                    # self.stats_reply_count += 1
                     self.stats_total_messages += 1
                     # 自动记录机器人的文本回复
                     self.data_mgr.append_group_message(
@@ -821,6 +848,7 @@ class MyClient(botpy.Client):
                     )
                 except Exception as e:
                     logging.error(f"指令回复失败: {e}")
+        self.save_bot_stats()
 
     async def _handle_c2c_msg(self, message: C2CMessage, event_name: str):
         content = getattr(message, "content", "").strip()
@@ -860,7 +888,7 @@ class MyClient(botpy.Client):
                     await self.send_c2c_text(
                         user_openid=sender_openid, content=reply_text, msg_id=msg_id
                     )
-                    self.stats_reply_count += 1
+                    # self.stats_reply_count += 1
                     self.stats_total_messages += 1
                     # 自动记录机器人的文本回复
                     self.data_mgr.append_c2c_message(
@@ -868,6 +896,7 @@ class MyClient(botpy.Client):
                     )
                 except Exception as e:
                     logging.error(f"单聊指令回复失败: {e}")
+        self.save_bot_stats()
 
     async def on_c2c_message_create(self, message: C2CMessage):
         await self._handle_c2c_msg(message, "on_c2c_message_create")

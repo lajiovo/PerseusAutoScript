@@ -928,7 +928,7 @@ def parse_dashboard_html(html_content):
 def parse_tasks_html(html_content):
     """
     稳健解析任务运行中/队列中/等待中的 HTML（提取任务标题、按钮、时间如“2026-09-18 17:07:03”或相对时间）。
-    添加调试日志，并正确从 PyWebIO 作用域中提取正确的任务名称、状态与时间错位。
+    过滤掉纯容器作用域（如 running, pending 等），仅解析实际任务节点（如 overview-task_...）。
     """
     print(f"DEBUG [parse_tasks_html] Received html_content length: {len(html_content) if html_content else 0}")
     if not html_content:
@@ -939,19 +939,18 @@ def parse_tasks_html(html_content):
     waiting = []
 
     try:
-        # PyWebIO 任务列表通常包含多个 scope，如 #pywebio-scope-overview-task_XXX
-        # 或者包含状态卡片。我们用正则按 scope 或 div 模块切分
         scopes = re.split(r'<div id="pywebio-scope-', html_content)
         print(f"DEBUG [parse_tasks_html] Found {len(scopes)-1} task scopes")
 
         for scope in scopes[1:]:
-            # 提取 scope 名称或标题
             scope_id_match = re.search(r'^([a-zA-Z0-9_\-]+)', scope)
             scope_name = scope_id_match.group(1) if scope_id_match else ""
             
-            # 提取文本行
-            # 我们可以通过查找所有的文本段落或清理标签
-            # 正常任务卡片包含：任务状态（运行中/队列中/等待中）、任务标题（如“后宅”、“活动图-3Plus”）、绝对/相对时间
+            # 修复缺陷：排除 `#pywebio-scope-running`, `#pywebio-scope-running_tasks`, `#pywebio-scope-pending`, `#pywebio-scope-pending_tasks` 等容器本身，仅解析实际任务节点
+            if scope_name in ("running", "running_tasks", "pending", "pending_tasks", "overview", "root", "card") or (not scope_name.startswith("overview-task_") and not scope_name.startswith("task_")):
+                print(f"DEBUG [parse_tasks_html] Skipping non-task container scope: {scope_name}")
+                continue
+
             clean_scope_text = re.sub(r'<[^>]+>', '\n', scope)
             lines = [l.strip() for l in clean_scope_text.splitlines() if l.strip()]
             print(f"DEBUG [parse_tasks_html] Scope {scope_name} lines: {lines}")
@@ -959,24 +958,15 @@ def parse_tasks_html(html_content):
             if not lines:
                 continue
 
-            # 判断任务状态归属
             status = "waiting"
-            status_text = "等待中"
-            # 检查整个 scope 是否包含运行中、队列中
             full_scope_str = " ".join(lines)
             if "运行中" in full_scope_str or "running" in full_scope_str.lower():
                 status = "running"
-                status_text = "运行中"
             elif "队列中" in full_scope_str or "queue" in full_scope_str.lower():
                 status = "queued"
-                status_text = "队列中"
 
-            # 提取具体的任务标题（避开外层容器状态标题如“运行中”、“队列中”、“设置”）
-            # 通常任务名称是列表中除状态字眼、按钮字眼（如“查看”）之外具有业务语义的文本
             task_title = ""
             time_str = ""
-            
-            # 过滤掉纯状态词和按钮词
             candidate_lines = []
             for l in lines:
                 if l in ("运行中", "队列中", "等待中", "查看", "刷新", "操作"):
@@ -984,12 +974,9 @@ def parse_tasks_html(html_content):
                 candidate_lines.append(l)
 
             if candidate_lines:
-                # 最后一个或者倒数第二个通常是时间，前面的是任务标题
-                # 检查是否包含时间特征
                 for i, l in enumerate(candidate_lines):
                     if re.search(r'\d{4}-\d{2}-\d{2}|\d+分钟前|\d+小时前|\d+秒前|刚刚', l):
                         time_str = l
-                        # 前面的作为标题
                         task_title = " ".join(candidate_lines[:i])
                         break
                 if not task_title:

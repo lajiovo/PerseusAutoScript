@@ -272,9 +272,28 @@ def start_http_servers(client_instance):
                 need_auth = filename not in PUBLIC_ASSET_FILES and filename.endswith(".html")
                 return self._serve_static_file(filename, require_auth=need_auth)
 
-            # ---------------- 2. /push 接口 (免密 Markdown 推送) ----------------
+            # ---------------- 2. /push 接口 (免密 Markdown 推送) 与 /bot/status/get ----------------
             if path_part == "/push":
                 return self._dispatch_push({}, query_params)
+
+            # 【免密状态查询】提供 /bot/status/get 查询接口供外部获取机器人统计信息
+            if path_part == "/bot/status/get":
+                if hasattr(client_instance, "save_bot_stats"):
+                    client_instance.save_bot_stats()
+                uptime = int(time.time() - getattr(client_instance, "start_time", time.time()))
+                status_data = {
+                    "status": "success",
+                    "uptime": uptime,
+                    "total_messages": getattr(client_instance, "stats_total_messages", 0),
+                    "received_messages": getattr(client_instance, "stats_received_messages", 0),
+                    "reply_count": getattr(client_instance, "stats_reply_count", 0),
+                    "processed_count": getattr(client_instance, "stats_processed_count", 0),
+                    "active_groups_count": len(getattr(client_instance, "active_groups", set())),
+                    "system_active": client_instance.data_mgr.is_system_active()
+                }
+                client_instance.data_mgr.set_extra_data("bot_stats", status_data)
+                self._send_json(status_data)
+                return
 
             # ---------------- 登录 / 登出 ----------------
             if path_part == "/bot/api/login":
@@ -385,25 +404,6 @@ def start_http_servers(client_instance):
                     return
                 value = client_instance.data_mgr.get_extra_data(key)
                 self._send_json({"status": "success", "data": value})
-                return
-
-            # 【新增接口】提供 /bot/status/get 查询接口供外部获取机器人统计信息
-            if path_part == "/bot/status/get":
-                if hasattr(client_instance, "save_bot_stats"):
-                    client_instance.save_bot_stats()
-                uptime = int(time.time() - getattr(client_instance, "start_time", time.time()))
-                status_data = {
-                    "status": "success",
-                    "uptime": uptime,
-                    "total_messages": getattr(client_instance, "stats_total_messages", 0),
-                    "received_messages": getattr(client_instance, "stats_received_messages", 0),
-                    "reply_count": getattr(client_instance, "stats_reply_count", 0),
-                    "processed_count": getattr(client_instance, "stats_processed_count", 0),
-                    "active_groups_count": len(getattr(client_instance, "active_groups", set())),
-                    "system_active": client_instance.data_mgr.is_system_active()
-                }
-                client_instance.data_mgr.set_extra_data("bot_stats", status_data)
-                self._send_json(status_data)
                 return
 
             self.send_response(404)
