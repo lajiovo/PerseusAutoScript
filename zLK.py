@@ -177,6 +177,54 @@ def get_chapter_cache_path(book_title: str, vol_name: str, ch_title: str) -> str
     safe_ch = sanitize_filename(ch_title)
     return os.path.join(dir_path, f"{safe_ch}.json")
 
+def clean_html_for_epub(html_content: str) -> str:
+    """清理并规范化 HTML 内容，确保符合 XHTML 规范，防止 EPUB 解析损坏"""
+    if not html_content:
+        return ""
+    cleaned = re.sub(r'&(?![a-zA-Z#0-9]+;)', '&amp;', html_content)
+    cleaned = re.sub(r'<br\s*>', '<br/>', cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r'<hr\s*>', '<hr/>', cleaned, flags=re.IGNORECASE)
+    return cleaned
+
+def fix_epub_mimetype(epub_path: str):
+    """修复 ebooklib 生成的 EPUB 文件：确保 mimetype 存储在压缩包开头且不压缩"""
+    import zipfile
+    import tempfile
+    import shutil
+
+    temp_dir = tempfile.mkdtemp()
+    try:
+        with zipfile.ZipFile(epub_path, 'r') as zin:
+            zin.extractall(temp_dir)
+
+        mimetype_path = os.path.join(temp_dir, 'mimetype')
+        if not os.path.exists(mimetype_path):
+            with open(mimetype_path, 'w', encoding='utf-8') as f:
+                f.write('application/epub+zip')
+
+        fd, temp_output = tempfile.mkstemp(suffix='.epub')
+        os.close(fd)
+
+        with zipfile.ZipFile(temp_output, 'w', zipfile.ZIP_DEFLATED) as zout:
+            with open(mimetype_path, 'rb') as f:
+                mimetype_data = f.read()
+            zout.writestr('mimetype', mimetype_data, compress_type=zipfile.ZIP_STORED)
+
+            for root, dirs, files in os.walk(temp_dir):
+                for file in files:
+                    if file == 'mimetype':
+                        continue
+                    full_path = os.path.join(root, file)
+                    rel_path = os.path.relpath(full_path, temp_dir)
+                    arcname = rel_path.replace(os.sep, '/')
+                    zout.write(full_path, arcname, compress_type=zipfile.ZIP_DEFLATED)
+
+        shutil.move(temp_output, epub_path)
+    except Exception as e:
+        print(f"  [!] 修复 EPUB mimetype 失败: {e}")
+    finally:
+        shutil.rmtree(temp_dir, ignore_errors=True)
+
 def get_image_save_dir(book_title: str, vol_name: str = None) -> str:
     """获取图片的保存目录"""
     if vol_name:
@@ -751,7 +799,7 @@ async def crawl_lightnovel_to_epub(
 
         cover_img_data = None
         cover_ext = ".jpg"
-        if cover_url or use_cache_only:
+        if (cover_url or use_cache_only) and not no_download_images:
             candidate_cover_dirs = []
             if target_book_dir:
                 candidate_cover_dirs.append(os.path.join(target_book_dir, "images_mapped"))
@@ -959,16 +1007,22 @@ async def crawl_lightnovel_to_epub(
                                         vol_image_map[f_hash] = (fname, fpath)
 
                 processed_html = ch_html_content
-                found_srcs = re.findall(r'src=["\']([^"\']+)["\']', processed_html)
-                for src_val in set(found_srcs):
-                    full_u = urljoin(DOMAIN, html.unescape(src_val))
-                    u_hash = get_url_hash(full_u)
-                    if u_hash in vol_image_map:
-                        local_fname, _ = vol_image_map[u_hash]
-                        processed_html = processed_html.replace(src_val, f"images/{local_fname}")
+                if no_download_images:
+                    processed_html = re.sub(r'<img[^>]*>', '', processed_html, flags=re.IGNORECASE)
+                    processed_html = re.sub(r'<p>\s*</p>', '', processed_html, flags=re.IGNORECASE)
+                    chapter_images = []
+                    vol_image_map = {}
+                else:
+                    found_srcs = re.findall(r'src=["\']([^"\']+)["\']', processed_html)
+                    for src_val in set(found_srcs):
+                        full_u = urljoin(DOMAIN, html.unescape(src_val))
+                        u_hash = get_url_hash(full_u)
+                        if u_hash in vol_image_map:
+                            local_fname, _ = vol_image_map[u_hash]
+                            processed_html = processed_html.replace(src_val, f"images/{local_fname}")
 
-                # 仅在合成 EPUB 时临时对 HTML 内容及标题作繁转简处理
-                display_html = convert_t2s(processed_html, to_simplified)
+                # 仅在合成 EPUB 时临时对 HTML 内容及标题作繁转简处理并规范化为 XHTML
+                display_html = clean_html_for_epub(convert_t2s(processed_html, to_simplified))
 
                 # 仅在 use_cache_only=True + only_redownload_images=False 模式下在章节开头独立新建插图章节
                 if use_cache_only and not only_redownload_images and chapter_images:
@@ -980,9 +1034,9 @@ async def crawl_lightnovel_to_epub(
                     )
                     illus_body = [f"<h2>{illus_ch_title}</h2>", '<div style="text-align: center;">']
                     for _, img_fname, _ in chapter_images:
-                        illus_body.append(f'<p><img src="images/{img_fname}" style="max-width:100%;height:auto;" /></p>')
+                        illus_body.append(f'<p><img src="images/{img_fname}" style="max-width:100%;height:auto;"/></p>')
                     illus_body.append("</div>")
-                    illus_item.content = "\n".join(illus_body)
+                    illus_item.content = clean_html_for_epub("\n".join(illus_body))
                     book.add_item(illus_item)
                     epub_chapters.append(illus_item)
                     print(f"    [+] [插图处理] 成功创建独立插图章节: 【{illus_ch_title}】 (包含 {len(chapter_images)} 张插图)")
@@ -1040,7 +1094,8 @@ async def crawl_lightnovel_to_epub(
             out_epub_path = os.path.join(output_dir, out_epub_name)
 
             epub.write_epub(out_epub_path, book)
-            print(f"[✓] 分卷 EPUB 生成成功: {out_epub_path}")
+            fix_epub_mimetype(out_epub_path)
+            print(f"[✓] 分卷 EPUB 生成成功并完成打包格式修复: {out_epub_path}")
             downloaded_epubs.append(out_epub_path)
 
         if not use_cache_only:
