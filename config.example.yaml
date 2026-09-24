@@ -8,6 +8,8 @@ proxy:
 alas:
   # ⚠ Alas 启动器路径
   alas_path: "D:\\???\\AzurPilot\\alas-launcher.exe"
+  # Alas 启动器目录
+  alas_floder: "D:\\???\\AzurPilot"
   # 进程名称
   target_process: "alas-launcher.exe"
   # 窗口标题
