@@ -5,12 +5,105 @@
       "origin": "http://127.0.0.1:22267",
       "localStorage": [
         {
-          "name": "password",
-          "value": "xx"
+          "name": "azurpilot.color-mode",
+          "value": "auto"
         },
         {
-          "name": "aside",
+          "name": "azurpilot.custom-palettes",
+          "value": "[]"
+        },
+        {
+          "name": "azurpilot.theme",
+          "value": "minimal"
+        },
+        {
+          "name": "azurpilot.last-path",
+          "value": "/interface"
+        },
+        {
+          "name": "azurpilot.compact-rail-width",
+          "value": "244"
+        },
+        {
+          "name": "azurpilot.palette",
+          "value": "ocean"
+        },
+        {
+          "name": "azurpilot.access-password",
+          "value": "⚠ Enter your password here"
+        },
+        {
+          "name": "azurpilot.compact-rail-side",
+          "value": "right"
+        },
+        {
+          "name": "azurpilot.language",
+          "value": "zh-CN"
+        },
+        {
+          "name": "azurpilot.dashboard",
+          "value": "{\"fitCards\":true,\"fitText\":true,\"dense\":true,\"merged\":true,\"totalFirst\":false}"
+        },
+        {
+          "name": "azurpilot.last-instance",
           "value": "alas"
+        },
+        {
+          "name": "azurpilot.resources.alas",
+          "value": "[\"Oil\",\"Coin\",\"Gem\",\"Cube\",\"Pt\",\"ActionPoint\",\"YellowCoin\",\"PurpleCoin\",\"Core\",\"Medal\",\"Merit\",\"GuildCoin\"]"
+        }
+      ]
+    },
+    {
+      "origin": "http://192.168.10.x:22267",
+      "localStorage": [
+        {
+          "name": "azurpilot.color-mode",
+          "value": "auto"
+        },
+        {
+          "name": "azurpilot.custom-palettes",
+          "value": "[]"
+        },
+        {
+          "name": "azurpilot.theme",
+          "value": "minimal"
+        },
+        {
+          "name": "azurpilot.last-path",
+          "value": "/interface"
+        },
+        {
+          "name": "azurpilot.compact-rail-width",
+          "value": "244"
+        },
+        {
+          "name": "azurpilot.palette",
+          "value": "ocean"
+        },
+        {
+          "name": "azurpilot.access-password",
+          "value": "⚠ Enter your password here"
+        },
+        {
+          "name": "azurpilot.compact-rail-side",
+          "value": "right"
+        },
+        {
+          "name": "azurpilot.language",
+          "value": "zh-CN"
+        },
+        {
+          "name": "azurpilot.dashboard",
+          "value": "{\"fitCards\":true,\"fitText\":true,\"dense\":true,\"merged\":true,\"totalFirst\":false}"
+        },
+        {
+          "name": "azurpilot.last-instance",
+          "value": "alas"
+        },
+        {
+          "name": "azurpilot.resources.alas",
+          "value": "[\"Oil\",\"Coin\",\"Gem\",\"Cube\",\"Pt\",\"ActionPoint\",\"YellowCoin\",\"PurpleCoin\",\"Core\",\"Medal\",\"Merit\",\"GuildCoin\"]"
         }
       ]
     }
