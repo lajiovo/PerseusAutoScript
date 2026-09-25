@@ -1,8 +1,6 @@
 import json
 from pathlib import Path
 import re
-import tkinter as tk
-from tkinter import filedialog, messagebox, ttk
 import xml.etree.ElementTree as ET
 
 from bs4 import BeautifulSoup
@@ -20,7 +18,6 @@ HEADERS = {
         "Chrome/120.0.0.0 Safari/537.36"
     )
 }
-
 
 def sanitize_filename(name):
     """清理非法的标准文件名/目录名字符"""
@@ -47,6 +44,7 @@ class NovelEpubExporter:
         self.log_callback = log_callback
 
     def log(self, message):
+        """打印日志，若有 GUI 或自定义回调则通过回调输出"""
         if self.log_callback:
             self.log_callback(message)
         else:
@@ -67,7 +65,7 @@ class NovelEpubExporter:
         处理源 XML（URL 链接或本地文件路径），
         解析书名并缓存到 servercache/inovel/<书名>/feed.xml
         """
-        source_input = source_input.strip()
+        source_input = str(source_input).strip()
         xml_bytes = None
 
         if source_input.startswith("http://") or source_input.startswith(
@@ -98,7 +96,14 @@ class NovelEpubExporter:
 
         return cached_xml_path, novel_cache_dir, book_title
 
-    def export(self, source_input, download_images=True):
+    def export(self, source_input, output_dir=None, download_images=True):
+        """
+        核心导出逻辑
+        :param source_input: 网络 URL 或本地 XML 文件路径
+        :param output_dir: 自定义 EPUB 导出文件夹（可选，默认导出到 BASE_DIR）
+        :param download_images: 是否下载并缓存插图
+        :return: 生成的 EPUB 文件 Path 对象
+        """
         # 1. 准备 XML 缓存与路径结构
         cached_xml_path, novel_dir, book_title = self.prepare_xml_source(
             source_input
@@ -308,31 +313,62 @@ class NovelEpubExporter:
         book.add_item(epub.EpubNav())
         book.spine = ["nav"] + epub_chapters
 
-        # 导出 EPUB 到同目录
+        # 设置导出文件夹
+        if output_dir:
+            export_directory = Path(output_dir)
+        else:
+            export_directory = BASE_DIR
+
+        export_directory.mkdir(parents=True, exist_ok=True)
+
         out_name = f"{book_title}.epub"
-        out_path = BASE_DIR / out_name
+        out_path = export_directory / out_name
+
         self.log(f"\n💾 正在生成 EPUB 文件: {out_path.name}")
         epub.write_epub(out_path, book, {})
         self.log(f"✨ 导出成功！保存位置: {out_path.resolve()}\n")
 
+        return out_path
 
-# ==========================================
-# Tkinter GUI 界面
-# ==========================================
+
+def export_novel(source_input, output_dir=None, download_images=True, log_callback=None):
+    """
+    直接调用的快捷函数，无需 Tkinter 界面。
+    
+    示例:
+    >>> from ziNovel import export_novel
+    >>> export_novel("https://example.com/feed.xml", output_dir="./output")
+    """
+    exporter = NovelEpubExporter(log_callback=log_callback)
+    return exporter.export(
+        source_input=source_input,
+        output_dir=output_dir,
+        download_images=download_images,
+    )
+
+
 class AppGUI:
 
     def __init__(self, root):
+        import tkinter as tk
+        from tkinter import ttk
+
         self.root = root
         self.root.title("轻小说 XML 转 EPUB 工具")
-        self.root.geometry("680x520")
+        self.root.geometry("700x580")
 
         # 界面控件变量
         self.source_var = tk.StringVar(value="feed.xml")
+        self.output_dir_var = tk.StringVar(value=str(BASE_DIR))
         self.download_img_var = tk.BooleanVar(value=True)
 
         self._build_ui()
 
     def _build_ui(self):
+        import tkinter as tk
+        from tkinter import ttk
+
+        # 源设置
         frame_top = ttk.LabelFrame(self.root, text="源 XML 设置", padding=10)
         frame_top.pack(fill="x", padx=10, pady=5)
 
@@ -350,9 +386,31 @@ class AppGUI:
         entry_source.pack(side="left", fill="x", expand=True, padx=(0, 5))
 
         btn_browse = ttk.Button(
-            frame_input, text="浏览...", command=self._browse_file
+            frame_input, text="浏览...", command=self._browse_source_file
         )
         btn_browse.pack(side="right")
+
+        # 导出路径设置
+        frame_export = ttk.LabelFrame(self.root, text="导出设置", padding=10)
+        frame_export.pack(fill="x", padx=10, pady=5)
+
+        lbl_out_tip = ttk.Label(frame_export, text="设置 EPUB 导出目标文件夹：")
+        lbl_out_tip.pack(anchor="w", pady=(0, 5))
+
+        frame_out_input = ttk.Frame(frame_export)
+        frame_out_input.pack(fill="x")
+
+        entry_out_dir = ttk.Entry(
+            frame_out_input,
+            textvariable=self.output_dir_var,
+            font=("Consolas", 10),
+        )
+        entry_out_dir.pack(side="left", fill="x", expand=True, padx=(0, 5))
+
+        btn_browse_dir = ttk.Button(
+            frame_out_input, text="选择文件夹...", command=self._browse_output_dir
+        )
+        btn_browse_dir.pack(side="right")
 
         # 选项
         frame_opts = ttk.Frame(self.root, padding=(10, 5))
@@ -377,20 +435,36 @@ class AppGUI:
         self.txt_log = tk.Text(frame_log, wrap="word", font=("Consolas", 9))
         self.txt_log.pack(fill="both", expand=True)
 
-    def _browse_file(self):
+    def _browse_source_file(self):
+        from tkinter import filedialog
+
         file_path = filedialog.askopenfilename(
             filetypes=[("XML 文件", "*.xml"), ("所有文件", "*.*")]
         )
         if file_path:
             self.source_var.set(file_path)
 
+    def _browse_output_dir(self):
+        from tkinter import filedialog
+
+        dir_path = filedialog.askdirectory()
+        if dir_path:
+            self.output_dir_var.set(dir_path)
+
     def log_to_ui(self, message):
+        import tkinter as tk
+
         self.txt_log.insert(tk.END, message + "\n")
         self.txt_log.see(tk.END)
         self.root.update_idletasks()
 
     def _start_process(self):
+        import tkinter as tk
+        from tkinter import messagebox
+
         source = self.source_var.get().strip()
+        out_dir = self.output_dir_var.get().strip()
+
         if not source:
             messagebox.showwarning("提示", "请输入 URL 链接或选择 XML 文件！")
             return
@@ -399,17 +473,25 @@ class AppGUI:
         exporter = NovelEpubExporter(log_callback=self.log_to_ui)
 
         try:
-            exporter.export(
+            exported_file = exporter.export(
                 source_input=source,
+                output_dir=out_dir if out_dir else None,
                 download_images=self.download_img_var.get(),
             )
-            messagebox.showinfo("完成", "EPUB 转换并导出成功！")
+            messagebox.showinfo("完成", f"EPUB 转换成功！\n保存至: {exported_file}")
         except Exception as e:
             self.log_to_ui(f"\n❌ 发生错误: {e}")
             messagebox.showerror("错误", f"转换失败:\n{e}")
 
 
-if __name__ == "__main__":
+def launch_gui():
+    """启动图形界面"""
+    import tkinter as tk
+
     root = tk.Tk()
     app = AppGUI(root)
     root.mainloop()
+
+
+if __name__ == "__main__":
+    launch_gui()
