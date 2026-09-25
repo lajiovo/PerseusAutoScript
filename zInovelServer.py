@@ -1,4 +1,5 @@
 import os
+import re
 import json
 import threading
 from pathlib import Path
@@ -91,23 +92,27 @@ def list_inovel_books():
     return jsonify({"status": "ok", "books": result})
 
 def convert_source_url(source):
-    """自动将 linovelib 页面链接转换为对应的 feed.xml 链接"""
+    """自动将页面链接转换为对应的 feed.xml 链接（若非 lnovel.animes.garden 则强转）"""
     source = source.strip()
-    import re
-    # 1. 轻小说内容页: https://www.linovelib.com/novel/4972/vol_306964.html -> https://lnovel.animes.garden/bili/novel/4972/vol/306964/feed.xml
-    m = re.search(r'linovelib\.com/novel/(\d+)/vol_(\d+)\.html', source)
+    
+    # 0. 如果已经带 lnovel.animes.garden 域名，直接返回
+    if "lnovel.animes.garden" in source:
+        return source
+
+    # 1. 轻小说内容页: .../novel/4972/vol_306964.html -> https://lnovel.animes.garden/bili/novel/4972/vol/306964/feed.xml
+    m = re.search(r'/novel/(\d+)/vol_(\d+)\.html', source)
     if m:
         book_id, vol_id = m.groups()
         return f"https://lnovel.animes.garden/bili/novel/{book_id}/vol/{vol_id}/feed.xml"
 
-    # 2. 轻小说丛书页: https://www.linovelib.com/novel/4972.html -> https://lnovel.animes.garden/bili/novel/4972/feed.xml
-    m = re.search(r'linovelib\.com/novel/(\d+)\.html', source)
+    # 2. 轻小说丛书页: .../novel/4972.html -> https://lnovel.animes.garden/bili/novel/4972/feed.xml
+    m = re.search(r'/novel/(\d+)\.html', source)
     if m:
         book_id = m.group(1)
         return f"https://lnovel.animes.garden/bili/novel/{book_id}/feed.xml"
 
-    # 3. 排行榜索引页: https://www.linovelib.com/top/monthvisit/1.html -> https://lnovel.animes.garden/bili/top/monthvisit/feed.xml
-    m = re.search(r'linovelib\.com/top/([^/]+)/', source)
+    # 3. 排行榜索引页: .../top/monthvisit/1.html -> https://lnovel.animes.garden/bili/top/monthvisit/feed.xml
+    m = re.search(r'/top/([^/]+)/', source)
     if m:
         top_type = m.group(1)
         return f"https://lnovel.animes.garden/bili/top/{top_type}/feed.xml"
