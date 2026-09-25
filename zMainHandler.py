@@ -2,7 +2,7 @@ import zPerseusLogger
 import traceback
 import zAlas
 import zMumu
-import zPlaywright
+import zPlaywrightNew
 import zPGRJZ
 import re
 from zBarkCustom import PerseusErrorMsg, PerseusWarningMsg,PerseusNotifyMsg
@@ -18,7 +18,7 @@ def _md_original(title, body):
 def run_alas_mumu_check():
     """
     通用检查与恢复函数
-    按 ["check", "start", "wait", "check", "update"] 顺序执行 Playwright 操作并根据返回状态自动恢复。
+    按 ["home", "instance", "start", "get_resources", "get_tasks"] 顺序执行 Playwright 操作并根据返回状态自动恢复。
     """
     # 0. 初始检测：若 MuMu 未运行，则拉起并隐藏（不计数）
     if not zMumu.is_mumu_running():
@@ -35,7 +35,8 @@ def run_alas_mumu_check():
     max_mumu_restarts = 2
 
     # 标准执行任务队列
-    standard_task_list = ["check", "start", "wait", "check", "update"]
+    # standard_task_list = ["check", "start", "wait", "check", "update"]
+    standard_task_list =  ["home", "instance", "start", "get_resources", "get_tasks"]
 
     print("[Info] 开始执行 Alas & MuMu 状态自动化检查流程...")
 
@@ -70,8 +71,8 @@ def run_alas_mumu_check():
         )
 
         try:
-            # 1. 调用 zPlaywright 主函数进行常规检查
-            is_all_success, task_results = zPlaywright.main(
+            # 1. 调用 zPlaywrightNew 主函数进行常规检查
+            is_all_success, task_results = zPlaywrightNew.main(
                 headless=True,
                 task_list=standard_task_list,
             )
@@ -89,7 +90,9 @@ def run_alas_mumu_check():
                     print(
                         f"[Action] [{reason_msg}] 尝试第 {alas_soft_restart_count + 1} 次软重启 Alas (Playwright restart)..."
                     )
-                    restart_ok, restart_results = zPlaywright.main(
+
+                    """
+                    restart_ok, restart_results = zPlaywrightNew.main(
                         headless=True,
                         task_list=["restart"],
                     )
@@ -99,6 +102,8 @@ def run_alas_mumu_check():
                         alas_soft_restart_count += 1
                         print("[Info] 软重启指令触发成功 [0024]，重新进入检查循环。")
                         return
+                    """
+                    alas_soft_restart_count += 1
 
                     print("[Warning] 软重启触发失败，将直接尝试硬重启 Alas...")
 
@@ -123,6 +128,7 @@ def run_alas_mumu_check():
             second_check_code = task_results[3][1] if len(task_results) > 3 else None
 
             # 优先判定第一次 check：若检测到错误图标 (0026) -> 清理并重启 MuMu
+            """
             if first_check_code == "0026":
                 print("[Warning] 第一次 Check 结果为 [0026] (检测到运行错误图标)，准备重启 MuMu...")
                 zMumu.mumu_kill()
@@ -137,11 +143,14 @@ def run_alas_mumu_check():
                 zMumu.hidemumu()
                 mumu_restart_count += 1
                 continue
+            """
 
             # 4. 如果两次 Check 均正常 (均为 0027 或非 0026 异常) 且包含 0027
-            if first_check_code == "0027" or second_check_code == "0027":
+            # code已修改
+            if first_check_code == "0001" or second_check_code == "0003":
                 print("[Success] Check 结果通过 (正常)，所有检查流程成功完成！")
                 return True
+            
 
             # 5. 未命中预期状态码，尝试软/硬重启 Alas 恢复
             print(
@@ -157,7 +166,7 @@ def run_alas_mumu_check():
             # 遇到严重异常时进行 Alas 重启尝试恢复
             if alas_soft_restart_count < max_soft_restarts:
                 try:
-                    zPlaywright.main(headless=True, task_list=["restart"])
+                    zPlaywrightNew.main(headless=True, task_list=["restart"])
                     alas_soft_restart_count += 1
                 except Exception:
                     zAlas.cleanup()
@@ -238,7 +247,7 @@ def Handlepush(msg_dict: dict):
                     print("[执行动作] 清理并重启隐藏 MuMu 模拟器...")
                     zMumu.mumu_kill()
                     zMumu.hidemumu()
-                    zPlaywright.main(task_list=["start"])
+                    zPlaywrightNew.main(task_list=["start"])
 
                     print("[执行动作] 调用 Alas & MuMu 检查恢复流程...")
                     if not run_alas_mumu_check():
@@ -271,7 +280,7 @@ def Handlepush(msg_dict: dict):
                     print("[执行动作] 清理并重启隐藏 MuMu 模拟器...")
                     zMumu.mumu_kill()
                     zMumu.hidemumu()
-                    zPlaywright.main(task_list=["start"])
+                    zPlaywrightNew.main(task_list=["start"])
 
                     print("[执行动作] 调用 Alas & MuMu 检查恢复流程...")
                     if not run_alas_mumu_check():
@@ -553,8 +562,8 @@ def handlerun(data: dict):
             arg = data.get("arg")
             task_list = parse_task_list(arg)
 
-            res = zPlaywright.main(headless=True, task_list=task_list)
-            return [True, f"zPlaywright.main(task_list={task_list}) -> {res}"]
+            res = zPlaywrightNew.main(headless=True, task_list=task_list)
+            return [True, f"zPlaywrightNew.main(task_list={task_list}) -> {res}"]
 
         # 4. 处理 PGRJZ 相关任务（支持 pgrjz 和 pg）
         elif "pgrjz" in task or "pg" in task:
@@ -574,5 +583,4 @@ def handlerun(data: dict):
 
 
 if __name__ == "__main__":
-    Handlepush({"title":"AzurPilot <alas> 委托获得顶级奖励喵！",
-                "body":"本次获得钻石 * 20今.日累计: 20本周累计: 95本月累计: 20"})
+    run_alas_mumu_check()
