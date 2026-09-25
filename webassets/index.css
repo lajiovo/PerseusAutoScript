@@ -1,0 +1,30 @@
+body {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+.glass-panel {
+    background: rgba(255, 255, 255, 0.75);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+}
+.dark .glass-panel {
+    background: rgba(30, 41, 59, 0.75);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.card-hover {
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.card-hover:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 10px 20px -8px rgba(99, 102, 241, 0.2);
+}
+/* Background Dynamic Glow Blobs */
+.bg-blob {
+    position: fixed;
+    filter: blur(90px);
+    z-index: -1;
+    opacity: 0.45;
+    transition: opacity 0.5s ease;
+}
