@@ -3,7 +3,7 @@ import json
 import threading
 from pathlib import Path
 from flask import Blueprint, request, jsonify, send_from_directory
-from ziNovel import get_cached_novels, export_novel, CACHE_BASE_DIR, BASE_DIR
+from ziNovel import get_cached_novels, export_novel, CACHE_BASE_DIR, BASE_DIR,OUTPUTDIR
 
 inovel_bp = Blueprint("inovel_server", __name__, url_prefix="/inovelapi")
 
@@ -73,7 +73,7 @@ def list_inovel_books():
                     break
 
         # 检查是否已经导出过 EPUB
-        epub_path = BASE_DIR / f"{book_title}.epub"
+        epub_path = OUTPUTDIR / f"{book_title}.epub"
         has_epub = epub_path.exists()
         epub_url = f"/inovelapi/epub/{book_title}.epub" if has_epub else ""
 
@@ -90,17 +90,44 @@ def list_inovel_books():
 
     return jsonify({"status": "ok", "books": result})
 
+def convert_source_url(source):
+    """自动将 linovelib 页面链接转换为对应的 feed.xml 链接"""
+    source = source.strip()
+    import re
+    # 1. 轻小说内容页: https://www.linovelib.com/novel/4972/vol_306964.html -> https://lnovel.animes.garden/bili/novel/4972/vol/306964/feed.xml
+    m = re.search(r'linovelib\.com/novel/(\d+)/vol_(\d+)\.html', source)
+    if m:
+        book_id, vol_id = m.groups()
+        return f"https://lnovel.animes.garden/bili/novel/{book_id}/vol/{vol_id}/feed.xml"
+
+    # 2. 轻小说丛书页: https://www.linovelib.com/novel/4972.html -> https://lnovel.animes.garden/bili/novel/4972/feed.xml
+    m = re.search(r'linovelib\.com/novel/(\d+)\.html', source)
+    if m:
+        book_id = m.group(1)
+        return f"https://lnovel.animes.garden/bili/novel/{book_id}/feed.xml"
+
+    # 3. 排行榜索引页: https://www.linovelib.com/top/monthvisit/1.html -> https://lnovel.animes.garden/bili/top/monthvisit/feed.xml
+    m = re.search(r'linovelib\.com/top/([^/]+)/', source)
+    if m:
+        top_type = m.group(1)
+        return f"https://lnovel.animes.garden/bili/top/{top_type}/feed.xml"
+
+    return source
+
+
 @inovel_bp.route("/export", methods=["POST"])
 def trigger_inovel_export():
     """下达下载/导出命令：通过 URL 或本地 XML 抓取/加载并生成 EPUB"""
     data = request.get_json(silent=True) or request.form.to_dict() or request.args.to_dict()
-    source = data.get("source")
+    raw_source = data.get("source")
     download_images = data.get("download_images", True)
     if isinstance(download_images, str):
         download_images = download_images.lower() in ("true", "1", "yes")
 
-    if not source:
+    if not raw_source:
         return jsonify({"status": "error", "message": "缺少 source 参数（XML URL 或本地文件路径）"}), 400
+
+    source = convert_source_url(raw_source)
 
     with inovel_lock:
         if inovel_current_task["status"] == "running":
@@ -119,7 +146,7 @@ def trigger_inovel_export():
                 inovel_current_task["message"] = msg
 
         try:
-            out_path = export_novel(source_input=source, output_dir=BASE_DIR, download_images=download_images, log_callback=log_cb)
+            out_path = export_novel(source_input=source, output_dir=OUTPUTDIR, download_images=download_images, log_callback=log_cb)
             with inovel_lock:
                 inovel_current_task["status"] = "completed"
                 inovel_current_task["message"] = f"导出成功: {out_path.name}"
@@ -135,4 +162,4 @@ def trigger_inovel_export():
 @inovel_bp.route("/epub/<path:filename>", methods=["GET"])
 def download_inovel_epub(filename):
     """下载生成的 EPUB 文件"""
-    return send_from_directory(BASE_DIR, filename, as_attachment=True)
+    return send_from_directory(OUTPUTDIR, filename, as_attachment=True)

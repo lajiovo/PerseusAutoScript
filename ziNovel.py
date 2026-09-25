@@ -9,6 +9,7 @@ import requests
 
 # 根目录与基础配置
 BASE_DIR = Path(__file__).parent
+OUTPUTDIR = BASE_DIR / "Novels"
 CACHE_BASE_DIR = BASE_DIR / "servercache" / "inovel"
 
 HEADERS = {
@@ -385,7 +386,7 @@ class AppGUI:
 
         # 界面控件变量
         self.source_var = tk.StringVar(value="feed.xml")
-        self.output_dir_var = tk.StringVar(value=str(BASE_DIR))
+        self.output_dir_var = tk.StringVar(value=str(OUTPUTDIR))
         self.download_img_var = tk.BooleanVar(value=True)
         self.search_var = tk.StringVar()
         self.cached_novels_data = []
