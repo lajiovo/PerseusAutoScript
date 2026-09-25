@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>iNovel 轻小说缓存与 EPUB 导出管理</title>
+  <link rel="stylesheet" href="/main/lk.css">
+  <style>
+    .inovel-card {
+      background: var(--bg-card);
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow-sm);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      transition: all 0.2s ease;
+    }
+    .inovel-card:hover {
+      box-shadow: var(--shadow-md);
+      transform: translateY(-2px);
+    }
+    .inovel-cover {
+      width: 100%;
+      height: 240px;
+      object-fit: cover;
+      background: #f1f5f9;
+      cursor: pointer;
+    }
+    .inovel-body {
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      flex: 1;
+    }
+    .inovel-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--text-main);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      cursor: pointer;
+    }
+    .inovel-title:hover {
+      color: var(--primary);
+    }
+    .inovel-meta {
+      font-size: 12px;
+      color: var(--text-muted);
+      display: flex;
+      justify-content: space-between;
+    }
+    .inovel-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: auto;
+      padding-top: 10px;
+      border-top: 1px solid var(--border);
+    }
+    .modal-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(4px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+    .modal-box {
+      background: #fff;
+      border-radius: var(--radius-lg);
+      width: 90%;
+      max-width: 800px;
+      max-height: 85vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      box-shadow: var(--shadow-lg);
+    }
+    .modal-header {
+      padding: 16px 24px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .modal-body {
+      padding: 24px;
+      overflow-y: auto;
+      flex: 1;
+    }
+    .images-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: 14px;
+    }
+    .img-item {
+      background: #f8fafc;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .img-item:hover {
+      border-color: var(--primary);
+      box-shadow: var(--shadow-sm);
+    }
+    .img-item img {
+      width: 100%;
+      height: 160px;
+      object-fit: cover;
+    }
+    .img-item span {
+      display: block;
+      font-size: 11px;
+      padding: 6px;
+      color: var(--text-muted);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <!-- 顶部状态栏 -->
+    <header class="top-bar">
+      <div class="logo-title">
+        <h2>📚 iNovel 在线书库与 EPUB 导出管理</h2>
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 14px;">
+        <div style="font-size: 13px; color: var(--text-muted);" v-if="taskStatus.status === 'running'">
+          <span style="color: var(--primary); animation: pulse 1.5s infinite;">⏳</span> 正在执行: {{ taskStatus.message }}
+        </div>
+        <button class="btn-sm" style="background: var(--primary); color: #fff; padding: 8px 16px; font-weight: 600;" @click="showDownloadModal = true">
+          ➕ 下达下载/导出命令
+        </button>
+        <button class="btn-sm" @click="refreshBooks">🔄 刷新书库</button>
+      </div>
+    </header>
+
+    <!-- 主内容区 -->
+    <main class="content" style="padding: 24px;">
+      <div class="content-toolbar" style="margin-bottom: 20px;">
+        <span>本地缓存书库总数: <strong>{{ books.length }}</strong> 本书</span>
+        <div style="display: flex; gap: 10px; align-items: center;">
+          <input type="text" v-model="searchQuery" placeholder="搜索书名..." class="sidebar-select" style="width: 240px; padding: 6px 12px;" />
+        </div>
+      </div>
+
+      <!-- 书籍列表网格 -->
+      <div class="books-grid view-grid">
+        <div class="inovel-card" v-for="book in filteredBooks" :key="book.title">
+          <img :src="book.local_cover || '/main/default_cover.png'" @error="e => e.target.src = '/main/default_cover.png'" class="inovel-cover" alt="封面" @click="openImagesModal(book)">
+          <div class="inovel-body">
+            <h4 class="inovel-title" :title="book.title" @click="openImagesModal(book)">{{ book.title }}</h4>
+            <div class="inovel-meta">
+              <span>缓存时间: {{ book.mtime }}</span>
+              <span>插图数: {{ book.image_count }} 张</span>
+            </div>
+            <div class="inovel-actions">
+              <a v-if="book.has_epub" :href="book.epub_url" class="btn-sm" style="flex: 1; text-align: center; background: var(--success); color: #fff; text-decoration: none;" download>
+                📥 下载 EPUB
+              </a>
+              <button class="btn-sm" style="flex: 1; background: var(--primary); color: #fff;" @click="openImagesModal(book)">
+                🖼️ 查看插图 ({{ book.image_count }})
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- 下达下载/导出命令模态框 -->
+    <div class="modal-overlay" v-if="showDownloadModal">
+      <div class="modal-box" style="max-width: 550px;">
+        <div class="modal-header">
+          <h3>下达 XML 下载与 EPUB 导出命令</h3>
+          <button class="close-btn" @click="showDownloadModal = false" style="background:none;border:none;font-size:20px;cursor:pointer;">×</button>
+        </div>
+        <div class="modal-body">
+          <div style="margin-bottom: 16px;">
+            <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px;">源 XML 链接 (URL) 或本地文件路径:</label>
+            <input type="text" v-model="formSource" placeholder="https://example.com/feed.xml 或 feed.xml" class="sidebar-select" style="width: 100%; padding: 8px 12px;" />
+          </div>
+          <div style="margin-bottom: 20px;">
+            <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer;">
+              <input type="checkbox" v-model="formDownloadImages" />
+              下载并缓存插图及封面 (生成 images.json)
+            </label>
+          </div>
+          <div style="text-align: right; display: flex; gap: 10px; justify-content: flex-end;">
+            <button class="btn-sm" @click="showDownloadModal = false">取消</button>
+            <button class="btn-sm" style="background: var(--primary); color: #fff;" @click="submitExportTask">开始导出</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 插图预览模态框 -->
+    <div class="modal-overlay" v-if="showImagesModal">
+      <div class="modal-box">
+        <div class="modal-header">
+          <h3>{{ currentBook ? currentBook.title : '' }} - 插图预览 (共 {{ currentBook ? currentBook.images.length : 0 }} 张)</h3>
+          <button class="close-btn" @click="showImagesModal = false" style="background:none;border:none;font-size:20px;cursor:pointer;">×</button>
+        </div>
+        <div class="modal-body">
+          <div v-if="currentBook && currentBook.images.length === 0" style="text-align: center; color: var(--text-muted); padding: 40px;">
+            该书籍暂无缓存插图
+          </div>
+          <div class="images-grid" v-else>
+            <div class="img-item" v-for="img in currentBook.images" :key="img.filename" @click="previewImage(img.url)">
+              <img :src="img.url" alt="插图" loading="lazy">
+              <span>{{ img.filename }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 大图查看模态框 -->
+    <div class="modal-overlay" v-if="previewImgUrl" @click="previewImgUrl = ''" style="background: rgba(0,0,0,0.8);">
+      <div style="position: relative; max-width: 90vw; max-height: 90vh;" @click.stop>
+        <img :src="previewImgUrl" style="max-width: 100%; max-height: 90vh; border-radius: var(--radius-md); object-fit: contain;" alt="大图">
+        <button style="position: absolute; top: -12px; right: -12px; background: #fff; border: none; border-radius: 50%; width: 32px; height: 32px; font-weight: bold; cursor: pointer; box-shadow: var(--shadow-md);" @click="previewImgUrl = ''">×</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <script>
+    const { createApp, ref, computed, onMounted, onUnmounted } = Vue;
+
+    createApp({
+      setup() {
+        const books = ref([]);
+        const searchQuery = ref('');
+        const showDownloadModal = ref(false);
+        const showImagesModal = ref(false);
+        const currentBook = ref(null);
+        const previewImgUrl = ref('');
+        
+        const formSource = ref('');
+        const formDownloadImages = ref(true);
+        const taskStatus = ref({ status: 'idle', message: '' });
+        let statusTimer = null;
+
+        const filteredBooks = computed(() => {
+          if (!searchQuery.value.trim()) return books.value;
+          const q = searchQuery.value.toLowerCase();
+          return books.value.filter(b => b.title.toLowerCase().includes(q));
+        });
+
+        const refreshBooks = async () => {
+          try {
+            const res = await fetch('/inovelapi/books');
+            const data = await res.json();
+            if (data.status === 'ok') {
+              books.value = data.books;
+            }
+          } catch (e) {
+            console.error('刷新书库失败:', e);
+          }
+        };
+
+        const pollStatus = async () => {
+          try {
+            const res = await fetch('/inovelapi/status');
+            const data = await res.json();
+            if (data.status === 'ok') {
+              const oldStatus = taskStatus.value.status;
+              taskStatus.value = data.task;
+              if (oldStatus === 'running' && data.task.status === 'completed') {
+                refreshBooks();
+                alert('EPUB 导出成功！');
+              }
+            }
+          } catch (e) {}
+        };
+
+        const submitExportTask = async () => {
+          if (!formSource.value.trim()) {
+            alert('请输入源 XML 链接或本地路径！');
+            return;
+          }
+          try {
+            const res = await fetch('/inovelapi/export', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                source: formSource.value.trim(),
+                download_images: formDownloadImages.value
+              })
+            });
+            const data = await res.json();
+            if (data.status === 'ok') {
+              showDownloadModal.value = false;
+              alert('导出任务已下达至后台执行，请关注顶部状态栏进度！');
+            } else {
+              alert('下达任务失败: ' + data.message);
+            }
+          } catch (e) {
+            alert('请求异常: ' + e);
+          }
+        };
+
+        const openImagesModal = (book) => {
+          currentBook.value = book;
+          showImagesModal.value = true;
+        };
+
+        const previewImage = (url) => {
+          previewImgUrl.value = url;
+        };
+
+        onMounted(() => {
+          refreshBooks();
+          statusTimer = setInterval(pollStatus, 2000);
+        });
+
+        onUnmounted(() => {
+          if (statusTimer) clearInterval(statusTimer);
+        });
+
+        return {
+          books,
+          searchQuery,
+          filteredBooks,
+          showDownloadModal,
+          showImagesModal,
+          currentBook,
+          previewImgUrl,
+          formSource,
+          formDownloadImages,
+          taskStatus,
+          refreshBooks,
+          submitExportTask,
+          openImagesModal,
+          previewImage
+        };
+      }
+    }).mount('#app');
+  </script>
+</body>
+</html>

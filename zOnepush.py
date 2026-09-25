@@ -25,8 +25,10 @@ import zCpolar
 from zLK import crawl_lightnovel_to_epub
 from zConfig import get_config
 from zLKserver import lk_bp
+from zInovelServer import inovel_bp
 app = Flask(__name__)
 app.register_blueprint(lk_bp)
+app.register_blueprint(inovel_bp)
 
 # 监听端口
 LISTEN_PORT = get_config("pushserver.listen_port", default=25566)
