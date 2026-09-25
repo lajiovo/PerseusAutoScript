@@ -86,13 +86,14 @@ Perseus/
 │   ├── main.py               # QBot 启动入口
 │   ├── opcmd.py              # OP 指令集与富媒体卡片处理
 │   ├── server.py             # WebUI 及服务控制端
+│   ├── morecmd.py            # 额外免管理员指令
 │   ├── suoha.png             # 示例图片
 │   ├── botpy.log             # botpy的日志文件
 │   └── yz.py                 # 云崽 Bot接入
 ├── brocache/                 # zBrowser的文件
 ├── servercache/              # 大本营的缓存文件
 │   ├── clipboard/            # clipboard缓存
-│   ├── lk/                   # （实验性）
+│   ├── lk/                   # 已废弃
 │   ├── ap/                   # ap状态暂存
 │   ├── pushlog/              # push消息日志
 │   └── stats.json            # 大本营统计信息
@@ -107,19 +108,19 @@ Perseus/
 ├── quick_tools/              # 轻量化快捷小工具目录
 ├── webassets/                # Web 后台/控制面板前端静态资源
 │   ├── index.html            # 导航页
-│   ├── dash.html             # 仪表盘 控制页
+│   ├── dash.html             # 控制页
 │   ├── clipboard.html        # 在线剪切板
-│   ├── lk.html               # （实验性）LK爬虫主页
-│   ├── book.html             # （实验性）LK爬虫书籍页
-│   └── reader.html           # （实验性）LK爬虫阅读页
+│   ├── status.html           # 仪表盘暨统计信息
+│   ├── lk.html               # 已废弃
+│   ├── book.html             # 已废弃
+│   └── reader.html           # 已废弃
 ├── begin.vbs                 # 一级启动入口
 ├── Begin.example.bat         # 二级启动入口 示例
 ├── begin.pyw                 # 三级启动入口
 ├── zOnepush.py               # 主控大本营中心调度与状态监控
-├── CodeList.txt              # 错误码清单
 ├── LICENSE                   # 项目开源许可证
 ├── README.md                 # 项目说明文档
-├── WebHome.html              # 废弃Help页
+├── WebHome.html              # 已废弃
 ├── auth.example.json         # AzurpilotWebui 认证信息配置示例
 ├── config.example.yaml       # 主配置文件示例
 ├── zAlas.py                  # AzurPilot 自动化控制与更新逻辑
@@ -132,18 +133,19 @@ Perseus/
 ├── zEditProxy.py             # 程序与系统 Git 代理一键修改
 ├── zFfmpeg.py                # FFmpeg 音频压缩
 ├── zLK.py                    # 轻之国度电子书抓取、解析与 EPUB 打包
-├── zLKbro.py                 # （实验性）轻之国度爬虫浏览器
-├── zLKepub.py                # （实验性）轻之国度爬虫打包
-├── zLKapi.py                 # （实验性）轻之国度爬虫接口
-├── zLKserver.py              # （实验性）轻之国度爬虫路由
-├── zLNL.py                   # （开发中）哔哩轻小说爬虫
+├── zLKbro.py                 # 已废弃
+├── zLKepub.py                # 已废弃
+├── zLKapi.py                 # 已废弃
+├── zLKserver.py              # 已废弃
+├── zLNLmain.py               # 已废弃
 ├── zMainHandler.py           # 消息转发和指令处理
 ├── zMumu.py                  # MuMu 模拟器进程相关
 ├── zMusicDL.py               # MusicDL 音乐服务启动与局域网广播
 ├── zPGRJZ.py                 # 苹果软件站签到等扩展自动化任务
 ├── zPerseusLogger.py         # 全局日志轮转与格式化处理
 ├── zPgrjzLogin.py            # 苹果软件站网页登录入口
-├── zPlaywright.py            # AzurpilotWebui 控制相关
+├── zPlaywright.py            # AzurpilotWebui 控制 (旧版,不再支持)
+├── zPlaywrighNew.py          # AzurpilotWebui 控制
 ├── pgrjzauth.json            # 苹果软件站登入信息
 └── last_checkin.txt          # 签到日期记录
 
@@ -190,5 +192,5 @@ Perseus/
 
 ---
 <div align="right">
-  <i>Update Time: 2026-09-05</i>
+  <i>Update Time: 2026-09-25</i>
 </div>
