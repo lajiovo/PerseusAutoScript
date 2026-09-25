@@ -18,6 +18,7 @@ servercache/
 *.log
 *.epub
 *.log.*
+*.xml
 
 # 3. 忽略特定文件
 last_checkin.txt
