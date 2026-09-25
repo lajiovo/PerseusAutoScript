@@ -24,6 +24,32 @@ def sanitize_filename(name):
     return re.sub(r'[\\/*?:"<>|]', "_", name).strip()
 
 
+def get_cached_novels():
+    """扫描 servercache/inovel 目录，获取所有已缓存的书籍元数据"""
+    novels = []
+    if not CACHE_BASE_DIR.exists():
+        return novels
+
+    import datetime
+    for folder in CACHE_BASE_DIR.iterdir():
+        if folder.is_dir():
+            xml_path = folder / "feed.xml"
+            if xml_path.exists():
+                mtime = xml_path.stat().st_mtime
+                time_str = datetime.datetime.fromtimestamp(mtime).strftime(
+                    "%Y-%m-%d %H:%M:%S"
+                )
+                novels.append(
+                    {
+                        "title": folder.name,
+                        "xml_path": str(xml_path),
+                        "mtime": time_str,
+                        "folder_path": str(folder),
+                    }
+                )
+    return sorted(novels, key=lambda x: x["mtime"], reverse=True)
+
+
 def get_novel_title_from_xml_content(content_bytes):
     """从 XML 二进制或字符串内容中快速解析出 channel -> title"""
     try:
@@ -355,22 +381,36 @@ class AppGUI:
 
         self.root = root
         self.root.title("轻小说 XML 转 EPUB 工具")
-        self.root.geometry("700x580")
+        self.root.geometry("750x620")
 
         # 界面控件变量
         self.source_var = tk.StringVar(value="feed.xml")
         self.output_dir_var = tk.StringVar(value=str(BASE_DIR))
         self.download_img_var = tk.BooleanVar(value=True)
+        self.search_var = tk.StringVar()
+        self.cached_novels_data = []
 
         self._build_ui()
+        self._refresh_library()
 
     def _build_ui(self):
         import tkinter as tk
         from tkinter import ttk
 
-        # 源设置
-        frame_top = ttk.LabelFrame(self.root, text="源 XML 设置", padding=10)
-        frame_top.pack(fill="x", padx=10, pady=5)
+        self.notebook = ttk.Notebook(self.root)
+        self.notebook.pack(fill="both", expand=True, padx=10, pady=(10, 5))
+
+        # 选项卡 1：转换导出
+        tab_convert = ttk.Frame(self.notebook)
+        self.notebook.add(tab_convert, text=" 转换导出 ")
+
+        # 选项卡 2：本地书库
+        tab_library = ttk.Frame(self.notebook)
+        self.notebook.add(tab_library, text=" 本地书库 ")
+
+        # --- Tab 1 内容：源与导出设置 ---
+        frame_top = ttk.LabelFrame(tab_convert, text="源 XML 设置", padding=10)
+        frame_top.pack(fill="x", padx=5, pady=5)
 
         lbl_tip = ttk.Label(
             frame_top, text="请输入 XML 的网络 URL 或选择本地 feed.xml 文件："
@@ -391,8 +431,8 @@ class AppGUI:
         btn_browse.pack(side="right")
 
         # 导出路径设置
-        frame_export = ttk.LabelFrame(self.root, text="导出设置", padding=10)
-        frame_export.pack(fill="x", padx=10, pady=5)
+        frame_export = ttk.LabelFrame(tab_convert, text="导出设置", padding=10)
+        frame_export.pack(fill="x", padx=5, pady=5)
 
         lbl_out_tip = ttk.Label(frame_export, text="设置 EPUB 导出目标文件夹：")
         lbl_out_tip.pack(anchor="w", pady=(0, 5))
@@ -413,7 +453,7 @@ class AppGUI:
         btn_browse_dir.pack(side="right")
 
         # 选项
-        frame_opts = ttk.Frame(self.root, padding=(10, 5))
+        frame_opts = ttk.Frame(tab_convert, padding=(5, 5))
         frame_opts.pack(fill="x")
 
         chk_img = ttk.Checkbutton(
@@ -428,12 +468,144 @@ class AppGUI:
         )
         btn_start.pack(side="right")
 
-        # 日志输出区域
-        frame_log = ttk.LabelFrame(self.root, text="运行日志", padding=10)
-        frame_log.pack(fill="both", expand=True, padx=10, pady=5)
+        # --- Tab 2 内容：本地书库查询 ---
+        frame_search = ttk.Frame(tab_library, padding=5)
+        frame_search.pack(fill="x")
 
-        self.txt_log = tk.Text(frame_log, wrap="word", font=("Consolas", 9))
+        ttk.Label(frame_search, text="搜索书名: ").pack(side="left")
+        entry_search = ttk.Entry(
+            frame_search, textvariable=self.search_var, font=("Consolas", 10)
+        )
+        entry_search.pack(side="left", fill="x", expand=True, padx=5)
+        self.search_var.trace_add("write", lambda *args: self._filter_library())
+
+        btn_refresh = ttk.Button(
+            frame_search, text="刷新书库", command=self._refresh_library
+        )
+        btn_refresh.pack(side="right")
+
+        # 书籍列表展示
+        frame_tree = ttk.Frame(tab_library, padding=5)
+        frame_tree.pack(fill="both", expand=True)
+
+        columns = ("title", "mtime", "xml_path")
+        self.tree_library = ttk.Treeview(
+            frame_tree, columns=columns, show="headings", selectmode="browse"
+        )
+        self.tree_library.heading("title", text="书名")
+        self.tree_library.heading("mtime", text="缓存时间")
+        self.tree_library.heading("xml_path", text="缓存 XML 相对路径")
+
+        self.tree_library.column("title", width=200, anchor="w")
+        self.tree_library.column("mtime", width=140, anchor="center")
+        self.tree_library.column("xml_path", width=320, anchor="w")
+
+        scroll_y = ttk.Scrollbar(
+            frame_tree, orient="vertical", command=self.tree_library.yview
+        )
+        self.tree_library.configure(yscrollcommand=scroll_y.set)
+
+        self.tree_library.pack(side="left", fill="both", expand=True)
+        scroll_y.pack(side="right", fill="y")
+
+        # 书库操作按纽
+        frame_lib_actions = ttk.Frame(tab_library, padding=5)
+        frame_lib_actions.pack(fill="x")
+
+        btn_select_as_source = ttk.Button(
+            frame_lib_actions,
+            text="载入并切至转换页",
+            command=self._use_selected_as_source,
+        )
+        btn_select_as_source.pack(side="left", padx=(0, 5))
+
+        btn_direct_export = ttk.Button(
+            frame_lib_actions, text="直接导出选中书籍", command=self._export_selected
+        )
+        btn_direct_export.pack(side="left", padx=(0, 5))
+
+        btn_open_folder = ttk.Button(
+            frame_lib_actions, text="打开缓存文件夹", command=self._open_cache_folder
+        )
+        btn_open_folder.pack(side="right")
+
+        # 底部公共运行日志输出区域
+        frame_log = ttk.LabelFrame(self.root, text="运行日志", padding=10)
+        frame_log.pack(fill="both", expand=True, padx=10, pady=(0, 10))
+
+        self.txt_log = tk.Text(frame_log, wrap="word", font=("Consolas", 9), height=8)
         self.txt_log.pack(fill="both", expand=True)
+
+    def _refresh_library(self):
+        """刷新本地缓存书库列表"""
+        self.cached_novels_data = get_cached_novels()
+        self._filter_library()
+
+    def _filter_library(self):
+        """根据输入的关键词过滤书库列表"""
+        for item in self.tree_library.get_children():
+            self.tree_library.delete(item)
+
+        query = self.search_var.get().strip().lower()
+        for book in self.cached_novels_data:
+            if not query or query in book["title"].lower():
+                self.tree_library.insert(
+                    "",
+                    "end",
+                    values=(book["title"], book["mtime"], book["xml_path"]),
+                )
+
+    def _get_selected_novel_path(self):
+        """获取 Treeview 中选中的书籍 XML 路径"""
+        import tkinter.messagebox as messagebox
+
+        selected_item = self.tree_library.selection()
+        if not selected_item:
+            messagebox.showwarning("提示", "请先在书库列表中选择一本书籍！")
+            return None
+        values = self.tree_library.item(selected_item[0], "values")
+        return values[2] if len(values) >= 3 else None
+
+    def _use_selected_as_source(self):
+        """将选中的书籍 XML 设置为源并切换到转换面板"""
+        xml_path = self._get_selected_novel_path()
+        if xml_path:
+            self.source_var.set(xml_path)
+            self.notebook.select(0)
+
+    def _export_selected(self):
+        """直接导出选中的书籍为 EPUB"""
+        xml_path = self._get_selected_novel_path()
+        if xml_path:
+            self.source_var.set(xml_path)
+            self._start_process()
+
+    def _open_cache_folder(self):
+        """打开选中书籍的本地缓存文件夹"""
+        import os
+        import subprocess
+        import sys
+        import tkinter.messagebox as messagebox
+
+        selected_item = self.tree_library.selection()
+        if not selected_item:
+            target_dir = CACHE_BASE_DIR
+        else:
+            xml_path = self.tree_library.item(selected_item[0], "values")[2]
+            target_dir = Path(xml_path).parent
+
+        if not target_dir.exists():
+            target_dir.mkdir(parents=True, exist_ok=True)
+
+        try:
+            if sys.platform == "win32":
+                os.startfile(target_dir)
+            elif sys.platform == "darwin":
+                subprocess.Popen(["open", str(target_dir)])
+            else:
+                subprocess.Popen(["xdg-open", str(target_dir)])
+        except Exception as e:
+            messagebox.showerror("错误", f"无法打开文件夹: {e}")
 
     def _browse_source_file(self):
         from tkinter import filedialog
