@@ -30,9 +30,44 @@ class MoreCommandSystem:
         # 综合统计相关指令：统计, status, botstatus, stats
         if lower_cmd in ("统计", "status", "botstatus", "stats"):
             return self._get_comprehensive_stats()
+
+        # 截图查看相关指令：截图, screenshot, shot, pic
+        if lower_cmd in ("截图", "screenshot", "shot", "pic"):
+            return self._get_screenshot()
             
         # 未匹配到相关指令
         return None
+
+    def _get_screenshot(self):
+        """请求本地 /main/ap/get3 获取最新截图，下载并返回图文消息结构 (msg_type=7)"""
+        try:
+            url = f"{self.api_base_url}/main/ap/get3"
+            resp = requests.get(url, timeout=5)
+            if resp.status_code == 200:
+                data = resp.json()
+                if data.get("exists"):
+                    screenshot_url = f"{self.api_base_url}{data.get('screenshot_url')}"
+                    updated_at = data.get("updated_at", "未知时间")
+                    
+                    img_resp = requests.get(screenshot_url, timeout=10)
+                    if img_resp.status_code == 200:
+                        os.makedirs("temp_images", exist_ok=True)
+                        import hashlib
+                        file_hash = hashlib.md5(img_resp.content).hexdigest()
+                        file_path = os.path.join("temp_images", f"shot_{file_hash}.png")
+                        with open(file_path, "wb") as f:
+                            f.write(img_resp.content)
+                        
+                        return {
+                            "msg_type": 7,
+                            "file_path": file_path,
+                            "content": f"🖼️ 【Alas 实时运行截图】(更新于 {updated_at})"
+                        }
+                return "🖼️ 暂无可用截图缓存。"
+            else:
+                return f"❌ 获取截图状态失败 (HTTP {resp.status_code})"
+        except Exception as e:
+            return f"❌ 获取截图异常: {str(e)}"
 
     def _get_comprehensive_stats(self):
         """请求本地 /main/stats/get 获取 zOnepush 与 QBot 的综合统计数据并格式化展示"""

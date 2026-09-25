@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>系统状态监控与调度中心</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#eef2ff',
+                            100: '#e0e7ff',
+                            500: '#6366f1',
+                            600: '#4f46e5',
+                            700: '#4338ca',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="status.css">
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col p-4 lg:p-8">
+    <!-- Header -->
+    <header class="max-w-7xl w-full mx-auto flex items-center justify-between pb-6 mb-6 border-b border-slate-800">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-500 to-purple-600 flex items-center justify-center text-white shadow-lg shadow-indigo-500/20">
+                <i class="fa-solid fa-chart-line text-lg"></i>
+            </div>
+            <div>
+                <h1 class="font-bold text-lg text-white">系统状态与调度监控中心</h1>
+                <p class="text-xs text-slate-400">HandlePush, MuMu, Alas Status, Resources, Queue & Live Screenshot Monitor</p>
+            </div>
+        </div>
+        <div class="flex items-center gap-3">
+            <button onclick="loadAllStatusData()" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-600 hover:bg-indigo-700 text-white transition-all shadow-sm flex items-center gap-1.5">
+                <i class="fa-solid fa-rotate"></i> 刷新全部数据
+            </button>
+            <a href="/index.html" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 transition-all flex items-center gap-1.5">
+                <i class="fa-solid fa-arrow-left"></i> 返回控制中心
+            </a>
+        </div>
+    </header>
+
+    <!-- Main Grid Content -->
+    <main class="max-w-7xl w-full mx-auto space-y-6 flex-grow">
+        
+        <!-- Row 1: Core Process Status Indicators (HandlePush, MuMu, Alas) -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div class="glass-panel p-4 rounded-xl flex items-center justify-between">
+                <span class="text-xs text-slate-400 font-medium">HandlePush 状态</span>
+                <span id="svHandlepush" class="text-xs font-bold px-2.5 py-1 rounded bg-slate-800 text-slate-300">检查中...</span>
+            </div>
+            <div class="glass-panel p-4 rounded-xl flex items-center justify-between">
+                <span class="text-xs text-slate-400 font-medium">MuMu 进程状态</span>
+                <span id="svMumu" class="text-xs font-bold px-2.5 py-1 rounded bg-slate-800 text-slate-300">检查中...</span>
+            </div>
+            <div class="glass-panel p-4 rounded-xl flex items-center justify-between">
+                <span class="text-xs text-slate-400 font-medium">Alas 进程状态</span>
+                <span id="svAlas" class="text-xs font-bold px-2.5 py-1 rounded bg-slate-800 text-slate-300">检查中...</span>
+            </div>
+        </div>
+
+        <!-- Row 2: Comprehensive Stats Panel -->
+        <div class="glass-panel p-5 rounded-2xl">
+            <div class="flex items-center justify-between mb-4 pb-2 border-b border-slate-800">
+                <h3 class="font-bold text-sm text-indigo-400 flex items-center gap-2">
+                    <i class="fa-solid fa-chart-pie"></i> 综合统计监控（zOnepush & QBot）
+                </h3>
+                <span id="statsUpdatedTime" class="text-[10px] text-slate-400 font-mono">实时更新中</span>
+            </div>
+            <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 text-center">
+                <div class="bg-slate-900/60 p-3 rounded-xl border border-slate-800">
+                    <div class="text-[10px] text-slate-400 mb-1">自动化检查次数</div>
+                    <div id="statAutoCheck" class="font-bold text-indigo-400 text-sm">--</div>
+                </div>
+                <div class="bg-slate-900/60 p-3 rounded-xl border border-slate-800">
+                    <div class="text-[10px] text-slate-400 mb-1">Push处理次数</div>
+                    <div id="statPushCount" class="font-bold text-emerald-400 text-sm">--</div>
+                </div>
+                <div class="bg-slate-900/60 p-3 rounded-xl border border-slate-800">
+                    <div class="text-[10px] text-slate-400 mb-1">累计运行时长</div>
+                    <div id="statRuntime" class="font-bold text-purple-400 text-sm">--</div>
+                </div>
+                <div class="bg-slate-900/60 p-3 rounded-xl border border-slate-800">
+                    <div class="text-[10px] text-slate-400 mb-1">Bot消息总通量</div>
+                    <div id="statBotTotalMsg" class="font-bold text-cyan-400 text-sm">--</div>
+                </div>
+                <div class="bg-slate-900/60 p-3 rounded-xl border border-slate-800">
+                    <div class="text-[10px] text-slate-400 mb-1">Bot回复量</div>
+                    <div id="statBotReply" class="font-bold text-blue-400 text-sm">--</div>
+                </div>
+                <div class="bg-slate-900/60 p-3 rounded-xl border border-slate-800">
+                    <div class="text-[10px] text-slate-400 mb-1">Bot处理指令</div>
+                    <div id="statBotHandle" class="font-bold text-amber-400 text-sm">--</div>
+                </div>
+                <div class="bg-slate-900/60 p-3 rounded-xl border border-slate-800">
+                    <div class="text-[10px] text-slate-400 mb-1">活跃群聊数</div>
+                    <div id="statBotGroups" class="font-bold text-pink-400 text-sm">--</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Row 3: Resources & Queue -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- Resource Monitor -->
+            <div class="glass-panel p-5 rounded-2xl flex flex-col">
+                <div class="flex items-center justify-between mb-3 pb-2 border-b border-slate-800">
+                    <h3 class="font-bold text-sm text-indigo-400 flex items-center gap-2">
+                        <i class="fa-solid fa-server"></i> 资源监控解析内容
+                    </h3>
+                    <span id="resourceUpdatedTime" class="text-[10px] text-slate-400 font-mono">更新时间: --</span>
+                </div>
+                <div id="resourceMonitorContainer" class="space-y-2 max-h-96 overflow-y-auto pr-1 flex-grow">
+                    <p class="text-xs text-slate-500 text-center py-6">正在加载资源监控数据...</p>
+                </div>
+            </div>
+
+            <!-- Task Queue Monitor -->
+            <div class="glass-panel p-5 rounded-2xl flex flex-col">
+                <div class="flex items-center justify-between mb-3 pb-2 border-b border-slate-800">
+                    <h3 class="font-bold text-sm text-purple-400 flex items-center gap-2">
+                        <i class="fa-solid fa-list-check"></i> 任务队列状态监控
+                    </h3>
+                    <span id="tasksUpdatedTime" class="text-[10px] text-slate-400 font-mono">更新时间: --</span>
+                </div>
+                <div id="tasksMonitorContainer" class="space-y-3 max-h-96 overflow-y-auto pr-1 flex-grow">
+                    <p class="text-xs text-slate-500 text-center py-6">正在加载任务状态数据...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Row 4: Live Screenshot Monitor -->
+        <div class="glass-panel p-5 rounded-2xl">
+            <div class="flex items-center justify-between mb-4 pb-2 border-b border-slate-800">
+                <h3 class="font-bold text-sm text-emerald-400 flex items-center gap-2">
+                    <i class="fa-solid fa-image"></i> 最新实时截图监控 (zPlaywrightNew)
+                </h3>
+                <span id="screenshotUpdatedTime" class="text-[10px] text-slate-400 font-mono">更新时间: --</span>
+            </div>
+            <div id="screenshotContainer" class="flex justify-center items-center bg-slate-900/60 p-4 rounded-xl border border-slate-800 min-h-[300px]">
+                <p class="text-xs text-slate-500">正在加载最新截图...</p>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Script -->
+    <script src="status.js"></script>
+</body>
+</html>

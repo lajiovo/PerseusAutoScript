@@ -116,6 +116,8 @@
                 <button class="tab-btn active text-indigo-600 dark:text-indigo-400 font-semibold border-b-2 border-indigo-600 dark:border-indigo-400 pb-2 text-xs sm:text-sm px-2" data-target="all">全部区域</button>
                 <button class="tab-btn text-slate-500 dark:text-slate-400 font-medium hover:text-slate-700 dark:hover:text-slate-200 pb-2 text-xs sm:text-sm px-2" data-target="proxy">相对路径 / 域名</button>
                 <button class="tab-btn text-slate-500 dark:text-slate-400 font-medium hover:text-slate-700 dark:hover:text-slate-200 pb-2 text-xs sm:text-sm px-2" data-target="local">局域网 IP (192.168.10.3)</button>
+                <button class="tab-btn text-slate-500 dark:text-slate-400 font-medium hover:text-slate-700 dark:hover:text-slate-200 pb-2 text-xs sm:text-sm px-2 flex items-center gap-1.5" data-target="status"><i class="fa-solid fa-chart-line"></i>状态区</button>
+                <a href="/status.html" target="_blank" class="tab-btn text-slate-500 dark:text-slate-400 font-medium hover:text-slate-700 dark:hover:text-slate-200 pb-2 text-xs sm:text-sm px-2 flex items-center gap-1.5" title="新标签页打开独立状态页"><i class="fa-solid fa-external-link-alt text-[10px]"></i>独立状态页</a>
             </nav>
         </div>
 
@@ -444,6 +446,118 @@
             </div>
         </section>
 
+        <!-- REGION 3: Status Area Section (HandlePush, MuMu, Alas, Stats, Resources, Queue, Screenshot) -->
+        <section id="section-status" class="region-section space-y-6 hidden">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>
+                    <h2 class="text-base font-bold text-slate-800 dark:text-slate-100">系统状态与实时监控中心</h2>
+                    <span class="text-[10px] font-normal text-slate-500 dark:text-slate-400 bg-slate-200/60 dark:bg-slate-800 px-2 py-0.5 rounded-full">Status Area</span>
+                </div>
+                <button onclick="loadIndexSystemStatusAndDashboard()" class="inline-flex items-center gap-1.5 text-xs font-medium text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/80 px-2.5 py-1 rounded-md transition-colors shadow-sm">
+                    <i class="fa-solid fa-rotate"></i> 刷新状态
+                </button>
+            </div>
+
+            <!-- Row 1: Core Process Status Indicators -->
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div class="glass-panel p-4 rounded-xl flex items-center justify-between">
+                    <span class="text-xs text-slate-500 dark:text-slate-400 font-medium">HandlePush 状态</span>
+                    <span id="statusSvHandlepush" class="text-xs font-bold px-2.5 py-1 rounded bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300">检查中...</span>
+                </div>
+                <div class="glass-panel p-4 rounded-xl flex items-center justify-between">
+                    <span class="text-xs text-slate-500 dark:text-slate-400 font-medium">MuMu 进程状态</span>
+                    <span id="statusSvMumu" class="text-xs font-bold px-2.5 py-1 rounded bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300">检查中...</span>
+                </div>
+                <div class="glass-panel p-4 rounded-xl flex items-center justify-between">
+                    <span class="text-xs text-slate-500 dark:text-slate-400 font-medium">Alas 进程状态</span>
+                    <span id="statusSvAlas" class="text-xs font-bold px-2.5 py-1 rounded bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300">检查中...</span>
+                </div>
+            </div>
+
+            <!-- Row 2: Comprehensive Stats Panel -->
+            <div class="glass-panel p-5 rounded-2xl">
+                <div class="flex items-center justify-between mb-4 pb-2 border-b border-slate-200 dark:border-slate-800">
+                    <h3 class="font-bold text-sm text-indigo-600 dark:text-indigo-400 flex items-center gap-2">
+                        <i class="fa-solid fa-chart-pie"></i> 综合统计监控（zOnepush & QBot）
+                    </h3>
+                    <span id="statusStatsUpdatedTime" class="text-[10px] text-slate-400 font-mono">实时更新中</span>
+                </div>
+                <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 text-center">
+                    <div class="bg-slate-100/60 dark:bg-slate-900/60 p-3 rounded-xl border border-slate-200 dark:border-slate-800">
+                        <div class="text-[10px] text-slate-500 dark:text-slate-400 mb-1">自动化检查次数</div>
+                        <div id="statusStatAutoCheck" class="font-bold text-indigo-600 dark:text-indigo-400 text-sm">--</div>
+                    </div>
+                    <div class="bg-slate-100/60 dark:bg-slate-900/60 p-3 rounded-xl border border-slate-200 dark:border-slate-800">
+                        <div class="text-[10px] text-slate-500 dark:text-slate-400 mb-1">Push处理次数</div>
+                        <div id="statusStatPushCount" class="font-bold text-emerald-600 dark:text-emerald-400 text-sm">--</div>
+                    </div>
+                    <div class="bg-slate-100/60 dark:bg-slate-900/60 p-3 rounded-xl border border-slate-200 dark:border-slate-800">
+                        <div class="text-[10px] text-slate-500 dark:text-slate-400 mb-1">累计运行时长</div>
+                        <div id="statusStatRuntime" class="font-bold text-purple-600 dark:text-purple-400 text-sm">--</div>
+                    </div>
+                    <div class="bg-slate-100/60 dark:bg-slate-900/60 p-3 rounded-xl border border-slate-200 dark:border-slate-800">
+                        <div class="text-[10px] text-slate-500 dark:text-slate-400 mb-1">Bot消息总通量</div>
+                        <div id="statusStatBotTotalMsg" class="font-bold text-cyan-600 dark:text-cyan-400 text-sm">--</div>
+                    </div>
+                    <div class="bg-slate-100/60 dark:bg-slate-900/60 p-3 rounded-xl border border-slate-200 dark:border-slate-800">
+                        <div class="text-[10px] text-slate-500 dark:text-slate-400 mb-1">Bot回复量</div>
+                        <div id="statusStatBotReply" class="font-bold text-blue-600 dark:text-blue-400 text-sm">--</div>
+                    </div>
+                    <div class="bg-slate-100/60 dark:bg-slate-900/60 p-3 rounded-xl border border-slate-200 dark:border-slate-800">
+                        <div class="text-[10px] text-slate-500 dark:text-slate-400 mb-1">Bot处理指令</div>
+                        <div id="statusStatBotHandle" class="font-bold text-amber-600 dark:text-amber-400 text-sm">--</div>
+                    </div>
+                    <div class="bg-slate-100/60 dark:bg-slate-900/60 p-3 rounded-xl border border-slate-200 dark:border-slate-800">
+                        <div class="text-[10px] text-slate-500 dark:text-slate-400 mb-1">活跃群聊数</div>
+                        <div id="statusStatBotGroups" class="font-bold text-pink-600 dark:text-pink-400 text-sm">--</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Row 3: Resources & Queue -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- Resource Monitor -->
+                <div class="glass-panel p-5 rounded-2xl flex flex-col">
+                    <div class="flex items-center justify-between mb-3 pb-2 border-b border-slate-200 dark:border-slate-800">
+                        <h3 class="font-bold text-sm text-indigo-600 dark:text-indigo-400 flex items-center gap-2">
+                            <i class="fa-solid fa-server"></i> 资源监控解析内容
+                        </h3>
+                        <span id="statusResourceUpdatedTime" class="text-[10px] text-slate-400 font-mono">更新时间: --</span>
+                    </div>
+                    <div id="statusResourceMonitorContainer" class="space-y-2 max-h-96 overflow-y-auto pr-1 flex-grow">
+                        <p class="text-xs text-slate-500 text-center py-6">正在加载资源监控数据...</p>
+                    </div>
+                </div>
+
+                <!-- Task Queue Monitor -->
+                <div class="glass-panel p-5 rounded-2xl flex flex-col">
+                    <div class="flex items-center justify-between mb-3 pb-2 border-b border-slate-200 dark:border-slate-800">
+                        <h3 class="font-bold text-sm text-purple-600 dark:text-purple-400 flex items-center gap-2">
+                            <i class="fa-solid fa-list-check"></i> 任务队列状态监控
+                        </h3>
+                        <span id="statusTasksUpdatedTime" class="text-[10px] text-slate-400 font-mono">更新时间: --</span>
+                    </div>
+                    <div id="statusTasksMonitorContainer" class="space-y-3 max-h-96 overflow-y-auto pr-1 flex-grow">
+                        <p class="text-xs text-slate-500 text-center py-6">正在加载任务状态数据...</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Row 4: Live Screenshot Monitor -->
+            <div class="glass-panel p-5 rounded-2xl">
+                <div class="flex items-center justify-between mb-4 pb-2 border-b border-slate-200 dark:border-slate-800">
+                    <h3 class="font-bold text-sm text-emerald-600 dark:text-emerald-400 flex items-center gap-2">
+                        <i class="fa-solid fa-image"></i> 最新实时截图监控 (zPlaywrightNew)
+                    </h3>
+                    <span id="statusScreenshotUpdatedTime" class="text-[10px] text-slate-400 font-mono">更新时间: --</span>
+                </div>
+                <div id="statusScreenshotContainer" class="flex justify-center items-center bg-slate-100/60 dark:bg-slate-900/60 p-4 rounded-xl border border-slate-200 dark:border-slate-800 min-h-[300px]">
+                    <p class="text-xs text-slate-500">正在加载最新截图...</p>
+                </div>
+            </div>
+        </section>
+
         <!-- Notification Toast Container -->
         <div id="toast" class="fixed bottom-6 right-6 z-50 transform translate-y-20 opacity-0 transition-all duration-300 bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 px-3.5 py-2 rounded-xl shadow-2xl flex items-center gap-2 text-xs font-medium pointer-events-none">
             <i class="fa-solid fa-circle-check text-emerald-400 dark:text-emerald-600"></i>
@@ -562,9 +676,10 @@
         }
 
         // --- 5. Category Tab Switcher ---
-        const tabBtns = document.querySelectorAll('.tab-btn');
+        const tabBtns = document.querySelectorAll('.tab-btn[data-target]');
         const sectionProxy = document.getElementById('section-proxy');
         const sectionLocal = document.getElementById('section-local');
+        const sectionStatus = document.getElementById('section-status');
 
         tabBtns.forEach(btn => {
             btn.addEventListener('click', () => {
@@ -579,12 +694,20 @@
                 if (target === 'all') {
                     sectionProxy.classList.remove('hidden');
                     sectionLocal.classList.remove('hidden');
+                    sectionStatus.classList.add('hidden');
                 } else if (target === 'proxy') {
                     sectionProxy.classList.remove('hidden');
                     sectionLocal.classList.add('hidden');
+                    sectionStatus.classList.add('hidden');
                 } else if (target === 'local') {
                     sectionProxy.classList.add('hidden');
                     sectionLocal.classList.remove('hidden');
+                    sectionStatus.classList.add('hidden');
+                } else if (target === 'status') {
+                    sectionProxy.classList.add('hidden');
+                    sectionLocal.classList.add('hidden');
+                    sectionStatus.classList.remove('hidden');
+                    loadAllStatusDataForIndex();
                 }
             });
         });
@@ -787,6 +910,123 @@
                 }
             } catch (e) {
                 console.error('加载首页系统状态或仪表盘失败:', e);
+            }
+        }
+
+        // --- 7. Load Status Tab Data for Index ---
+        async function loadAllStatusDataForIndex() {
+            loadIndexSystemStatusAndDashboard();
+            try {
+                // 状态进程指示
+                const hpEl = document.getElementById('statusSvHandlepush');
+                const mumuEl = document.getElementById('statusSvMumu');
+                const alasEl = document.getElementById('statusSvAlas');
+                if (hpEl) { hpEl.textContent = '🟢 运行中'; hpEl.className = 'text-xs font-bold px-2.5 py-1 rounded bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300'; }
+                if (mumuEl) { mumuEl.textContent = '🟢 运行中'; mumuEl.className = 'text-xs font-bold px-2.5 py-1 rounded bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300'; }
+                if (alasEl) { alasEl.textContent = '🟢 运行中'; alasEl.className = 'text-xs font-bold px-2.5 py-1 rounded bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300'; }
+
+                // 资源与队列
+                const resRes = await fetch('/main/ap/get');
+                if (resRes.ok) {
+                    const jsonFull = await resRes.json();
+                    const apData = jsonFull.data || jsonFull;
+                    const resources = apData.resources || [];
+                    const container = document.getElementById('statusResourceMonitorContainer');
+                    const timeEl = document.getElementById('statusResourceUpdatedTime');
+                    if (timeEl && apData.updated_at) timeEl.textContent = '更新时间: ' + apData.updated_at;
+
+                    if (container) {
+                        if (resources.length > 0) {
+                            container.innerHTML = resources.map(item => {
+                                const timeDisplay = item.formatted_time || item.time_text || '刚刚';
+                                const limitText = item.limit ? `<small class="text-slate-400 ml-1">${item.limit}</small>` : '';
+                                return `
+                                    <div class="bg-slate-100/60 dark:bg-slate-900/60 p-3 rounded-xl border border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs">
+                                        <div class="flex items-center">
+                                            <span class="font-bold text-slate-800 dark:text-slate-200">${item.name || '资源'}</span>
+                                            <span class="ml-3 px-2 py-0.5 rounded text-xs bg-indigo-100 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 font-mono">${item.amount || '0'}${limitText}</span>
+                                        </div>
+                                        <div class="text-[11px] font-mono text-slate-500 dark:text-slate-400">
+                                            <i class="fa-regular fa-clock mr-1"></i>${timeDisplay}
+                                        </div>
+                                    </div>
+                                `;
+                            }).join('');
+                        } else {
+                            container.innerHTML = '<p class="text-xs text-slate-500 text-center py-6">暂无资源监控数据</p>';
+                        }
+                    }
+                }
+
+                const tasksRes = await fetch('/main/ap/get2');
+                if (tasksRes.ok) {
+                    const jsonFull = await tasksRes.json();
+                    const tData = jsonFull.data || jsonFull;
+                    const running = tData.running || [];
+                    const queued = tData.queued || [];
+                    const waiting = tData.waiting || [];
+                    const timeEl = document.getElementById('statusTasksUpdatedTime');
+                    if (timeEl && tData.updated_at) timeEl.textContent = '更新时间: ' + tData.updated_at;
+
+                    const container = document.getElementById('statusTasksMonitorContainer');
+                    if (container) {
+                        let htmlBuf = '';
+                        if (running.length > 0) {
+                            htmlBuf += `<div class="mb-3"><span class="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase">🟢 运行中 (${running.length})</span><div class="space-y-1.5 mt-1.5">`;
+                            running.forEach(t => {
+                                htmlBuf += `<div class="bg-emerald-50 dark:bg-emerald-950/30 p-2.5 rounded-lg border border-emerald-200 dark:border-emerald-800/50 flex items-center justify-between text-xs">
+                                    <span class="font-medium text-emerald-900 dark:text-emerald-200">${t.title}</span>
+                                    <span class="text-[10px] font-mono text-emerald-600 dark:text-emerald-400">${t.formatted_time || t.time_text}</span>
+                                </div>`;
+                            });
+                            htmlBuf += `</div></div>`;
+                        }
+                        if (queued.length > 0) {
+                            htmlBuf += `<div class="mb-3"><span class="text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase">🟡 队列中 (${queued.length})</span><div class="space-y-1.5 mt-1.5">`;
+                            queued.forEach(t => {
+                                htmlBuf += `<div class="bg-amber-50 dark:bg-amber-950/30 p-2.5 rounded-lg border border-amber-200 dark:border-amber-800/50 flex items-center justify-between text-xs">
+                                    <span class="font-medium text-amber-900 dark:text-amber-200">${t.title}</span>
+                                    <span class="text-[10px] font-mono text-amber-600 dark:text-amber-400">${t.formatted_time || t.time_text}</span>
+                                </div>`;
+                            });
+                            htmlBuf += `</div></div>`;
+                        }
+                        if (waiting.length > 0) {
+                            htmlBuf += `<div><span class="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">⚪ 等待中 (${waiting.length})</span><div class="space-y-1.5 mt-1.5">`;
+                            waiting.forEach(t => {
+                                htmlBuf += `<div class="bg-slate-100 dark:bg-slate-900/60 p-2.5 rounded-lg border border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs">
+                                    <span class="font-medium text-slate-700 dark:text-slate-300">${t.title}</span>
+                                    <span class="text-[10px] font-mono text-slate-500 dark:text-slate-400">${t.formatted_time || t.time_text}</span>
+                                </div>`;
+                            });
+                            htmlBuf += `</div></div>`;
+                        }
+                        if (running.length === 0 && queued.length === 0 && waiting.length === 0) {
+                            container.innerHTML = '<p class="text-xs text-slate-500 text-center py-6">当前无活跃任务</p>';
+                        } else {
+                            container.innerHTML = htmlBuf;
+                        }
+                    }
+                }
+
+                // 截图
+                const shotRes = await fetch('/main/ap/get3');
+                if (shotRes.ok) {
+                    const shotData = await shotRes.json();
+                    const container = document.getElementById('statusScreenshotContainer');
+                    const timeEl = document.getElementById('statusScreenshotUpdatedTime');
+                    if (timeEl && shotData.updated_at) timeEl.textContent = '更新时间: ' + shotData.updated_at;
+
+                    if (container) {
+                        if (shotData.exists && shotData.screenshot_url) {
+                            container.innerHTML = `<img src="${shotData.screenshot_url}?t=${Date.now()}" class="max-w-full max-h-[600px] rounded-lg shadow-lg object-contain border border-slate-200 dark:border-slate-800" alt="实时截图">`;
+                        } else {
+                            container.innerHTML = '<p class="text-xs text-slate-500 py-12">暂无实时截图缓存</p>';
+                        }
+                    }
+                }
+            } catch (e) {
+                console.error('加载状态区数据失败:', e);
             }
         }
 

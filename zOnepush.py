@@ -813,8 +813,15 @@ def parse_relative_or_absolute_time(time_str):
 
 def parse_dashboard_html(html_content):
     """
-    稳健解析用户提供的资源 HTML（提取项目名称、数额、带有相对时间如“2小时前”的文本）。
-    添加调试日志，并正确处理类似于 “石油 - 39秒前” 的格式。
+    严格适配最新资源卡片 HTML 结构：
+    <section class="resource-card resource-merged" style="...">
+        <section class="resource-card resource-merged-item resource-0">
+            <div class="resource-heading"><span>石油</span><div class="resource-image-wrap"><img class="resource-icon-image" alt="" width="32" height="32" draggable="false" src="./oil.webp"></div></div>
+            <div class="resource-value"><span class="resource-value-content" style="font-size: 1em;"><span>11,487</span><small>/ 14,900</small></span></div>
+            <div class="resource-foot">09:42:51</div>
+        </section>
+    </section>
+    提取所有项、数额、限额、时间，并自动下载图标保存到 servercache/ap 文件夹。
     """
     print(f"DEBUG [parse_dashboard_html] Received html_content length: {len(html_content) if html_content else 0}")
     if not html_content:
@@ -822,102 +829,90 @@ def parse_dashboard_html(html_content):
 
     resources = []
     try:
-        # 使用更稳健的方法：提取所有带有 --dashboard-help-- 或类似标签的文本
-        # 或者直接用正则查找 p 标签中的内容
-        # 针对当前结构：<p style="white-space: pre-wrap;;;--dashboard-value--">7646</p> 等
-        # 让我们把所有含有 ---dashboard-help-- 的块或相关块抓出来
-        
-        # 尝试通过正则表达式匹配每一个资源块容器
-        # 例如每个资源项在一个 scope 里面
-        scopes = re.split(r'<div id="pywebio-scope-dashboard_', html_content)
-        print(f"DEBUG [parse_dashboard_html] Found {len(scopes)-1} resource scopes")
-        
-        for scope in scopes[1:]:
+        items = re.findall(r'<section[^>]*class="[^"]*resource-merged-item[^"]*"[^>]*>(.*?)</section>', html_content, re.DOTALL | re.IGNORECASE)
+        if not items:
+            items = re.findall(r'<section[^>]*class="[^"]*resource-card[^"]*resource-merged-item[^"]*"[^>]*>(.*?)</section>', html_content, re.DOTALL | re.IGNORECASE)
+
+        for item_html in items:
             res_item = {}
-            # 提取资源名称和时间：通常在 <p style="white-space: pre-wrap;;;---dashboard-help--">石油 - 39秒前</p>
-            help_match = re.search(r'<p[^>]*style="[^"]*---dashboard-help--[^"]*"[^>]*>(.*?)</p>', scope, re.DOTALL | re.IGNORECASE)
-            if help_match:
-                help_text = re.sub(r'<[^>]+>', '', help_match.group(1)).strip()
-                res_item["raw_help"] = help_text
-                print(f"DEBUG [parse_dashboard_html] Found help_text: {help_text}")
-                # 解析类似于 “石油 - 39秒前” 或 “物资 -- 39秒前”
-                parts = re.split(r'\s*[-—]{1,2}\s*', help_text)
-                if len(parts) >= 2:
-                    res_item["name"] = parts[0].strip()
-                    time_part = parts[1].strip()
+            # 1. 提取名称 (resource-heading)
+            heading_match = re.search(r'<div[^>]*class="[^"]*resource-heading[^"]*"[^>]*>(.*?)</div>', item_html, re.DOTALL | re.IGNORECASE)
+            name = "未知资源"
+            if heading_match:
+                span_match = re.search(r'<span[^>]*>(.*?)</span>', heading_match.group(1), re.DOTALL | re.IGNORECASE)
+                if span_match:
+                    name = re.sub(r'<[^>]+>', '', span_match.group(1)).strip()
                 else:
-                    res_item["name"] = help_text
-                    time_part = help_text
-                
-                ts, formatted_time = parse_relative_or_absolute_time(time_part)
-                res_item["time_text"] = time_part
-                res_item["timestamp"] = ts
-                res_item["formatted_time"] = formatted_time
-            else:
-                res_item["name"] = "未知资源"
-                res_item["time_text"] = "刚刚"
-                ts, formatted_time = parse_relative_or_absolute_time("刚刚")
-                res_item["timestamp"] = ts
-                res_item["formatted_time"] = formatted_time
+                    name = re.sub(r'<[^>]+>', '', heading_match.group(1)).strip()
+            res_item["name"] = name
 
-            # 提取数值：--dashboard-value--
-            val_match = re.search(r'<p[^>]*style="[^"]*--dashboard-value--[^"]*"[^>]*>(.*?)</p>', scope, re.DOTALL | re.IGNORECASE)
+            # 2. 提取图标并下载到 servercache/ap
+            img_match = re.search(r'<img[^>]*src="([^"]+)"', item_html, re.DOTALL | re.IGNORECASE)
+            if img_match:
+                src = img_match.group(1)
+                basename = os.path.basename(src.split('?')[0])
+                if basename:
+                    res_item["icon"] = f"/ap/file/{basename}"
+                    try:
+                        import urllib.request
+                        icon_url = f"http://127.0.0.1:22267/{basename}" if src.startswith("./") or not src.startswith("http") else src
+                        req = urllib.request.Request(icon_url, headers={"User-Agent": "Mozilla/5.0"})
+                        with urllib.request.urlopen(req, timeout=2) as resp:
+                            if resp.status == 200:
+                                icon_data = resp.read()
+                                icon_path = os.path.join(AP_DIR, basename)
+                                with open(icon_path, "wb") as f_icon:
+                                    f_icon.write(icon_data)
+                    except Exception as e:
+                        print(f"⚠️ 下载图标 {basename} 失败: {e}")
+
+            # 3. 提取数额与限额 (resource-value)
+            val_match = re.search(r'<div[^>]*class="[^"]*resource-value[^"]*"[^>]*>(.*?)</div>', item_html, re.DOTALL | re.IGNORECASE)
+            amount = "0"
+            limit = ""
             if val_match:
-                res_item["amount"] = re.sub(r'<[^>]+>', '', val_match.group(1)).strip()
-            else:
-                res_item["amount"] = "0"
+                val_html = val_match.group(1)
+                inner_spans = re.findall(r'<span[^>]*>(.*?)</span>', val_html, re.DOTALL | re.IGNORECASE)
+                if inner_spans:
+                    amount = re.sub(r'<[^>]+>', '', inner_spans[0]).strip()
+                small_match = re.search(r'<small[^>]*>(.*?)</small>', val_html, re.DOTALL | re.IGNORECASE)
+                if small_match:
+                    limit = re.sub(r'<[^>]+>', '', small_match.group(1)).strip()
+            res_item["amount"] = amount
+            res_item["limit"] = limit
 
-            # 提取限额/总量：--dashboard-limit-- 或 --dashboard-total--
-            limit_match = re.search(r'<p[^>]*style="[^"]*--dashboard-limit--[^"]*"[^>]*>(.*?)</p>', scope, re.DOTALL | re.IGNORECASE)
-            if limit_match:
-                res_item["limit"] = re.sub(r'<[^>]+>', '', limit_match.group(1)).strip()
-            else:
-                total_match = re.search(r'<p[^>]*style="[^"]*--dashboard-total--[^"]*"[^>]*>(.*?)</p>', scope, re.DOTALL | re.IGNORECASE)
-                if total_match:
-                    res_item["limit"] = re.sub(r'<[^>]+>', '', total_match.group(1)).strip()
-                else:
-                    res_item["limit"] = ""
+            # 4. 提取时间 (resource-foot)
+            foot_match = re.search(r'<div[^>]*class="[^"]*resource-foot[^"]*"[^>]*>(.*?)</div>', item_html, re.DOTALL | re.IGNORECASE)
+            time_str = "刚刚"
+            if foot_match:
+                time_str = re.sub(r'<[^>]+>', '', foot_match.group(1)).strip()
+
+            ts, formatted_time = parse_relative_or_absolute_time(time_str)
+            res_item["time_text"] = time_str
+            res_item["timestamp"] = ts
+            res_item["formatted_time"] = formatted_time
 
             resources.append(res_item)
 
-        # 如果没有通过 scope 匹配到，退回到旧的行解析
+        # 兼容旧逻辑兜底
         if not resources:
-            print("DEBUG [parse_dashboard_html] Fallback to line-by-line parsing")
             lines = [line.strip() for line in html_content.splitlines() if line.strip()]
-            current_res = {}
             for line in lines:
                 clean_text = re.sub(r'<[^>]+>', '', line).strip()
                 if not clean_text:
                     continue
                 if "前" in clean_text or "-" in clean_text or ":" in clean_text:
                     ts, formatted_time = parse_relative_or_absolute_time(clean_text)
-                    current_res["time_text"] = clean_text
-                    current_res["timestamp"] = ts
-                    current_res["formatted_time"] = formatted_time
-                    if "name" not in current_res:
-                        current_res["name"] = "未知资源"
-                    if "amount" not in current_res:
-                        current_res["amount"] = "0"
-                    resources.append(current_res)
-                    current_res = {}
-                elif "项目" in clean_text or "资源" in clean_text or len(current_res) == 0:
-                    current_res["name"] = clean_text
-                elif any(char.isdigit() for char in clean_text):
-                    current_res["amount"] = clean_text
-
-        if not resources and html_content:
-            ts, formatted_time = parse_relative_or_absolute_time(html_content[:20])
-            resources.append({
-                "name": "总览资源",
-                "amount": "1",
-                "time_text": "刚刚",
-                "timestamp": ts,
-                "formatted_time": formatted_time
-            })
+                    resources.append({
+                        "name": "总览资源",
+                        "amount": clean_text,
+                        "time_text": clean_text,
+                        "timestamp": ts,
+                        "formatted_time": formatted_time
+                    })
     except Exception as e:
         print(f"⚠️ 解析仪表盘 HTML 异常: {e}")
 
-    print(f"DEBUG [parse_dashboard_html] Parsed {len(resources)} resources successfully.")
     return {
         "resources": resources,
         "updated_at": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -927,81 +922,79 @@ def parse_dashboard_html(html_content):
 
 def parse_tasks_html(html_content):
     """
-    稳健解析任务运行中/队列中/等待中的 HTML（提取任务标题、按钮、时间如“2026-09-18 17:07:03”或相对时间）。
-    过滤掉纯容器作用域（如 running, pending 等），仅解析实际任务节点（如 overview-task_...）。
+    严格适配最新右侧侧边栏任务调度 HTML 结构：
+    <aside class="right-rail" id="right-rail-menu" ...>
+        <section class="scheduler-widget" ...> ... </section>
+        <section class="rail-schedule" ...>
+            <div class="rail-queue-group running" ...>
+                <a data-task="Main" class="rail-task-item" ...><div><strong>主线图-1Plus</strong><small>2026-09-25 09:17:39</small></div>...</a>
+            </div>
+        </section>
+    </aside>
     """
     print(f"DEBUG [parse_tasks_html] Received html_content length: {len(html_content) if html_content else 0}")
     if not html_content:
-        return {"running": [], "queued": [], "waiting": [], "raw_html": ""}
+        return {"running": [], "queued": [], "waiting": [], "scheduler": {}, "raw_html": ""}
 
     running = []
     queued = []
     waiting = []
+    scheduler_stats = {}
 
     try:
-        scopes = re.split(r'<div id="pywebio-scope-', html_content)
-        print(f"DEBUG [parse_tasks_html] Found {len(scopes)-1} task scopes")
+        # 1. 解析调度器统计 (scheduler-stats)
+        stat_divs = re.findall(r'<div[^>]*class="[^"]*scheduler-stats[^"]*"[^>]*>(.*?)</div>', html_content, re.DOTALL | re.IGNORECASE)
+        if stat_divs:
+            matches = re.findall(r'<span>(.*?)</span>\s*<strong>(.*?)</strong>', stat_divs[0], re.DOTALL | re.IGNORECASE)
+            for label, val in matches:
+                lbl = re.sub(r'<[^>]+>', '', label).strip()
+                v = re.sub(r'<[^>]+>', '', val).strip()
+                scheduler_stats[lbl] = v
 
-        for scope in scopes[1:]:
-            scope_id_match = re.search(r'^([a-zA-Z0-9_\-]+)', scope)
-            scope_name = scope_id_match.group(1) if scope_id_match else ""
-            
-            # 修复缺陷：排除 `#pywebio-scope-running`, `#pywebio-scope-running_tasks`, `#pywebio-scope-pending`, `#pywebio-scope-pending_tasks` 等容器本身，仅解析实际任务节点
-            if scope_name in ("running", "running_tasks", "pending", "pending_tasks", "overview", "root", "card") or (not scope_name.startswith("overview-task_") and not scope_name.startswith("task_")):
-                print(f"DEBUG [parse_tasks_html] Skipping non-task container scope: {scope_name}")
-                continue
+        # 2. 解析任务项 (rail-task-item)
+        task_items = re.findall(r'<a[^>]*data-task="([^"]*)"[^>]*class="([^"]*)"[^>]*>((.*?)</a>)', html_content, re.DOTALL | re.IGNORECASE)
+        if not task_items:
+            task_items = re.findall(r'<a[^>]*class="[^"]*rail-task-item[^"]*"[^>]*>((.*?)</a>)', html_content, re.DOTALL | re.IGNORECASE)
+            formatted_items = []
+            for item_html in task_items:
+                html_str = item_html[0] if isinstance(item_html, tuple) else item_html
+                dt_match = re.search(r'data-task="([^"]*)"', html_str, re.IGNORECASE)
+                dt = dt_match.group(1) if dt_match else ""
+                formatted_items.append((dt, "", html_str))
+            task_items = formatted_items
 
-            clean_scope_text = re.sub(r'<[^>]+>', '\n', scope)
-            lines = [l.strip() for l in clean_scope_text.splitlines() if l.strip()]
-            print(f"DEBUG [parse_tasks_html] Scope {scope_name} lines: {lines}")
-
-            if not lines:
-                continue
-
+        for task_key, class_str, inner_html in task_items:
             status = "waiting"
-            full_scope_str = " ".join(lines)
-            if "运行中" in full_scope_str or "running" in full_scope_str.lower():
+            full_lower = (class_str + inner_html).lower()
+            if "running" in full_lower or "运行中" in full_lower:
                 status = "running"
-            elif "队列中" in full_scope_str or "queue" in full_scope_str.lower():
+            elif "pending" in full_lower or "queued" in full_lower or "待运行" in full_lower or "队列" in full_lower:
                 status = "queued"
+            else:
+                status = "waiting"
 
-            task_title = ""
-            time_str = ""
-            candidate_lines = []
-            for l in lines:
-                if l in ("运行中", "队列中", "等待中", "查看", "刷新", "操作"):
-                    continue
-                candidate_lines.append(l)
+            strong_match = re.search(r'<strong[^>]*>(.*?)</strong>', inner_html, re.DOTALL | re.IGNORECASE)
+            title = ""
+            if strong_match:
+                title = re.sub(r'<[^>]+>', '', strong_match.group(1)).strip()
+            if not title:
+                title = task_key or "未知任务"
 
-            if candidate_lines:
-                for i, l in enumerate(candidate_lines):
-                    if re.search(r'\d{4}-\d{2}-\d{2}|\d+分钟前|\d+小时前|\d+秒前|刚刚', l):
-                        time_str = l
-                        task_title = " ".join(candidate_lines[:i])
-                        break
-                if not task_title:
-                    task_title = candidate_lines[0]
-                    if len(candidate_lines) > 1:
-                        time_str = candidate_lines[1]
-
-            if not task_title:
-                task_title = scope_name
-
-            if not time_str:
-                time_str = "刚刚"
+            small_match = re.search(r'<small[^>]*>(.*?)</small>', inner_html, re.DOTALL | re.IGNORECASE)
+            time_str = "刚刚"
+            if small_match:
+                time_str = re.sub(r'<[^>]+>', '', small_match.group(1)).strip()
 
             ts, formatted_time = parse_relative_or_absolute_time(time_str)
             task_item = {
-                "title": task_title,
+                "title": title,
                 "status": status,
                 "action_button": "查看",
                 "time_text": time_str,
                 "timestamp": ts,
                 "formatted_time": formatted_time,
-                "scope": scope_name
+                "task_key": task_key
             }
-
-            print(f"DEBUG [parse_tasks_html] Extracted task -> title: '{task_title}', status: {status}, time: '{time_str}'")
 
             if status == "running":
                 running.append(task_item)
@@ -1010,14 +1003,10 @@ def parse_tasks_html(html_content):
             else:
                 waiting.append(task_item)
 
-        # 如果通过 scope 没有解析到，退回到旧的行解析
+        # 旧结构兜底
         if not running and not queued and not waiting:
-            print("DEBUG [parse_tasks_html] Fallback to flat block parsing")
             text_blocks = re.findall(r'<div[^>]*>(.*?)</div>|<tr[^>]*>(.*?)</tr>|<li[^>]*>(.*?)</li>', html_content, re.DOTALL | re.IGNORECASE)
             flat_blocks = [re.sub(r'<[^>]+>', '', b[0] or b[1] or b[2]).strip() for b in text_blocks if any(b)]
-            if not flat_blocks:
-                flat_blocks = [re.sub(r'<[^>]+>', '', line).strip() for line in html_content.splitlines() if line.strip()]
-
             for block in flat_blocks:
                 if not block or len(block) < 2:
                     continue
@@ -1042,11 +1031,11 @@ def parse_tasks_html(html_content):
     except Exception as e:
         print(f"⚠️ 解析任务 HTML 异常: {e}")
 
-    print(f"DEBUG [parse_tasks_html] Summary -> running: {len(running)}, queued: {len(queued)}, waiting: {len(waiting)}")
     return {
         "running": running,
         "queued": queued,
         "waiting": waiting,
+        "scheduler": scheduler_stats,
         "updated_at": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "timestamp": int(datetime.datetime.now().timestamp() * 1000)
     }
@@ -1131,6 +1120,7 @@ def handle_ap_get():
     return format_response({"status": "ok", "resources": []}, 200)
 
 @app.route("/main/ap/get2", methods=["GET"])
+@app.route("/ap/get2", methods=["GET"])
 def handle_ap_get2():
     """读取并返回任务状态结构化数据缓存"""
     path = get_tasks_json_path()
@@ -1142,6 +1132,52 @@ def handle_ap_get2():
         except Exception as e:
             return format_response({"status": "error", "message": str(e)}, 500)
     return format_response({"status": "ok", "running": [], "queued": [], "waiting": []}, 200)
+
+def get_screenshot_path():
+    return os.path.join(AP_DIR, "screenshot.png")
+
+@app.route("/main/ap/set3", methods=["POST"])
+@app.route("/ap/set3", methods=["POST"])
+def handle_ap_set3():
+    """接收并保存 Base64 截图"""
+    try:
+        req_data = _collect_request_dict()
+        b64_data = req_data.get("image") or req_data.get("base64") or req_data.get("data")
+        if not b64_data and request.is_json:
+            j = request.get_json(silent=True)
+            if j:
+                b64_data = j.get("image") or j.get("base64") or j.get("data")
+        if not b64_data:
+            b64_data = request.form.get("image") or request.form.get("base64") or request.data.decode("utf-8", errors="ignore")
+
+        if b64_data:
+            import base64
+            if "base64," in b64_data:
+                b64_data = b64_data.split("base64,")[1]
+            img_bytes = base64.b64decode(b64_data.strip())
+            with open(get_screenshot_path(), "wb") as f:
+                f.write(img_bytes)
+            return format_response({"status": "ok", "message": "截图保存成功", "url": "/ap/file/screenshot.png"}, 200)
+        return format_response({"status": "error", "message": "缺少图片数据"}, 400)
+    except Exception as e:
+        return format_response({"status": "error", "message": str(e)}, 500)
+
+@app.route("/main/ap/get3", methods=["GET"])
+@app.route("/ap/get3", methods=["GET"])
+def handle_ap_get3():
+    """获取最新截图信息及访问链接"""
+    path = get_screenshot_path()
+    exists = os.path.exists(path)
+    return format_response({
+        "status": "ok",
+        "exists": exists,
+        "screenshot_url": "/ap/file/screenshot.png" if exists else "",
+        "updated_at": datetime.datetime.fromtimestamp(os.path.getmtime(path)).strftime("%Y-%m-%d %H:%M:%S") if exists else ""
+    }, 200)
+
+@app.route("/ap/file/<path:filename>", methods=["GET"])
+def serve_ap_file(filename):
+    return send_from_directory(AP_DIR, filename)
 
 @app.route("/main/stats/get", methods=["GET"])
 def handle_main_stats_get():
