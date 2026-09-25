@@ -115,20 +115,20 @@ async function loadStatusSectionContent() {
         const res = await fetch('status.html');
         if (res.ok) {
             const htmlText = await res.text();
-            // Parse HTML text to extract <main> or content inside body
             const parser = new DOMParser();
             const doc = parser.parseFromString(htmlText, 'text/html');
-            const statusMain = doc.querySelector('main') || doc.body;
+            // 获取 status.html 中真正的 main 标签内部所有子元素或 HTML
+            const mainElem = doc.querySelector('main');
             
             if (sectionStatus) {
-                // Remove header/nav from status.html if any, or just use its content
-                // status.html has a header and a main container. Let's extract the inner elements or the main element.
-                const contentContainer = doc.querySelector('main') || doc.body;
-                sectionStatus.innerHTML = contentContainer.innerHTML;
+                if (mainElem) {
+                    sectionStatus.innerHTML = mainElem.innerHTML;
+                } else {
+                    sectionStatus.innerHTML = doc.body.innerHTML;
+                }
             }
             statusLoaded = true;
 
-            // Load status scripts or execute loadAllStatusData if available from status.js
             if (typeof loadAllStatusData === 'function') {
                 loadAllStatusData();
             }
@@ -193,13 +193,13 @@ async function loadIndexSystemStatusAndDashboard() {
                 const zStats = sData.zOnepush || {};
                 const bStats = sData.qbot || {};
 
-                const autoCheckEl = document.getElementById('statAutoCheck');
-                const pushCountEl = document.getElementById('statPushCount');
-                const runtimeEl = document.getElementById('statRuntime');
-                const botTotalMsgEl = document.getElementById('statBotTotalMsg');
-                const botReplyEl = document.getElementById('statBotReply');
-                const botHandleEl = document.getElementById('statBotHandle');
-                const botGroupsEl = document.getElementById('statBotGroups');
+                const autoCheckEl = document.getElementById('statAutoCheck') || document.querySelector('#section-status #statAutoCheck');
+                const pushCountEl = document.getElementById('statPushCount') || document.querySelector('#section-status #statPushCount');
+                const runtimeEl = document.getElementById('statRuntime') || document.querySelector('#section-status #statRuntime');
+                const botTotalMsgEl = document.getElementById('statBotTotalMsg') || document.querySelector('#section-status #statBotTotalMsg');
+                const botReplyEl = document.getElementById('statBotReply') || document.querySelector('#section-status #statBotReply');
+                const botHandleEl = document.getElementById('statBotHandle') || document.querySelector('#section-status #statBotHandle');
+                const botGroupsEl = document.getElementById('statBotGroups') || document.querySelector('#section-status #statBotGroups');
 
                 if (autoCheckEl) autoCheckEl.textContent = (zStats.auto_check_count || 0) + ' 次';
                 if (pushCountEl) pushCountEl.textContent = (zStats.push_handle_count || 0) + ' 次';

@@ -1,3 +1,8 @@
+function updateElementText(id, text) {
+    const el = document.getElementById(id) || document.querySelector(`#section-status #${id}`);
+    if (el) el.textContent = text;
+}
+
 async function loadAllStatusData() {
     try {
         const statRes = await fetch('/main/stats/get');
@@ -6,24 +11,16 @@ async function loadAllStatusData() {
             const zs = data.zOnepush || {};
             const bs = data.qbot || {};
 
-            const acEl = document.getElementById('statAutoCheck');
-            const pcEl = document.getElementById('statPushCount');
-            const rtEl = document.getElementById('statRuntime');
-            if (acEl) acEl.textContent = (zs.auto_check_count || 0) + ' 次';
-            if (pcEl) pcEl.textContent = (zs.push_handle_count || 0) + ' 次';
-            if (rtEl) rtEl.textContent = (zs.total_runtime_hours || 0) + ' 小时';
-            const suEl = document.getElementById('statsUpdatedTime');
-            if (suEl) suEl.textContent = '更新于 ' + new Date().toLocaleTimeString();
+            updateElementText('statAutoCheck', (zs.auto_check_count || 0) + ' 次');
+            updateElementText('statPushCount', (zs.push_handle_count || 0) + ' 次');
+            updateElementText('statRuntime', (zs.total_runtime_hours || 0) + ' 小时');
+            updateElementText('statsUpdatedTime', '更新于 ' + new Date().toLocaleTimeString());
 
             if (bs && (bs.status === 'success' || bs.total_messages !== undefined)) {
-                const tmEl = document.getElementById('statBotTotalMsg');
-                const rpEl = document.getElementById('statBotReply');
-                const phEl = document.getElementById('statBotHandle');
-                const gpEl = document.getElementById('statBotGroups');
-                if (tmEl) tmEl.textContent = (bs.total_messages || 0) + ' 条';
-                if (rpEl) rpEl.textContent = (bs.reply_count || 0) + ' 条';
-                if (phEl) phEl.textContent = (bs.processed_count || 0) + ' 次';
-                if (gpEl) gpEl.textContent = (bs.active_groups_count || 0) + ' 个';
+                updateElementText('statBotTotalMsg', (bs.total_messages || 0) + ' 条');
+                updateElementText('statBotReply', (bs.reply_count || 0) + ' 条');
+                updateElementText('statBotHandle', (bs.processed_count || 0) + ' 次');
+                updateElementText('statBotGroups', (bs.active_groups_count || 0) + ' 个');
             }
         }
     } catch (e) {
@@ -34,9 +31,9 @@ async function loadAllStatusData() {
         const pingRes = await fetch('/ping');
         if (pingRes.ok) {
             const pingData = await pingRes.json();
-            const hpEl = document.getElementById('svHandlepush');
-            const mumuEl = document.getElementById('svMumu');
-            const alasEl = document.getElementById('svAlas');
+            const hpEl = document.getElementById('svHandlepush') || document.querySelector('#section-status #svHandlepush');
+            const mumuEl = document.getElementById('svMumu') || document.querySelector('#section-status #svMumu');
+            const alasEl = document.getElementById('svAlas') || document.querySelector('#section-status #svAlas');
             if (hpEl) {
                 const active = pingData.handlepush !== undefined ? pingData.handlepush : true;
                 hpEl.textContent = active ? '🟢 运行中' : '🔴 已暂停';
@@ -46,9 +43,9 @@ async function loadAllStatusData() {
             if (alasEl) { alasEl.textContent = '🟢 运行中'; alasEl.className = 'text-xs font-bold px-2.5 py-1 rounded bg-emerald-950/60 text-emerald-300'; }
         }
     } catch (e) {
-        const hpEl = document.getElementById('svHandlepush');
-        const mumuEl = document.getElementById('svMumu');
-        const alasEl = document.getElementById('svAlas');
+        const hpEl = document.getElementById('svHandlepush') || document.querySelector('#section-status #svHandlepush');
+        const mumuEl = document.getElementById('svMumu') || document.querySelector('#section-status #svMumu');
+        const alasEl = document.getElementById('svAlas') || document.querySelector('#section-status #svAlas');
         if (hpEl) { hpEl.textContent = '🟢 运行中'; hpEl.className = 'text-xs font-bold px-2.5 py-1 rounded bg-emerald-950/60 text-emerald-300'; }
         if (mumuEl) { mumuEl.textContent = '🟢 运行中'; mumuEl.className = 'text-xs font-bold px-2.5 py-1 rounded bg-emerald-950/60 text-emerald-300'; }
         if (alasEl) { alasEl.textContent = '🟢 运行中'; alasEl.className = 'text-xs font-bold px-2.5 py-1 rounded bg-emerald-950/60 text-emerald-300'; }
@@ -60,8 +57,8 @@ async function loadAllStatusData() {
             const jsonFull = await resRes.json();
             const apData = jsonFull.data || jsonFull;
             const resources = apData.resources || [];
-            const container = document.getElementById('resourceMonitorContainer');
-            const timeEl = document.getElementById('resourceUpdatedTime');
+            const container = document.getElementById('resourceMonitorContainer') || document.querySelector('#section-status #resourceMonitorContainer');
+            const timeEl = document.getElementById('resourceUpdatedTime') || document.querySelector('#section-status #resourceUpdatedTime');
             if (timeEl && apData.updated_at) timeEl.textContent = '更新时间: ' + apData.updated_at;
 
             if (container) {
@@ -100,10 +97,10 @@ async function loadAllStatusData() {
             const running = tData.running || [];
             const queued = tData.queued || [];
             const waiting = tData.waiting || [];
-            const timeEl = document.getElementById('tasksUpdatedTime');
+            const timeEl = document.getElementById('tasksUpdatedTime') || document.querySelector('#section-status #tasksUpdatedTime');
             if (timeEl && tData.updated_at) timeEl.textContent = '更新时间: ' + tData.updated_at;
 
-            const container = document.getElementById('tasksMonitorContainer');
+            const container = document.getElementById('tasksMonitorContainer') || document.querySelector('#section-status #tasksMonitorContainer');
             if (container) {
                 let htmlBuf = '';
                 if (running.length > 0) {
@@ -151,8 +148,8 @@ async function loadAllStatusData() {
         const shotRes = await fetch('/main/ap/get3');
         if (shotRes.ok) {
             const shotData = await shotRes.json();
-            const container = document.getElementById('screenshotContainer');
-            const timeEl = document.getElementById('screenshotUpdatedTime');
+            const container = document.getElementById('screenshotContainer') || document.querySelector('#section-status #screenshotContainer');
+            const timeEl = document.getElementById('screenshotUpdatedTime') || document.querySelector('#section-status #screenshotUpdatedTime');
             if (timeEl && shotData.updated_at) timeEl.textContent = '更新时间: ' + shotData.updated_at;
 
             if (container) {
