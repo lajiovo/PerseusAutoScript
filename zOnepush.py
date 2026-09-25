@@ -1176,6 +1176,7 @@ def handle_ap_get3():
     }, 200)
 
 @app.route("/ap/file/<path:filename>", methods=["GET"])
+@app.route("/main/ap/file/<path:filename>", methods=["GET"])
 def serve_ap_file(filename):
     return send_from_directory(AP_DIR, filename)
 

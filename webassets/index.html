@@ -114,10 +114,9 @@
         <div class="flex justify-center border-b border-slate-200 dark:border-slate-800 pb-2">
             <nav class="flex space-x-4" aria-label="Tabs">
                 <button class="tab-btn active text-indigo-600 dark:text-indigo-400 font-semibold border-b-2 border-indigo-600 dark:border-indigo-400 pb-2 text-xs sm:text-sm px-2" data-target="all">全部区域</button>
-                <button class="tab-btn text-slate-500 dark:text-slate-400 font-medium hover:text-slate-700 dark:hover:text-slate-200 pb-2 text-xs sm:text-sm px-2" data-target="proxy">相对路径 / 域名</button>
-                <button class="tab-btn text-slate-500 dark:text-slate-400 font-medium hover:text-slate-700 dark:hover:text-slate-200 pb-2 text-xs sm:text-sm px-2" data-target="local">局域网 IP (192.168.10.3)</button>
+                <button class="tab-btn text-slate-500 dark:text-slate-400 font-medium hover:text-slate-700 dark:hover:text-slate-200 pb-2 text-xs sm:text-sm px-2" data-target="proxy">内网穿透</button>
+                <button class="tab-btn text-slate-500 dark:text-slate-400 font-medium hover:text-slate-700 dark:hover:text-slate-200 pb-2 text-xs sm:text-sm px-2" data-target="local">局域网内</button>
                 <button class="tab-btn text-slate-500 dark:text-slate-400 font-medium hover:text-slate-700 dark:hover:text-slate-200 pb-2 text-xs sm:text-sm px-2 flex items-center gap-1.5" data-target="status"><i class="fa-solid fa-chart-line"></i>状态区</button>
-                <a href="/status.html" target="_blank" class="tab-btn text-slate-500 dark:text-slate-400 font-medium hover:text-slate-700 dark:hover:text-slate-200 pb-2 text-xs sm:text-sm px-2 flex items-center gap-1.5" title="新标签页打开独立状态页"><i class="fa-solid fa-external-link-alt text-[10px]"></i>独立状态页</a>
             </nav>
         </div>
 
@@ -200,40 +199,6 @@
                         </div>
                     </div>
                 </div>
-
-                <!-- 资源监控与任务状态看板 (追加展示，含绝对时间渲染) -->
-                <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
-                    <!-- 左侧：资源监控解析内容 -->
-                    <div class="bg-slate-100/50 dark:bg-slate-900/50 p-4 rounded-xl border border-slate-200/60 dark:border-slate-800">
-                        <div class="flex items-center justify-between mb-2.5 pb-1.5 border-b border-slate-200/40 dark:border-slate-800/60">
-                            <h4 class="font-bold text-xs uppercase tracking-wider text-indigo-600 dark:text-indigo-400 flex items-center gap-1.5">
-                                <i class="fa-solid fa-server"></i> 资源监控解析内容
-                            </h4>
-                            <span id="resourceUpdatedTime" class="text-[10px] text-slate-400 font-mono">更新时间: --</span>
-                        </div>
-                        <div id="resourceMonitorContainer" class="space-y-2 max-h-60 overflow-y-auto pr-1">
-                            <p class="text-xs text-slate-500 dark:text-slate-400 text-center py-4">正在加载资源监控数据...</p>
-                        </div>
-                    </div>
-
-                    <!-- 右侧：任务状态（运行中、队列中、等待中） -->
-                    <div class="bg-slate-100/50 dark:bg-slate-900/50 p-4 rounded-xl border border-slate-200/60 dark:border-slate-800">
-                        <div class="flex items-center justify-between mb-2.5 pb-1.5 border-b border-slate-200/40 dark:border-slate-800/60">
-                            <h4 class="font-bold text-xs uppercase tracking-wider text-purple-600 dark:text-purple-400 flex items-center gap-1.5">
-                                <i class="fa-solid fa-list-check"></i> 任务状态监控 (运行/队列/等待)
-                            </h4>
-                            <span id="tasksUpdatedTime" class="text-[10px] text-slate-400 font-mono">更新时间: --</span>
-                        </div>
-                        <div id="tasksMonitorContainer" class="space-y-3 max-h-60 overflow-y-auto pr-1">
-                            <p class="text-xs text-slate-500 dark:text-slate-400 text-center py-4">正在加载任务状态数据...</p>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- 仪表盘 HTML 缓存容器 -->
-                <div id="indexDashboardContainer" class="bg-slate-100/40 dark:bg-slate-900/40 p-4 rounded-xl border border-slate-200/50 dark:border-slate-800 overflow-x-auto">
-                    <p class="text-xs text-slate-500 dark:text-slate-400 text-center py-2">正在加载仪表盘缓存数据...</p>
-                </div>
             </div>
 
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
@@ -245,7 +210,7 @@
                             <div class="w-9 h-9 rounded-lg bg-indigo-500/10 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-base">
                                 <i class="fa-solid fa-gauge-high"></i>
                             </div>
-                            <span class="text-[9px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400 bg-indigo-100 dark:bg-indigo-900/50 px-1.5 py-0.5 rounded">Path</span>
+                            <span class="text-[9px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400 bg-indigo-100 dark:bg-indigo-900/50 px-1.5 py-0.5 rounded">Dash</span>
                         </div>
                         <h3 class="font-bold text-slate-900 dark:text-white text-sm mb-1">仪表盘</h3>
                         <p class="text-xs text-slate-500 dark:text-slate-400 mb-3 line-clamp-2">核心系统状态监控与可视化控制台。</p>
@@ -271,8 +236,8 @@
                         <p class="text-xs text-slate-500 dark:text-slate-400 mb-3 line-clamp-2">Perseus 智能机器人终端与服务管理。</p>
                     </div>
                     <div class="pt-2.5 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between">
-                        <code class="text-[10px] text-slate-400 truncate max-w-[120px]">/bot/</code>
-                        <a href="/bot/" target="_self" class="service-link inline-flex items-center gap-1 text-[11px] font-medium text-white bg-purple-600 hover:bg-purple-700 px-2.5 py-1 rounded-md transition-colors shadow-sm">
+                        <code class="text-[10px] text-slate-400 truncate max-w-[120px]">/bot/assets/index.html</code>
+                        <a href="/bot/assets/index.html" target="_self" class="service-link inline-flex items-center gap-1 text-[11px] font-medium text-white bg-purple-600 hover:bg-purple-700 px-2.5 py-1 rounded-md transition-colors shadow-sm">
                             访问 <i class="fa-solid fa-chevron-right text-[9px]"></i>
                         </a>
                     </div>
@@ -318,6 +283,26 @@
                     </div>
                 </div>
 
+                <!-- Card 4: Status页 -->
+                <div class="service-card glass-panel rounded-xl p-4 card-hover relative group flex flex-col justify-between">
+                    <div>
+                        <div class="flex items-center justify-between mb-2.5">
+                            <div class="w-9 h-9 rounded-lg bg-emerald-500/10 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-base">
+                                <i class="fa-solid fa-server"></i>
+                            </div>
+                            <span class="text-[9px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/50 px-1.5 py-0.5 rounded">Status</span>
+                        </div>
+                        <h3 class="font-bold text-slate-900 dark:text-white text-sm mb-1">状态页</h3>
+                        <p class="text-xs text-slate-500 dark:text-slate-400 mb-3 line-clamp-2">查看详情</p>
+                    </div>
+                    <div class="pt-2.5 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between">
+                        <code class="text-[10px] text-slate-400 truncate max-w-[120px]">/main/status.html</code>
+                        <a href="/main/status.html" target="_self" class="service-link inline-flex items-center gap-1 text-[11px] font-medium text-white bg-emerald-600 hover:bg-emerald-700 px-2.5 py-1 rounded-md transition-colors shadow-sm">
+                            访问 <i class="fa-solid fa-chevron-right text-[9px]"></i>
+                        </a>
+                    </div>
+                </div>
+
             </div>
         </section>
 
@@ -332,29 +317,6 @@
             </div>
 
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-                
-                <!-- Card 1: 仪表盘 (192.168.10.3:25566) -->
-                <div class="service-card glass-panel rounded-xl p-4 card-hover relative group flex flex-col justify-between border-l-2 border-l-indigo-500">
-                    <div>
-                        <div class="flex items-center justify-between mb-2">
-                            <div class="w-8 h-8 rounded-lg bg-indigo-500/10 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-sm">
-                                <i class="fa-solid fa-server"></i>
-                            </div>
-                            <span class="text-xs font-mono font-bold text-slate-500 dark:text-slate-400">:25566</span>
-                        </div>
-                        <h3 class="font-bold text-slate-900 dark:text-white text-sm mb-0.5">仪表盘</h3>
-                        <p class="text-[11px] text-slate-500 dark:text-slate-400 mb-2">192.168.10.3:25566</p>
-                    </div>
-                    <div class="pt-2 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between">
-                        <button onclick="copyToClipboard('http://192.168.10.3:25566/main/dash.html')" class="text-[10px] text-slate-400 hover:text-indigo-500 transition-colors flex items-center gap-1">
-                            <i class="fa-regular fa-copy"></i> 复制
-                        </button>
-                        <a href="http://192.168.10.3:25566/main/dash.html" target="_self" class="service-link inline-flex items-center gap-1 text-[11px] font-medium text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/80 border border-indigo-200 dark:border-indigo-800/50 px-2 py-0.5 rounded-md transition-colors">
-                            直连 <i class="fa-solid fa-chevron-right text-[8px]"></i>
-                        </a>
-                    </div>
-                </div>
-
                 <!-- Card 2: PerseusBot (192.168.10.3:25567) -->
                 <div class="service-card glass-panel rounded-xl p-4 card-hover relative group flex flex-col justify-between border-l-2 border-l-purple-500">
                     <div>
@@ -368,10 +330,10 @@
                         <p class="text-[11px] text-slate-500 dark:text-slate-400 mb-2">192.168.10.3:25567</p>
                     </div>
                     <div class="pt-2 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between">
-                        <button onclick="copyToClipboard('http://192.168.10.3:25567/bot/')" class="text-[10px] text-slate-400 hover:text-purple-500 transition-colors flex items-center gap-1">
+                        <button onclick="copyToClipboard('http://192.168.10.3:25567/bot/index.html')" class="text-[10px] text-slate-400 hover:text-purple-500 transition-colors flex items-center gap-1">
                             <i class="fa-regular fa-copy"></i> 复制
                         </button>
-                        <a href="http://192.168.10.3:25567/bot/" target="_self" class="service-link inline-flex items-center gap-1 text-[11px] font-medium text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/60 hover:bg-purple-100 dark:hover:bg-purple-900/80 border border-purple-200 dark:border-purple-800/50 px-2 py-0.5 rounded-md transition-colors">
+                        <a href="http://192.168.10.3:25567/bot/assets/index.html" target="_self" class="service-link inline-flex items-center gap-1 text-[11px] font-medium text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/60 hover:bg-purple-100 dark:hover:bg-purple-900/80 border border-purple-200 dark:border-purple-800/50 px-2 py-0.5 rounded-md transition-colors">
                             直连 <i class="fa-solid fa-chevron-right text-[8px]"></i>
                         </a>
                     </div>
@@ -420,29 +382,6 @@
                         </a>
                     </div>
                 </div>
-
-                <!-- Card 5: 云端剪切板 (192.168.10.3:25566) -->
-                <div class="service-card glass-panel rounded-xl p-4 card-hover relative group flex flex-col justify-between border-l-2 border-l-emerald-500">
-                    <div>
-                        <div class="flex items-center justify-between mb-2">
-                            <div class="w-8 h-8 rounded-lg bg-emerald-500/10 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-sm">
-                                <i class="fa-solid fa-clipboard"></i>
-                            </div>
-                            <span class="text-xs font-mono font-bold text-slate-500 dark:text-slate-400">:25566</span>
-                        </div>
-                        <h3 class="font-bold text-slate-900 dark:text-white text-sm mb-0.5">云端剪切板</h3>
-                        <p class="text-[11px] text-slate-500 dark:text-slate-400 mb-2">192.168.10.3:25566</p>
-                    </div>
-                    <div class="pt-2 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between">
-                        <button onclick="copyToClipboard('http://192.168.10.3:25566/main/clipboard.html')" class="text-[10px] text-slate-400 hover:text-emerald-500 transition-colors flex items-center gap-1">
-                            <i class="fa-regular fa-copy"></i> 复制
-                        </button>
-                        <a href="http://192.168.10.3:25566/main/clipboard.html" target="_self" class="service-link inline-flex items-center gap-1 text-[11px] font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 dark:hover:bg-emerald-900/80 border border-emerald-200 dark:border-emerald-800/50 px-2 py-0.5 rounded-md transition-colors">
-                            直连 <i class="fa-solid fa-chevron-right text-[8px]"></i>
-                        </a>
-                    </div>
-                </div>
-
             </div>
         </section>
 
@@ -459,58 +398,58 @@
                 </button>
             </div>
 
-            <!-- Row 1: Core Process Status Indicators -->
+            <!-- Row 1: Core Process Status Indicators (HandlePush, MuMu, Alas) -->
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div class="glass-panel p-4 rounded-xl flex items-center justify-between">
-                    <span class="text-xs text-slate-500 dark:text-slate-400 font-medium">HandlePush 状态</span>
-                    <span id="statusSvHandlepush" class="text-xs font-bold px-2.5 py-1 rounded bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300">检查中...</span>
+                    <span class="text-xs text-slate-400 font-medium">HandlePush 状态</span>
+                    <span id="svHandlepush" class="text-xs font-bold px-2.5 py-1 rounded bg-slate-800 text-slate-300">检查中...</span>
                 </div>
                 <div class="glass-panel p-4 rounded-xl flex items-center justify-between">
-                    <span class="text-xs text-slate-500 dark:text-slate-400 font-medium">MuMu 进程状态</span>
-                    <span id="statusSvMumu" class="text-xs font-bold px-2.5 py-1 rounded bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300">检查中...</span>
+                    <span class="text-xs text-slate-400 font-medium">MuMu 进程状态</span>
+                    <span id="svMumu" class="text-xs font-bold px-2.5 py-1 rounded bg-slate-800 text-slate-300">检查中...</span>
                 </div>
                 <div class="glass-panel p-4 rounded-xl flex items-center justify-between">
-                    <span class="text-xs text-slate-500 dark:text-slate-400 font-medium">Alas 进程状态</span>
-                    <span id="statusSvAlas" class="text-xs font-bold px-2.5 py-1 rounded bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300">检查中...</span>
+                    <span class="text-xs text-slate-400 font-medium">Alas 进程状态</span>
+                    <span id="svAlas" class="text-xs font-bold px-2.5 py-1 rounded bg-slate-800 text-slate-300">检查中...</span>
                 </div>
             </div>
 
             <!-- Row 2: Comprehensive Stats Panel -->
             <div class="glass-panel p-5 rounded-2xl">
-                <div class="flex items-center justify-between mb-4 pb-2 border-b border-slate-200 dark:border-slate-800">
-                    <h3 class="font-bold text-sm text-indigo-600 dark:text-indigo-400 flex items-center gap-2">
+                <div class="flex items-center justify-between mb-4 pb-2 border-b border-slate-800">
+                    <h3 class="font-bold text-sm text-indigo-400 flex items-center gap-2">
                         <i class="fa-solid fa-chart-pie"></i> 综合统计监控（zOnepush & QBot）
                     </h3>
-                    <span id="statusStatsUpdatedTime" class="text-[10px] text-slate-400 font-mono">实时更新中</span>
+                    <span id="statsUpdatedTime" class="text-[10px] text-slate-400 font-mono">实时更新中</span>
                 </div>
                 <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 text-center">
-                    <div class="bg-slate-100/60 dark:bg-slate-900/60 p-3 rounded-xl border border-slate-200 dark:border-slate-800">
-                        <div class="text-[10px] text-slate-500 dark:text-slate-400 mb-1">自动化检查次数</div>
-                        <div id="statusStatAutoCheck" class="font-bold text-indigo-600 dark:text-indigo-400 text-sm">--</div>
+                    <div class="bg-slate-900/60 p-3 rounded-xl border border-slate-800">
+                        <div class="text-[10px] text-slate-400 mb-1">自动化检查次数</div>
+                        <div id="statAutoCheck" class="font-bold text-indigo-400 text-sm">--</div>
                     </div>
-                    <div class="bg-slate-100/60 dark:bg-slate-900/60 p-3 rounded-xl border border-slate-200 dark:border-slate-800">
-                        <div class="text-[10px] text-slate-500 dark:text-slate-400 mb-1">Push处理次数</div>
-                        <div id="statusStatPushCount" class="font-bold text-emerald-600 dark:text-emerald-400 text-sm">--</div>
+                    <div class="bg-slate-900/60 p-3 rounded-xl border border-slate-800">
+                        <div class="text-[10px] text-slate-400 mb-1">Push处理次数</div>
+                        <div id="statPushCount" class="font-bold text-emerald-400 text-sm">--</div>
                     </div>
-                    <div class="bg-slate-100/60 dark:bg-slate-900/60 p-3 rounded-xl border border-slate-200 dark:border-slate-800">
-                        <div class="text-[10px] text-slate-500 dark:text-slate-400 mb-1">累计运行时长</div>
-                        <div id="statusStatRuntime" class="font-bold text-purple-600 dark:text-purple-400 text-sm">--</div>
+                    <div class="bg-slate-900/60 p-3 rounded-xl border border-slate-800">
+                        <div class="text-[10px] text-slate-400 mb-1">累计运行时长</div>
+                        <div id="statRuntime" class="font-bold text-purple-400 text-sm">--</div>
                     </div>
-                    <div class="bg-slate-100/60 dark:bg-slate-900/60 p-3 rounded-xl border border-slate-200 dark:border-slate-800">
-                        <div class="text-[10px] text-slate-500 dark:text-slate-400 mb-1">Bot消息总通量</div>
-                        <div id="statusStatBotTotalMsg" class="font-bold text-cyan-600 dark:text-cyan-400 text-sm">--</div>
+                    <div class="bg-slate-900/60 p-3 rounded-xl border border-slate-800">
+                        <div class="text-[10px] text-slate-400 mb-1">Bot消息总通量</div>
+                        <div id="statBotTotalMsg" class="font-bold text-cyan-400 text-sm">--</div>
                     </div>
-                    <div class="bg-slate-100/60 dark:bg-slate-900/60 p-3 rounded-xl border border-slate-200 dark:border-slate-800">
-                        <div class="text-[10px] text-slate-500 dark:text-slate-400 mb-1">Bot回复量</div>
-                        <div id="statusStatBotReply" class="font-bold text-blue-600 dark:text-blue-400 text-sm">--</div>
+                    <div class="bg-slate-900/60 p-3 rounded-xl border border-slate-800">
+                        <div class="text-[10px] text-slate-400 mb-1">Bot回复量</div>
+                        <div id="statBotReply" class="font-bold text-blue-400 text-sm">--</div>
                     </div>
-                    <div class="bg-slate-100/60 dark:bg-slate-900/60 p-3 rounded-xl border border-slate-200 dark:border-slate-800">
-                        <div class="text-[10px] text-slate-500 dark:text-slate-400 mb-1">Bot处理指令</div>
-                        <div id="statusStatBotHandle" class="font-bold text-amber-600 dark:text-amber-400 text-sm">--</div>
+                    <div class="bg-slate-900/60 p-3 rounded-xl border border-slate-800">
+                        <div class="text-[10px] text-slate-400 mb-1">Bot处理指令</div>
+                        <div id="statBotHandle" class="font-bold text-amber-400 text-sm">--</div>
                     </div>
-                    <div class="bg-slate-100/60 dark:bg-slate-900/60 p-3 rounded-xl border border-slate-200 dark:border-slate-800">
-                        <div class="text-[10px] text-slate-500 dark:text-slate-400 mb-1">活跃群聊数</div>
-                        <div id="statusStatBotGroups" class="font-bold text-pink-600 dark:text-pink-400 text-sm">--</div>
+                    <div class="bg-slate-900/60 p-3 rounded-xl border border-slate-800">
+                        <div class="text-[10px] text-slate-400 mb-1">活跃群聊数</div>
+                        <div id="statBotGroups" class="font-bold text-pink-400 text-sm">--</div>
                     </div>
                 </div>
             </div>
@@ -519,26 +458,26 @@
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <!-- Resource Monitor -->
                 <div class="glass-panel p-5 rounded-2xl flex flex-col">
-                    <div class="flex items-center justify-between mb-3 pb-2 border-b border-slate-200 dark:border-slate-800">
-                        <h3 class="font-bold text-sm text-indigo-600 dark:text-indigo-400 flex items-center gap-2">
+                    <div class="flex items-center justify-between mb-3 pb-2 border-b border-slate-800">
+                        <h3 class="font-bold text-sm text-indigo-400 flex items-center gap-2">
                             <i class="fa-solid fa-server"></i> 资源监控解析内容
                         </h3>
-                        <span id="statusResourceUpdatedTime" class="text-[10px] text-slate-400 font-mono">更新时间: --</span>
+                        <span id="resourceUpdatedTime" class="text-[10px] text-slate-400 font-mono">更新时间: --</span>
                     </div>
-                    <div id="statusResourceMonitorContainer" class="space-y-2 max-h-96 overflow-y-auto pr-1 flex-grow">
+                    <div id="resourceMonitorContainer" class="space-y-2 max-h-96 overflow-y-auto pr-1 flex-grow">
                         <p class="text-xs text-slate-500 text-center py-6">正在加载资源监控数据...</p>
                     </div>
                 </div>
 
                 <!-- Task Queue Monitor -->
                 <div class="glass-panel p-5 rounded-2xl flex flex-col">
-                    <div class="flex items-center justify-between mb-3 pb-2 border-b border-slate-200 dark:border-slate-800">
-                        <h3 class="font-bold text-sm text-purple-600 dark:text-purple-400 flex items-center gap-2">
+                    <div class="flex items-center justify-between mb-3 pb-2 border-b border-slate-800">
+                        <h3 class="font-bold text-sm text-purple-400 flex items-center gap-2">
                             <i class="fa-solid fa-list-check"></i> 任务队列状态监控
                         </h3>
-                        <span id="statusTasksUpdatedTime" class="text-[10px] text-slate-400 font-mono">更新时间: --</span>
+                        <span id="tasksUpdatedTime" class="text-[10px] text-slate-400 font-mono">更新时间: --</span>
                     </div>
-                    <div id="statusTasksMonitorContainer" class="space-y-3 max-h-96 overflow-y-auto pr-1 flex-grow">
+                    <div id="tasksMonitorContainer" class="space-y-3 max-h-96 overflow-y-auto pr-1 flex-grow">
                         <p class="text-xs text-slate-500 text-center py-6">正在加载任务状态数据...</p>
                     </div>
                 </div>
@@ -546,23 +485,23 @@
 
             <!-- Row 4: Live Screenshot Monitor -->
             <div class="glass-panel p-5 rounded-2xl">
-                <div class="flex items-center justify-between mb-4 pb-2 border-b border-slate-200 dark:border-slate-800">
-                    <h3 class="font-bold text-sm text-emerald-600 dark:text-emerald-400 flex items-center gap-2">
+                <div class="flex items-center justify-between mb-4 pb-2 border-b border-slate-800">
+                    <h3 class="font-bold text-sm text-emerald-400 flex items-center gap-2">
                         <i class="fa-solid fa-image"></i> 最新实时截图监控 (zPlaywrightNew)
                     </h3>
-                    <span id="statusScreenshotUpdatedTime" class="text-[10px] text-slate-400 font-mono">更新时间: --</span>
+                    <span id="screenshotUpdatedTime" class="text-[10px] text-slate-400 font-mono">更新时间: --</span>
                 </div>
-                <div id="statusScreenshotContainer" class="flex justify-center items-center bg-slate-100/60 dark:bg-slate-900/60 p-4 rounded-xl border border-slate-200 dark:border-slate-800 min-h-[300px]">
+                <div id="screenshotContainer" class="flex justify-center items-center bg-slate-900/60 p-4 rounded-xl border border-slate-800 min-h-[300px]">
                     <p class="text-xs text-slate-500">正在加载最新截图...</p>
                 </div>
             </div>
-        </section>
+            </section>
 
-        <!-- Notification Toast Container -->
-        <div id="toast" class="fixed bottom-6 right-6 z-50 transform translate-y-20 opacity-0 transition-all duration-300 bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 px-3.5 py-2 rounded-xl shadow-2xl flex items-center gap-2 text-xs font-medium pointer-events-none">
-            <i class="fa-solid fa-circle-check text-emerald-400 dark:text-emerald-600"></i>
-            <span id="toastMsg">信息提示</span>
-        </div>
+            <!-- Notification Toast Container -->
+            <div id="toast" class="fixed bottom-6 right-6 z-50 transform translate-y-20 opacity-0 transition-all duration-300 bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 px-3.5 py-2 rounded-xl shadow-2xl flex items-center gap-2 text-xs font-medium pointer-events-none">
+                <i class="fa-solid fa-circle-check text-emerald-400 dark:text-emerald-600"></i>
+                <span id="toastMsg">信息提示</span>
+            </div>
 
     </main>
 
