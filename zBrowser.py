@@ -66,8 +66,8 @@ async def run():
         page = context.pages[0] if context.pages else await context.new_page()
 
         try:
-            await page.goto("https://gemini.google.com/", wait_until="domcontentloaded", timeout=60000)
-            print(f"已成功打开 Gemini，已针对 125% 缩放校准视口，输入框已恢复显示。剪切板穿透权限已生效。")
+            await page.goto("chrome://dino", wait_until="domcontentloaded", timeout=60000)
+            print(f"已成功打开dino 已针对 125% 缩放校准视口，输入框已恢复显示。剪切板穿透权限已生效。")
         except Exception as e:
             print(f"打开页面失败，请检查代理节点连通性: {e}")
 
