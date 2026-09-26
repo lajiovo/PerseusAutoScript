@@ -221,16 +221,20 @@ class NovelEpubExporter:
 
         return cached_xml_path, novel_cache_dir, book_title
 
-    def export(self, source_input, output_dir=None, download_images=True):
+    def export(self, source_input, output_dir=None, download_images=True, exclude_folders=None):
         """
         核心导出逻辑
         :param source_input: 网络 URL 或本地 XML 文件路径
         :param output_dir: 自定义 EPUB 导出文件夹（可选，默认导出到 BASE_DIR）
         :param download_images: 是否下载并缓存插图
+        :param exclude_folders: 缓存黑名单文件夹名称集合（避免将总书列表目录误作单卷缓存）
         :return: 生成的 EPUB 文件 Path 对象或列表
         """
         source_input = str(source_input).strip()
         xml_bytes = None
+
+        if exclude_folders is None:
+            exclude_folders = set()
 
         # 1. 优先获取根 XML 判断是否为卷列表
         if source_input.startswith("http://") or source_input.startswith("https://"):
@@ -244,6 +248,10 @@ class NovelEpubExporter:
                 raise Exception(f"未找到本地 XML 文件: {local_path}")
             self.log(f"📂 正在读取本地文件: {local_path}")
             xml_bytes = local_path.read_bytes()
+
+        # 当前文档解析出的书名/标题（如果是总书列表，则加入黑名单以防自递归匹配）
+        current_book_title = get_novel_title_from_xml_content(xml_bytes)
+        exclude_folders.add(current_book_title)
 
         # 检查是否为卷列表
         vol_feed_urls = []
@@ -272,12 +280,11 @@ class NovelEpubExporter:
         except Exception as e:
             self.log(f"  [!] 解析 XML 检查卷列表异常: {e}")
 
-        # 如果检测到了多个卷的 feed 链接，说明是卷列表，则依次为每个分卷单独检查本地缓存，若没有则下载 XML 并调用 export_novel 导出
+        # 如果检测到了多个卷的 feed 链接，说明是卷列表，则依次为每个分卷单独检查本地缓存，若没有则下载 XML 并调用 export 导出
         if len(vol_feed_urls) > 1:
             self.log(f"📚 检测到 XML 是卷列表，包含 {len(vol_feed_urls)} 个分卷，将依次检查缓存并独立导出...")
             exported_files = []
             
-            # 收集每个分卷对应的网页链接（例如 https://www.linovelib.com/novel/2960/vol_146274.html）
             vol_target_links = []
             try:
                 for item in channel.findall("item"):
@@ -296,11 +303,10 @@ class NovelEpubExporter:
                 self.log(f"\n--- 处理第 {i}/{len(vol_feed_urls)} 个分卷 (链接: {target_link or vol_url}) ---")
                 
                 try:
-                    # 检查本地缓存文件夹及 feed.xml 中是否存在匹配的 link
                     matched_cached_path = None
                     if target_link and CACHE_BASE_DIR.exists():
                         for folder in CACHE_BASE_DIR.iterdir():
-                            if folder.is_dir():
+                            if folder.is_dir() and folder.name not in exclude_folders:
                                 feed_path = folder / "feed.xml"
                                 if feed_path.exists():
                                     try:
@@ -308,7 +314,6 @@ class NovelEpubExporter:
                                         f_root = ET.fromstring(f_bytes)
                                         f_channel = f_root.find("channel")
                                         if f_channel is not None:
-                                            # 检查 channel 的 link 或里面任意 item 的 link 是否匹配目标网页链接
                                             ch_link = f_channel.findtext("link", "").strip()
                                             if target_link == ch_link:
                                                 matched_cached_path = feed_path
@@ -323,25 +328,29 @@ class NovelEpubExporter:
                                     if matched_cached_path:
                                         break
 
+                    exporter_instance = NovelEpubExporter(log_callback=self.log_callback)
                     if matched_cached_path:
                         self.log(f"  📂 发现本地已有匹配的缓存文件，跳过网络下载: {matched_cached_path}")
-                        out_file = export_novel(
+                        out_file = exporter_instance.export(
                             source_input=str(matched_cached_path),
                             output_dir=output_dir,
                             download_images=download_images,
-                            log_callback=self.log_callback
+                            exclude_folders=exclude_folders
                         )
                     else:
                         self.log(f"  🌐 未找到本地匹配缓存，开始请求下载: {vol_url}")
-                        out_file = export_novel(
+                        out_file = exporter_instance.export(
                             source_input=vol_url,
                             output_dir=output_dir,
                             download_images=download_images,
-                            log_callback=self.log_callback
+                            exclude_folders=exclude_folders
                         )
 
                     if out_file:
-                        exported_files.append(out_file)
+                        if isinstance(out_file, list):
+                            exported_files.extend(out_file)
+                        else:
+                            exported_files.append(out_file)
                 except Exception as e:
                     self.log(f"  [!] 导出分卷失败 ({vol_url}): {e}")
             return exported_files
