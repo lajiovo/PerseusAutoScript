@@ -20,6 +20,40 @@ HEADERS = {
     )
 }
 
+def convert_source_url(source):
+    """自动将页面链接转换为对应的 feed.xml 链接（若非 lnovel.animes.garden 则强转）"""
+    source = source.strip()
+    
+    # 0. 如果已经带 lnovel.animes.garden 域名，直接返回
+    if "lnovel.animes.garden" in source:
+        return source
+
+    # 1. 轻小说分卷页: .../novel/2960/vol_332998.html -> https://lnovel.animes.garden/bili/novel/2960/vol/332998/feed.xml
+    m = re.search(r'/novel/(\d+)/vol_(\d+)\.html', source)
+    if m:
+        book_id, vol_id = m.groups()
+        return f"https://lnovel.animes.garden/bili/novel/{book_id}/vol/{vol_id}/feed.xml"
+
+    # 2. 轻小说章节内容页 (非分卷): .../novel/4649/287262.html -> 不需要转成 feed 列表
+    if re.search(r'/novel/\d+/\d+\.html', source):
+        return source
+    if "/chapter/" in source:
+        return source
+
+    # 2. 轻小说丛书页: .../novel/4972.html -> https://lnovel.animes.garden/bili/novel/4972/feed.xml
+    m = re.search(r'/novel/(\d+)\.html', source)
+    if m:
+        book_id = m.group(1)
+        return f"https://lnovel.animes.garden/bili/novel/{book_id}/feed.xml"
+
+    # 3. 排行榜索引页: .../top/monthvisit/1.html -> https://lnovel.animes.garden/bili/top/monthvisit/feed.xml
+    m = re.search(r'/top/([^/]+)/', source)
+    if m:
+        top_type = m.group(1)
+        return f"https://lnovel.animes.garden/bili/top/{top_type}/feed.xml"
+
+    return source
+
 def sanitize_filename(name):
     """清理非法的标准文件名/目录名字符"""
     return re.sub(r'[\\/*?:"<>|]', "_", name).strip()
@@ -91,6 +125,8 @@ class NovelEpubExporter:
         """
         处理源 XML（URL 链接或本地文件路径），
         解析书名并缓存到 servercache/inovel/<书名>/feed.xml
+        如果传入的 XML 是卷列表（即 item 里面的链接是 novel/feed.xml 或单个卷的链接，或者包含多个独立卷的 feed 链接），
+        则进行嵌套解析或合并下载。
         """
         source_input = str(source_input).strip()
         xml_bytes = None
@@ -108,6 +144,71 @@ class NovelEpubExporter:
                 raise Exception(f"未找到本地 XML 文件: {local_path}")
             self.log(f"📂 正在读取本地文件: {local_path}")
             xml_bytes = local_path.read_bytes()
+
+        # 解析根节点以检查是否是卷列表 XML
+        try:
+            root = ET.fromstring(xml_bytes)
+            channel = root.find("channel")
+            if channel is not None:
+                items = channel.findall("item")
+                # 检查是否为卷列表（即每个 item 指向的是单独的 vol 链接或者包含 feed.xml 链接）
+                vol_feed_urls = []
+                for item in items:
+                    link = item.findtext("link", "").strip()
+                    # 尝试从 item 的 link、guid 或 content 中寻找链接
+                    if not link:
+                        guid = item.findtext("guid", "").strip()
+                        if guid and guid.startswith("http"):
+                            link = guid
+                    
+                    # 检查 encoded 内容中的 RSS 订阅链接
+                    encoded = item.findtext("encoded", "")
+                    if not encoded:
+                        encoded = item.findtext("{http://purl.org/rss/1.0/modules/content/}encoded", "")
+                    
+                    m_rss = re.search(r'href="([^"]+?/feed\.xml)"', encoded)
+                    if m_rss:
+                        vol_feed_urls.append(m_rss.group(1))
+                    elif link:
+                        converted = convert_source_url(link)
+                        if converted and converted.endswith("/feed.xml"):
+                            vol_feed_urls.append(converted)
+
+                # 如果检测到了多个卷的 feed 链接（说明这是一个小说丛书/卷列表 feed.xml）
+                if len(vol_feed_urls) > 1:
+                    self.log(f"📚 检测到 XML 是卷列表，包含 {len(vol_feed_urls)} 个分卷/章节 feed，将开始嵌套依次下载并合并...")
+                    
+                    book_title = get_novel_title_from_xml_content(xml_bytes)
+                    novel_cache_dir = CACHE_BASE_DIR / book_title
+                    novel_cache_dir.mkdir(parents=True, exist_ok=True)
+                    
+                    # 创建一个新的合并 channel XML
+                    new_root = ET.Element("rss", attrib=root.attrib)
+                    new_channel = ET.SubElement(new_root, "channel")
+                    
+                    # 复制 channel 的基本元数据
+                    for child in channel:
+                        if child.tag != "item":
+                            new_channel.append(child)
+                    
+                    # 依次下载每个分卷的 feed.xml 并将其 item 合并进来
+                    for i, vol_url in enumerate(vol_feed_urls, 1):
+                        self.log(f"  └─ [{i}/{len(vol_feed_urls)}] 正在下载分卷 feed: {vol_url}")
+                        v_bytes, _ = self.download_file(vol_url)
+                        if v_bytes:
+                            try:
+                                v_root = ET.fromstring(v_bytes)
+                                v_channel = v_root.find("channel")
+                                if v_channel is not None:
+                                    for v_item in v_channel.findall("item"):
+                                        new_channel.append(v_item)
+                            except Exception as e:
+                                self.log(f"    [!] 解析分卷 feed 失败: {e}")
+                    
+                    # 生成合并后的完整 XML 字节流
+                    xml_bytes = ET.tostring(new_root, encoding="utf-8", xml_declaration=True)
+        except Exception as e:
+            self.log(f"  [!] 检查卷列表时发生异常（按常规处理）: {e}")
 
         # 解析书名
         book_title = get_novel_title_from_xml_content(xml_bytes)
