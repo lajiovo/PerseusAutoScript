@@ -109,7 +109,9 @@ class NovelEpubExporter:
         print(message)
 
     def download_file(self, url):
-        """下载网络文件并返回 bytes 和 Content-Type"""
+        """下载网络文件并返回 bytes 和 Content-Type（自动纠正常见的域名字母拼写错误如 lnvoel -> lnovel）"""
+        if url:
+            url = url.replace("lnvoel.animes.garden", "lnovel.animes.garden")
         try:
             resp = requests.get(url, headers=HEADERS, timeout=15)
             if resp.status_code == 200:
