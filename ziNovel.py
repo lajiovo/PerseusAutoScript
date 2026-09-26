@@ -272,19 +272,74 @@ class NovelEpubExporter:
         except Exception as e:
             self.log(f"  [!] 解析 XML 检查卷列表异常: {e}")
 
-        # 如果检测到了多个卷的 feed 链接，说明是卷列表，则依次为每个分卷单独创建文件夹、下载 XML 并调用 export_novel 导出
+        # 如果检测到了多个卷的 feed 链接，说明是卷列表，则依次为每个分卷单独检查本地缓存，若没有则下载 XML 并调用 export_novel 导出
         if len(vol_feed_urls) > 1:
-            self.log(f"📚 检测到 XML 是卷列表，包含 {len(vol_feed_urls)} 个分卷，将依次下载并独立导出...")
+            self.log(f"📚 检测到 XML 是卷列表，包含 {len(vol_feed_urls)} 个分卷，将依次检查缓存并独立导出...")
             exported_files = []
+            
+            # 收集每个分卷对应的网页链接（例如 https://www.linovelib.com/novel/2960/vol_146274.html）
+            vol_target_links = []
+            try:
+                for item in channel.findall("item"):
+                    link = item.findtext("link", "").strip()
+                    if not link:
+                        guid = item.findtext("guid", "").strip()
+                        if guid and guid.startswith("http"):
+                            link = guid
+                    if link:
+                        vol_target_links.append(link)
+            except Exception:
+                pass
+
             for i, vol_url in enumerate(vol_feed_urls, 1):
-                self.log(f"\n--- 处理第 {i}/{len(vol_feed_urls)} 个分卷: {vol_url} ---")
+                target_link = vol_target_links[i-1] if i-1 < len(vol_target_links) else ""
+                self.log(f"\n--- 处理第 {i}/{len(vol_feed_urls)} 个分卷 (链接: {target_link or vol_url}) ---")
+                
                 try:
-                    out_file = export_novel(
-                        source_input=vol_url,
-                        output_dir=output_dir,
-                        download_images=download_images,
-                        log_callback=self.log_callback
-                    )
+                    # 检查本地缓存文件夹及 feed.xml 中是否存在匹配的 link
+                    matched_cached_path = None
+                    if target_link and CACHE_BASE_DIR.exists():
+                        for folder in CACHE_BASE_DIR.iterdir():
+                            if folder.is_dir():
+                                feed_path = folder / "feed.xml"
+                                if feed_path.exists():
+                                    try:
+                                        f_bytes = feed_path.read_bytes()
+                                        f_root = ET.fromstring(f_bytes)
+                                        f_channel = f_root.find("channel")
+                                        if f_channel is not None:
+                                            # 检查 channel 的 link 或里面任意 item 的 link 是否匹配目标网页链接
+                                            ch_link = f_channel.findtext("link", "").strip()
+                                            if target_link == ch_link:
+                                                matched_cached_path = feed_path
+                                                break
+                                            for f_item in f_channel.findall("item"):
+                                                it_link = f_item.findtext("link", "").strip()
+                                                if target_link == it_link:
+                                                    matched_cached_path = feed_path
+                                                    break
+                                    except Exception:
+                                        pass
+                                    if matched_cached_path:
+                                        break
+
+                    if matched_cached_path:
+                        self.log(f"  📂 发现本地已有匹配的缓存文件，跳过网络下载: {matched_cached_path}")
+                        out_file = export_novel(
+                            source_input=str(matched_cached_path),
+                            output_dir=output_dir,
+                            download_images=download_images,
+                            log_callback=self.log_callback
+                        )
+                    else:
+                        self.log(f"  🌐 未找到本地匹配缓存，开始请求下载: {vol_url}")
+                        out_file = export_novel(
+                            source_input=vol_url,
+                            output_dir=output_dir,
+                            download_images=download_images,
+                            log_callback=self.log_callback
+                        )
+
                     if out_file:
                         exported_files.append(out_file)
                 except Exception as e:
