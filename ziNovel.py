@@ -105,11 +105,8 @@ class NovelEpubExporter:
         self.log_callback = log_callback
 
     def log(self, message):
-        """打印日志，若有 GUI 或自定义回调则通过回调输出"""
-        if self.log_callback:
-            self.log_callback(message)
-        else:
-            print(message)
+        """打印日志，直接输出到控制台，避免 Tkinter UI 频繁刷新导致卡死"""
+        print(message)
 
     def download_file(self, url):
         """下载网络文件并返回 bytes 和 Content-Type"""
@@ -230,12 +227,72 @@ class NovelEpubExporter:
         :param source_input: 网络 URL 或本地 XML 文件路径
         :param output_dir: 自定义 EPUB 导出文件夹（可选，默认导出到 BASE_DIR）
         :param download_images: 是否下载并缓存插图
-        :return: 生成的 EPUB 文件 Path 对象
+        :return: 生成的 EPUB 文件 Path 对象或列表
         """
-        # 1. 准备 XML 缓存与路径结构
-        cached_xml_path, novel_dir, book_title = self.prepare_xml_source(
-            source_input
-        )
+        source_input = str(source_input).strip()
+        xml_bytes = None
+
+        # 1. 优先获取根 XML 判断是否为卷列表
+        if source_input.startswith("http://") or source_input.startswith("https://"):
+            self.log(f"🌐 正在从链接获取 XML: {source_input}")
+            xml_bytes, _ = self.download_file(source_input)
+            if not xml_bytes:
+                raise Exception("无法从提供的网络链接获取 XML 内容")
+        else:
+            local_path = Path(source_input)
+            if not local_path.exists():
+                raise Exception(f"未找到本地 XML 文件: {local_path}")
+            self.log(f"📂 正在读取本地文件: {local_path}")
+            xml_bytes = local_path.read_bytes()
+
+        # 检查是否为卷列表
+        vol_feed_urls = []
+        try:
+            root = ET.fromstring(xml_bytes)
+            channel = root.find("channel")
+            if channel is not None:
+                for item in channel.findall("item"):
+                    link = item.findtext("link", "").strip()
+                    if not link:
+                        guid = item.findtext("guid", "").strip()
+                        if guid and guid.startswith("http"):
+                            link = guid
+                    
+                    encoded = item.findtext("encoded", "")
+                    if not encoded:
+                        encoded = item.findtext("{http://purl.org/rss/1.0/modules/content/}encoded", "")
+                    
+                    m_rss = re.search(r'href="([^"]+?/feed\.xml)"', encoded)
+                    if m_rss:
+                        vol_feed_urls.append(m_rss.group(1))
+                    elif link:
+                        converted = convert_source_url(link)
+                        if converted and converted.endswith("/feed.xml"):
+                            vol_feed_urls.append(converted)
+        except Exception as e:
+            self.log(f"  [!] 解析 XML 检查卷列表异常: {e}")
+
+        # 如果检测到了多个卷的 feed 链接，说明是卷列表，则依次为每个分卷单独创建文件夹、下载 XML 并调用 export_novel 导出
+        if len(vol_feed_urls) > 1:
+            self.log(f"📚 检测到 XML 是卷列表，包含 {len(vol_feed_urls)} 个分卷，将依次下载并独立导出...")
+            exported_files = []
+            for i, vol_url in enumerate(vol_feed_urls, 1):
+                self.log(f"\n--- 处理第 {i}/{len(vol_feed_urls)} 个分卷: {vol_url} ---")
+                try:
+                    out_file = export_novel(
+                        source_input=vol_url,
+                        output_dir=output_dir,
+                        download_images=download_images,
+                        log_callback=self.log_callback
+                    )
+                    if out_file:
+                        exported_files.append(out_file)
+                except Exception as e:
+                    self.log(f"  [!] 导出分卷失败 ({vol_url}): {e}")
+            return exported_files
+
+        # 否则按单本书常规逻辑导出
+        cached_xml_path, novel_dir, book_title = self.prepare_xml_source(source_input)
 
         images_dir = novel_dir / "images"
         images_json_path = novel_dir / "images.json"
