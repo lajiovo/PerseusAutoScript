@@ -15,10 +15,24 @@
       display: flex;
       flex-direction: column;
       transition: all 0.2s ease;
+      position: relative;
     }
     .inovel-card:hover {
       box-shadow: var(--shadow-md);
       transform: translateY(-2px);
+    }
+    .inovel-card.selected {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 2px var(--primary-light, rgba(59, 130, 246, 0.3));
+    }
+    .inovel-checkbox {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      width: 20px;
+      height: 20px;
+      cursor: pointer;
+      z-index: 10;
     }
     .inovel-cover {
       width: 100%;
@@ -138,6 +152,9 @@
         <div style="font-size: 13px; color: var(--text-muted);" v-if="taskStatus.status === 'running'">
           <span style="color: var(--primary); animation: pulse 1.5s infinite;">⏳</span> 正在执行: {{ taskStatus.message }}
         </div>
+        <button class="btn-sm" style="background: var(--success); color: #fff; padding: 8px 16px; font-weight: 600;" @click="exportSelectedBooks" :disabled="selectedBooks.length === 0">
+          📥 导出选中书籍 ({{ selectedBooks.length }})
+        </button>
         <button class="btn-sm" style="background: var(--primary); color: #fff; padding: 8px 16px; font-weight: 600;" @click="showDownloadModal = true">
           ➕ 下达下载/导出命令
         </button>
@@ -148,7 +165,12 @@
     <!-- 主内容区 -->
     <main class="content" style="padding: 24px;">
       <div class="content-toolbar" style="margin-bottom: 20px;">
-        <span>本地缓存书库总数: <strong>{{ books.length }}</strong> 本书</span>
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <span>本地缓存书库总数: <strong>{{ books.length }}</strong> 本书</span>
+          <label style="display: inline-flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; margin-left: 10px;">
+            <input type="checkbox" @change="toggleSelectAll" :checked="isAllSelected" /> 全选
+          </label>
+        </div>
         <div style="display: flex; gap: 10px; align-items: center;">
           <input type="text" v-model="searchQuery" placeholder="搜索书名..." class="sidebar-select" style="width: 240px; padding: 6px 12px;" />
         </div>
@@ -156,7 +178,8 @@
 
       <!-- 书籍列表网格 -->
       <div class="books-grid view-grid">
-        <div class="inovel-card" v-for="book in filteredBooks" :key="book.title">
+        <div class="inovel-card" v-for="book in filteredBooks" :key="book.title" :class="{ selected: selectedBooks.includes(book.xml_path) }">
+          <input type="checkbox" class="inovel-checkbox" :value="book.xml_path" v-model="selectedBooks" @click.stop />
           <img :src="book.local_cover || '/main/default_cover.png'" @error="e => e.target.src = '/main/default_cover.png'" class="inovel-cover" alt="封面" @click="openImagesModal(book)">
           <div class="inovel-body">
             <h4 class="inovel-title" :title="book.title" @click="openImagesModal(book)">{{ book.title }}</h4>
@@ -165,11 +188,11 @@
               <span>插图数: {{ book.image_count }} 张</span>
             </div>
             <div class="inovel-actions">
-              <a v-if="book.has_epub" :href="book.epub_url" class="btn-sm" style="flex: 1; text-align: center; background: var(--success); color: #fff; text-decoration: none;" download>
-                📥 下载 EPUB
-              </a>
+              <button class="btn-sm" style="flex: 1; background: var(--success); color: #fff;" @click="exportSingleBook(book)">
+                📥 导出 EPUB
+              </button>
               <button class="btn-sm" style="flex: 1; background: var(--primary); color: #fff;" @click="openImagesModal(book)">
-                🖼️ 查看插图 ({{ book.image_count }})
+                🖼️ 插图 ({{ book.image_count }})
               </button>
             </div>
           </div>
@@ -241,6 +264,7 @@
       setup() {
         const books = ref([]);
         const searchQuery = ref('');
+        const selectedBooks = ref([]);
         const showDownloadModal = ref(false);
         const showImagesModal = ref(false);
         const currentBook = ref(null);
@@ -257,6 +281,18 @@
           return books.value.filter(b => b.title.toLowerCase().includes(q));
         });
 
+        const isAllSelected = computed(() => {
+          return filteredBooks.value.length > 0 && filteredBooks.value.every(b => selectedBooks.value.includes(b.xml_path));
+        });
+
+        const toggleSelectAll = (e) => {
+          if (e.target.checked) {
+            selectedBooks.value = filteredBooks.value.map(b => b.xml_path);
+          } else {
+            selectedBooks.value = [];
+          }
+        };
+
         const refreshBooks = async () => {
           try {
             const res = await fetch('/inovelapi/books');
@@ -267,6 +303,45 @@
           } catch (e) {
             console.error('刷新书库失败:', e);
           }
+        };
+
+        const exportSingleBook = async (book) => {
+          try {
+            const res = await fetch('/inovelapi/export', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                source: book.xml_path,
+                download_images: formDownloadImages.value
+              })
+            });
+            const data = await res.json();
+            if (data.status === 'ok') {
+              alert(`书籍《${book.title}》已开始导出，请关注状态栏！`);
+            } else {
+              alert('导出失败: ' + data.message);
+            }
+          } catch (e) {
+            alert('请求异常: ' + e);
+          }
+        };
+
+        const exportSelectedBooks = async () => {
+          if (selectedBooks.value.length === 0) return;
+          for (const xmlPath of selectedBooks.value) {
+            try {
+              await fetch('/inovelapi/export', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  source: xmlPath,
+                  download_images: formDownloadImages.value
+                })
+              });
+            } catch (e) {}
+          }
+          alert(`已成功下达 ${selectedBooks.value.length} 本书的导出任务！`);
+          selectedBooks.value = [];
         };
 
         const pollStatus = async () => {
@@ -331,7 +406,10 @@
         return {
           books,
           searchQuery,
+          selectedBooks,
           filteredBooks,
+          isAllSelected,
+          toggleSelectAll,
           showDownloadModal,
           showImagesModal,
           currentBook,
@@ -340,6 +418,8 @@
           formDownloadImages,
           taskStatus,
           refreshBooks,
+          exportSingleBook,
+          exportSelectedBooks,
           submitExportTask,
           openImagesModal,
           previewImage
