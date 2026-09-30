@@ -5,16 +5,16 @@
 
     <div class="menu-list">
       <div class="menu-item" onclick="gotoTimer">
-        <text class="menu-text">⏱️ 计时/记录</text>
+        <text class="menu-text">计时记录</text>
       </div>
       <div class="menu-item" onclick="gotoStats">
-        <text class="menu-text">📊 学习统计</text>
+        <text class="menu-text">学习统计</text>
       </div>
       <div class="menu-item" onclick="gotoPlan">
-        <text class="menu-text">🎯 智能规划</text>
+        <text class="menu-text">智能规划</text>
       </div>
       <div class="menu-item sync-btn" onclick="gotoSync">
-        <text class="menu-text">🔄 一键同步</text>
+        <text class="menu-text">一键同步</text>
       </div>
     </div>
   </div>

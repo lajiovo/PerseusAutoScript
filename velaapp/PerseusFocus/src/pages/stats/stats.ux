@@ -2,19 +2,26 @@
   <div class="container">
     <text class="page-title">学习统计看板</text>
 
+    <!-- 日期切换控制区：默认展示“今天”，支持向前/向后最多切换 10 天缓存日期 -->
+    <div class="date-switcher">
+      <input class="switch-arrow" type="button" value="<" onclick="prevDay" />
+      <text class="date-display">{{ currentDateStr }}</text>
+      <input class="switch-arrow" type="button" value=">" onclick="nextDay" />
+    </div>
+
     <!-- 总时长展示 -->
     <div class="summary-card">
-      <text class="summary-label">总学习时长</text>
+      <text class="summary-label">当日总学习时长</text>
       <text class="summary-value">{{ totalMinutes }} 分钟</text>
     </div>
 
     <!-- 科目统计列表 -->
-    <text class="section-title">各科目投入时长</text>
+    <text class="section-title">各科目投入时长与占比</text>
     <div class="list-container">
       <div for="{{ statsList }}" class="stat-item">
         <text class="sub-name">{{ $item.name }}</text>
         <div class="bar-bg">
-          <div class="bar-fill" style="width: {{ $item.percent }}%;"></div>
+          <div class="bar-fill" style="width: {{ $item.percent }}%; background-color: {{ $item.color }};"></div>
         </div>
         <text class="sub-time">{{ $item.minutes }}分钟({{ $item.percent }}%)</text>
       </div>
@@ -35,50 +42,109 @@ import { SUBJECTS, STORAGE_KEY } from "../../common/constants.js";
 export default {
   private: {
     totalMinutes: 0,
-    statsList: []
+    statsList: [],
+    allRecords: [],
+    dateOffset: 0, // 0表示今天，-1表示昨天，以此类推，支持往前最多10天
+    currentDateStr: ""
   },
 
   onInit() {
+    this.updateTargetDateString();
     this.loadStats();
+  },
+
+  updateTargetDateString() {
+    const d = new Date();
+    d.setDate(d.getDate() + this.dateOffset);
+    this.currentDateStr = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    if (this.dateOffset === 0) {
+      this.currentDateStr += " (今天)";
+    }
+  },
+
+  prevDay() {
+    if (this.dateOffset > -10) {
+      this.dateOffset--;
+      this.updateTargetDateString();
+      this.renderStatsForCurrentDate();
+    }
+  },
+
+  nextDay() {
+    if (this.dateOffset < 0) {
+      this.dateOffset++;
+      this.updateTargetDateString();
+      this.renderStatsForCurrentDate();
+    }
   },
 
   loadStats() {
     storage.get({
       key: STORAGE_KEY,
       success: (data) => {
-        if (!data) return;
+        if (!data) {
+          this.allRecords = [];
+          this.renderStatsForCurrentDate();
+          return;
+        }
         try {
-          const list = JSON.parse(data);
-          let totals = {};
-          SUBJECTS.forEach(s => {
-            totals[s.id] = { name: s.name, minutes: 0 };
-          });
-
-          let sum = 0;
-          list.forEach(item => {
-            if (totals[item.subjectId]) {
-              totals[item.subjectId].minutes += item.minutes;
-              sum += item.minutes;
-            }
-          });
-
-          this.totalMinutes = sum;
-
-          let res = [];
-          SUBJECTS.forEach(s => {
-            const m = totals[s.id].minutes;
-            const pct = sum > 0 ? Math.round((m / sum) * 100) : 0;
-            res.push({
-              id: s.id,
-              name: s.name,
-              minutes: m,
-              percent: pct
-            });
-          });
-          this.statsList = res;
-        } catch (e) {}
+          this.allRecords = JSON.parse(data);
+          this.renderStatsForCurrentDate();
+        } catch (e) {
+          this.allRecords = [];
+          this.renderStatsForCurrentDate();
+        }
+      },
+      fail: () => {
+        this.allRecords = [];
+        this.renderStatsForCurrentDate();
       }
     });
+  },
+
+  renderStatsForCurrentDate() {
+    // 纯净日期匹配
+    const targetBaseDate = new Date();
+    targetBaseDate.setDate(targetBaseDate.getDate() + this.dateOffset);
+    const targetStr = targetBaseDate.getFullYear() + '-' + String(targetBaseDate.getMonth() + 1).padStart(2, '0') + '-' + String(targetBaseDate.getDate()).padStart(2, '0');
+
+    let totals = {};
+    SUBJECTS.forEach(s => {
+      totals[s.id] = { name: s.name, minutes: 0, color: s.color };
+    });
+
+    let sum = 0;
+    this.allRecords.forEach(item => {
+      // 兼容 item.dateStr 或 从 timestamp 解析
+      let itemDateStr = item.dateStr;
+      if (!itemDateStr && item.timestamp) {
+        const dt = new Date(item.timestamp);
+        itemDateStr = dt.getFullYear() + '-' + String(dt.getMonth() + 1).padStart(2, '0') + '-' + String(dt.getDate()).padStart(2, '0');
+      }
+
+      if (itemDateStr && itemDateStr.startsWith(targetStr)) {
+        if (totals[item.subjectId]) {
+          totals[item.subjectId].minutes += item.minutes;
+          sum += item.minutes;
+        }
+      }
+    });
+
+    this.totalMinutes = sum;
+
+    let res = [];
+    SUBJECTS.forEach(s => {
+      const m = totals[s.id].minutes;
+      const pct = sum > 0 ? Math.round((m / sum) * 100) : 0;
+      res.push({
+        id: s.id,
+        name: s.name,
+        minutes: m,
+        percent: pct,
+        color: s.color
+      });
+    });
+    this.statsList = res;
   },
 
   gotoPlan() {
@@ -99,58 +165,85 @@ export default {
   width: 480px;
   height: 480px;
   background-color: #0f172a;
-  padding: 20px;
+  padding: 15px;
 }
 
 .page-title {
   font-size: 22px;
   font-weight: bold;
   color: #38bdf8;
+  margin-bottom: 5px;
+}
+
+.date-switcher {
+  flex-direction: row;
+  width: 440px;
+  height: 40px;
+  background-color: #1e293b;
+  border-radius: 10px;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 10px;
   margin-bottom: 8px;
+}
+
+.switch-arrow {
+  width: 40px;
+  height: 30px;
+  background-color: #334155;
+  color: #f8fafc;
+  font-size: 16px;
+  border-radius: 6px;
+}
+
+.date-display {
+  font-size: 15px;
+  font-weight: bold;
+  color: #38bdf8;
 }
 
 .summary-card {
   width: 440px;
-  height: 60px;
+  height: 50px;
   background-color: #1e293b;
-  border-radius: 12px;
+  border-radius: 10px;
   flex-direction: row;
   justify-content: space-between;
   align-items: center;
-  padding: 0 20px;
-  margin-bottom: 10px;
+  padding: 0 15px;
+  margin-bottom: 8px;
 }
 
 .summary-label {
-  font-size: 16px;
+  font-size: 15px;
   color: #94a3b8;
 }
 
 .summary-value {
-  font-size: 20px;
+  font-size: 18px;
   font-weight: bold;
   color: #38bdf8;
 }
 
 .section-title {
-  font-size: 16px;
+  font-size: 14px;
   color: #94a3b8;
   align-self: flex-start;
   margin-left: 10px;
-  margin-bottom: 5px;
+  margin-bottom: 4px;
 }
 
 .list-container {
   flex-direction: column;
   width: 440px;
-  height: 240px;
+  height: 230px;
 }
 
 .stat-item {
   flex-direction: row;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
   width: 440px;
 }
 
@@ -158,10 +251,11 @@ export default {
   font-size: 14px;
   color: #f8fafc;
   width: 50px;
+  font-weight: bold;
 }
 
 .bar-bg {
-  width: 200px;
+  width: 190px;
   height: 10px;
   background-color: #334155;
   border-radius: 5px;
@@ -170,30 +264,29 @@ export default {
 
 .bar-fill {
   height: 10px;
-  background-color: #38bdf8;
   border-radius: 5px;
 }
 
 .sub-time {
   font-size: 13px;
   color: #94a3b8;
-  width: 140px;
+  width: 150px;
   text-align: right;
 }
 
 .bottom-btns {
   flex-direction: row;
   justify-content: center;
-  margin-top: 5px;
+  margin-top: 4px;
 }
 
 .nav-btn {
-  width: 140px;
-  height: 38px;
+  width: 130px;
+  height: 36px;
   background-color: #334155;
-  border-radius: 19px;
+  border-radius: 18px;
   font-size: 14px;
   color: #f8fafc;
-  margin: 0 10px;
+  margin: 0 8px;
 }
 </style>

@@ -1,3 +1,6 @@
+let dailyChartInstance = null;
+let subjectChartInstance = null;
+
 document.addEventListener("DOMContentLoaded", () => {
     fetchStatsData();
 
@@ -20,11 +23,12 @@ async function fetchStatsData() {
         
         if (result.status === "success") {
             updateOverview(result);
+            renderCharts(result);
             updateSubjectTable(result.subjects);
             updateWeightForm(result.weights);
             updateRecordTable(result.records);
         } else {
-            alert("获取统计数据失败: " + result.message);
+            console.error("获取统计数据失败: " + result.message);
         }
     } catch (error) {
         console.error("网络请求错误:", error);
@@ -37,6 +41,102 @@ function updateOverview(data) {
     document.getElementById("totalWeighted").textContent = `${data.total_weighted_score.toFixed(1)}`;
 }
 
+function renderCharts(data) {
+    // 1. 多天学习趋势折线图
+    const dailyCtx = document.getElementById('dailyTrendChart').getContext('2d');
+    const dailyLabels = (data.daily_trend || []).map(item => item.date);
+    const dailyMinutes = (data.daily_trend || []).map(item => item.minutes);
+
+    if (dailyChartInstance) {
+        dailyChartInstance.destroy();
+    }
+
+    dailyChartInstance = new Chart(dailyCtx, {
+        type: 'line',
+        data: {
+            labels: dailyLabels,
+            datasets: [{
+                label: '每日学习时长 (分钟)',
+                data: dailyMinutes,
+                borderColor: '#38bdf8',
+                backgroundColor: 'rgba(56, 189, 248, 0.1)',
+                borderWidth: 3,
+                fill: true,
+                tension: 0.35,
+                pointRadius: 5,
+                pointBackgroundColor: '#38bdf8'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false }
+            },
+            scales: {
+                x: {
+                    grid: { color: 'rgba(51, 65, 85, 0.3)' },
+                    ticks: { color: '#94a3b8' }
+                },
+                y: {
+                    grid: { color: 'rgba(51, 65, 85, 0.3)' },
+                    ticks: { color: '#94a3b8' }
+                }
+            }
+        }
+    });
+
+    // 2. 多科目投入与加权得分柱状图
+    const subjectCtx = document.getElementById('subjectChart').getContext('2d');
+    const subLabels = (data.subjects || []).map(item => item.subject);
+    const subMinutes = (data.subjects || []).map(item => item.minutes);
+    const subWeighted = (data.subjects || []).map(item => item.weighted_score);
+
+    if (subjectChartInstance) {
+        subjectChartInstance.destroy();
+    }
+
+    subjectChartInstance = new Chart(subjectCtx, {
+        type: 'bar',
+        data: {
+            labels: subLabels,
+            datasets: [
+                {
+                    label: '实际时长 (分钟)',
+                    data: subMinutes,
+                    backgroundColor: '#38bdf8',
+                    borderRadius: 6
+                },
+                {
+                    label: '加权得分',
+                    data: subWeighted,
+                    backgroundColor: '#c084fc',
+                    borderRadius: 6
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    labels: { color: '#f8fafc' }
+                }
+            },
+            scales: {
+                x: {
+                    grid: { display: false },
+                    ticks: { color: '#94a3b8' }
+                },
+                y: {
+                    grid: { color: 'rgba(51, 65, 85, 0.3)' },
+                    ticks: { color: '#94a3b8' }
+                }
+            }
+        }
+    });
+}
+
 function updateSubjectTable(subjects) {
     const tbody = document.getElementById("subjectTableBody");
     if (!subjects || subjects.length === 0) {
@@ -47,9 +147,9 @@ function updateSubjectTable(subjects) {
     tbody.innerHTML = subjects.map(item => `
         <tr>
             <td><strong>${item.subject}</strong></td>
-            <td>${item.duration_minutes} 分钟 (${item.duration_hours} 小时)</td>
+            <td>${item.minutes} 分钟 (${item.hours} 小时)</td>
             <td>${item.weight}</td>
-            <td><strong>${item.weighted_score.toFixed(1)}</strong></td>
+            <td><strong>${item.weighted_score}</strong></td>
             <td>${item.count} 次</td>
         </tr>
     `).join("");
@@ -123,9 +223,9 @@ function updateRecordTable(records) {
 
     tbody.innerHTML = records.map(r => `
         <tr>
-            <td>${r.created_at || r.date || '刚刚'}</td>
+            <td>${r.created_at || r.dateStr || '刚刚'}</td>
             <td><strong>${r.subject}</strong></td>
-            <td>${(r.duration / 60).toFixed(1)} 分钟</td>
+            <td>${r.minutes || (r.duration / 60).toFixed(1)} 分钟</td>
             <td>${r.note || '-'}</td>
         </tr>
     `).join("");

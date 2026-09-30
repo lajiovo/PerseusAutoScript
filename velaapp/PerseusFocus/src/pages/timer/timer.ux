@@ -2,22 +2,28 @@
   <div class="container">
     <text class="page-title">学习记录与计时</text>
 
-    <!-- 科目选择区 -->
-    <text class="section-label">选择科目:</text>
+    <!-- 科目选择区：大幅放大、独立高对比度专属配色、正中央醒目展示当前所选科目 -->
+    <div class="current-subject-banner" style="background-color: {{ selectedSubject.color }};">
+      <text class="banner-label">当前所选科目</text>
+      <text class="banner-name">{{ selectedSubject.name }} (权重 {{ selectedSubject.weight }})</text>
+    </div>
+
+    <text class="section-label">切换科目：</text>
     <div class="subject-scroll">
       <div 
         for="{{ subjects }}" 
         class="subject-chip {{ selectedSubject.id === $item.id ? 'active-chip' : '' }}" 
+        style="background-color: {{ selectedSubject.id === $item.id ? $item.color : '#1e293b' }};"
         onclick="selectSubject($item)"
       >
         <text class="chip-text">{{ $item.name }}</text>
       </div>
     </div>
 
-    <!-- 模式切换：计时器 vs 手动输入 -->
+    <!-- 模式切换：计时器 vs 左右双滚动列表手动输入 -->
     <div class="tab-bar">
       <text class="tab-btn {{ mode === 'timer' ? 'active-tab' : '' }}" onclick="switchMode('timer')">秒表计时</text>
-      <text class="tab-btn {{ mode === 'manual' ? 'active-tab' : '' }}" onclick="switchMode('manual')">手动录入</text>
+      <text class="tab-btn {{ mode === 'manual' ? 'active-tab' : '' }}" onclick="switchMode('manual')">左右双滚录入</text>
     </div>
 
     <!-- 计时器视图 -->
@@ -25,22 +31,47 @@
       <text class="timer-display">{{ formattedTime }}</text>
       <div class="btn-row">
         <input if="{{ !isRunning }}" class="action-btn start-btn" type="button" value="开始计时" onclick="startTimer" />
-        <input if="{{ isRunning }}" class="action-btn stop-btn" type="button" value="结束保存" onclick="stopTimer" />
-        <input class="action-btn reset-btn" type="button" value="重置" onclick="resetTimer" />
+        <input if="{{ isRunning }}" class="action-btn stop-btn" type="button" value="结束并保存" onclick="confirmStopTimer" />
+        <input class="action-btn reset-btn" type="button" value="重置" onclick="confirmResetTimer" />
       </div>
     </div>
 
-    <!-- 手动输入视图 -->
+    <!-- 手动输入视图：左右双滚动列表（十位 0-9，个位 0-9） -->
     <div if="{{ mode === 'manual' }}" class="mode-box">
-      <text class="sub-tip">选择本次学习时长 (分钟):</text>
-      <div class="manual-row">
-        <input class="step-btn" type="button" value="-10" onclick="adjustManual(-10)" />
-        <input class="step-btn" type="button" value="-5" onclick="adjustManual(-5)" />
-        <text class="manual-val">{{ manualMinutes }}分钟</text>
-        <input class="step-btn" type="button" value="+5" onclick="adjustManual(5)" />
-        <input class="step-btn" type="button" value="+10" onclick="adjustManual(10)" />
+      <text class="sub-tip">左右滑动/选择十位与个位 (分钟: {{ manualTens }}{{ manualUnits }})</text>
+      <div class="dual-scroll-container">
+        <!-- 十位列表 -->
+        <div class="roll-column">
+          <text class="roll-title">十位</text>
+          <div class="roll-list">
+            <div for="{{ tensOptions }}" class="roll-item {{ manualTens === $item ? 'active-roll' : '' }}" onclick="selectTens($item)">
+              <text class="roll-text">{{ $item }}</text>
+            </div>
+          </div>
+        </div>
+        <!-- 个位列表 -->
+        <div class="roll-column">
+          <text class="roll-title">个位</text>
+          <div class="roll-list">
+            <div for="{{ unitOptions }}" class="roll-item {{ manualUnits === $item ? 'active-roll' : '' }}" onclick="selectUnits($item)">
+              <text class="roll-text">{{ $item }}</text>
+            </div>
+          </div>
+        </div>
       </div>
-      <input class="action-btn start-btn" type="button" value="保存手动记录" onclick="saveManualRecord" />
+      <input class="action-btn start-btn" type="button" value="保存双滚录入" onclick="saveManualRecord" />
+    </div>
+
+    <!-- 确认弹窗 -->
+    <div if="{{ showConfirmDialog }}" class="dialog-mask">
+      <div class="dialog-box">
+        <text class="dialog-title">提示</text>
+        <text class="dialog-content">{{ dialogMessage }}</text>
+        <div class="dialog-btns">
+          <input class="dialog-btn confirm" type="button" value="确定" onclick="dialogConfirm" />
+          <input class="dialog-btn cancel" type="button" value="取消" onclick="dialogCancel" />
+        </div>
+      </div>
     </div>
 
     <input class="back-btn" type="button" value="返回首页" onclick="goBack" />
@@ -56,16 +87,23 @@ export default {
   private: {
     subjects: SUBJECTS,
     selectedSubject: SUBJECTS[0],
-    mode: 'timer', // timer or manual
+    mode: 'timer',
     seconds: 0,
     isRunning: false,
     timerId: null,
     formattedTime: "00:00:00",
-    manualMinutes: 30
+    tensOptions: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+    unitOptions: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+    manualTens: 3,
+    manualUnits: 0,
+    showConfirmDialog: false,
+    dialogMessage: "",
+    dialogActionType: "" // 'stop', 'reset'
   },
 
   onInit() {
     this.selectedSubject = this.subjects[0];
+    this.checkAutoResume();
   },
 
   onDestroy() {
@@ -74,48 +112,127 @@ export default {
     }
   },
 
+  checkAutoResume() {
+    storage.get({
+      key: 'perseus_active_timer_v1',
+      success: (data) => {
+        if (data) {
+          try {
+            const state = JSON.parse(data);
+            if (state && state.isRunning && state.startTime) {
+              const elapsedSecs = Math.floor((new Date().getTime() - state.startTime) / 1000);
+              if (elapsedSecs > 0) {
+                this.seconds = elapsedSecs;
+                if (state.subjectId) {
+                  const found = this.subjects.find(s => s.id === state.subjectId);
+                  if (found) this.selectedSubject = found;
+                }
+                this.updateFormattedTime();
+                this.startTimer(true);
+              }
+            }
+          } catch(e) {}
+        }
+      }
+    });
+  },
+
+  saveActiveState() {
+    const state = {
+      isRunning: this.isRunning,
+      startTime: new Date().getTime() - (this.seconds * 1000),
+      subjectId: this.selectedSubject.id
+    };
+    storage.set({
+      key: 'perseus_active_timer_v1',
+      value: JSON.stringify(state)
+    });
+  },
+
+  clearActiveState() {
+    storage.set({
+      key: 'perseus_active_timer_v1',
+      value: ''
+    });
+  },
+
   selectSubject(sub) {
     this.selectedSubject = sub;
+    if (this.isRunning) {
+      this.saveActiveState();
+    }
   },
 
   switchMode(m) {
     this.mode = m;
   },
 
-  startTimer() {
-    if (this.isRunning) return;
+  startTimer(isResumed) {
+    if (this.isRunning && !isResumed) return;
     this.isRunning = true;
+    if (!isResumed) {
+      this.saveActiveState();
+    }
+    if (this.timerId) clearInterval(this.timerId);
     this.timerId = setInterval(() => {
       this.seconds++;
       this.updateFormattedTime();
+      if (this.seconds % 10 === 0) {
+        this.saveActiveState();
+      }
     }, 1000);
   },
 
-  stopTimer() {
+  confirmStopTimer() {
     if (!this.isRunning && this.seconds === 0) return;
+    this.dialogMessage = "是否保存本次计时学习记录？";
+    this.dialogActionType = "stop";
+    this.showConfirmDialog = true;
+  },
+
+  confirmResetTimer() {
+    this.dialogMessage = "是否放弃并重置当前计时？";
+    this.dialogActionType = "reset";
+    this.showConfirmDialog = true;
+  },
+
+  dialogConfirm() {
+    this.showConfirmDialog = false;
+    if (this.dialogActionType === 'stop') {
+      this.executeStopTimer();
+    } else if (this.dialogActionType === 'reset') {
+      this.executeResetTimer();
+    }
+  },
+
+  dialogCancel() {
+    this.showConfirmDialog = false;
+  },
+
+  executeStopTimer() {
     if (this.timerId) {
       clearInterval(this.timerId);
       this.timerId = null;
     }
     this.isRunning = false;
+    this.clearActiveState();
 
     const mins = Math.round(this.seconds / 60);
-    if (mins > 0 || this.seconds > 10) {
+    if (mins > 0 || this.seconds > 5) {
       this.saveRecord(Math.max(1, mins));
-    } else {
-      prompt.showToast({ message: "时间太短，未保存" });
     }
     this.seconds = 0;
     this.updateFormattedTime();
   },
 
-  resetTimer() {
+  executeResetTimer() {
     if (this.timerId) {
       clearInterval(this.timerId);
       this.timerId = null;
     }
     this.isRunning = false;
     this.seconds = 0;
+    this.clearActiveState();
     this.updateFormattedTime();
   },
 
@@ -126,21 +243,31 @@ export default {
     this.formattedTime = `${h}:${m}:${s}`;
   },
 
-  adjustManual(delta) {
-    this.manualMinutes = Math.max(5, this.manualMinutes + delta);
+  selectTens(t) {
+    this.manualTens = t;
+  },
+
+  selectUnits(u) {
+    this.manualUnits = u;
   },
 
   saveManualRecord() {
-    this.saveRecord(this.manualMinutes);
+    const totalMins = (this.manualTens * 10) + this.manualUnits;
+    if (totalMins <= 0) {
+      return;
+    }
+    this.saveRecord(totalMins);
   },
 
   saveRecord(minutes) {
+    const now = new Date();
+    const dateStr = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
     const record = {
       subjectId: this.selectedSubject.id,
       subjectName: this.selectedSubject.name,
       minutes: minutes,
-      timestamp: new Date().getTime(),
-      dateStr: new Date().toLocaleDateString()
+      timestamp: now.getTime(),
+      dateStr: dateStr
     };
 
     storage.get({
@@ -188,69 +315,88 @@ export default {
   width: 480px;
   height: 480px;
   background-color: #0f172a;
-  padding: 20px;
+  padding: 15px;
 }
 
 .page-title {
-  font-size: 24px;
+  font-size: 22px;
   font-weight: bold;
   color: #38bdf8;
-  margin-bottom: 10px;
+  margin-bottom: 5px;
+}
+
+.current-subject-banner {
+  width: 440px;
+  height: 50px;
+  border-radius: 12px;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.banner-label {
+  font-size: 12px;
+  color: #f8fafc;
+  opacity: 0.8;
+}
+
+.banner-name {
+  font-size: 18px;
+  font-weight: bold;
+  color: #ffffff;
 }
 
 .section-label {
-  font-size: 16px;
+  font-size: 14px;
   color: #94a3b8;
   align-self: flex-start;
   margin-left: 10px;
-  margin-bottom: 5px;
+  margin-bottom: 4px;
 }
 
 .subject-scroll {
   flex-direction: row;
   width: 440px;
-  height: 50px;
+  height: 45px;
   flex-wrap: nowrap;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
 }
 
 .subject-chip {
-  height: 45px;
-  padding: 0 15px;
+  height: 40px;
+  padding: 0 12px;
   background-color: #1e293b;
-  border-radius: 22px;
+  border-radius: 20px;
   justify-content: center;
   align-items: center;
-  margin-right: 8px;
-}
-
-.active-chip {
-  background-color: #0284c7;
+  margin-right: 6px;
 }
 
 .chip-text {
-  font-size: 16px;
+  font-size: 15px;
   color: #f8fafc;
+  font-weight: bold;
 }
 
 .tab-bar {
   flex-direction: row;
-  width: 300px;
-  height: 40px;
+  width: 280px;
+  height: 36px;
   background-color: #1e293b;
-  border-radius: 20px;
-  margin-bottom: 10px;
+  border-radius: 18px;
+  margin-bottom: 6px;
   justify-content: center;
   align-items: center;
 }
 
 .tab-btn {
-  width: 140px;
-  height: 36px;
+  width: 130px;
+  height: 32px;
   text-align: center;
-  font-size: 16px;
+  font-size: 14px;
   color: #94a3b8;
-  border-radius: 18px;
+  border-radius: 16px;
 }
 
 .active-tab {
@@ -263,12 +409,12 @@ export default {
   flex-direction: column;
   align-items: center;
   width: 440px;
-  height: 180px;
+  height: 190px;
   justify-content: center;
 }
 
 .timer-display {
-  font-size: 40px;
+  font-size: 42px;
   font-weight: bold;
   color: #f8fafc;
   margin-bottom: 15px;
@@ -280,12 +426,12 @@ export default {
 }
 
 .action-btn {
-  width: 140px;
-  height: 45px;
-  border-radius: 22px;
-  font-size: 16px;
+  width: 130px;
+  height: 42px;
+  border-radius: 21px;
+  font-size: 15px;
   color: #ffffff;
-  margin: 0 5px;
+  margin: 0 6px;
 }
 
 .start-btn {
@@ -301,42 +447,129 @@ export default {
 }
 
 .sub-tip {
-  font-size: 16px;
+  font-size: 14px;
   color: #94a3b8;
+  margin-bottom: 6px;
+}
+
+.dual-scroll-container {
+  flex-direction: row;
+  justify-content: center;
+  width: 440px;
+  height: 100px;
+  margin-bottom: 8px;
+}
+
+.roll-column {
+  flex-direction: column;
+  align-items: center;
+  width: 100px;
+  height: 100px;
+  background-color: #1e293b;
+  border-radius: 10px;
+  margin: 0 10px;
+  padding: 5px;
+}
+
+.roll-title {
+  font-size: 12px;
+  color: #64748b;
+  margin-bottom: 4px;
+}
+
+.roll-list {
+  flex-direction: row;
+  width: 90px;
+  height: 70px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.roll-item {
+  width: 25px;
+  height: 25px;
+  background-color: #334155;
+  border-radius: 6px;
+  justify-content: center;
+  align-items: center;
+  margin: 2px;
+}
+
+.active-roll {
+  background-color: #0284c7;
+}
+
+.roll-text {
+  font-size: 14px;
+  color: #f8fafc;
+  font-weight: bold;
+}
+
+.dialog-mask {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 480px;
+  height: 480px;
+  background-color: rgba(0, 0, 0, 0.7);
+  justify-content: center;
+  align-items: center;
+}
+
+.dialog-box {
+  width: 360px;
+  height: 180px;
+  background-color: #1e293b;
+  border-radius: 16px;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 20px;
+}
+
+.dialog-title {
+  font-size: 18px;
+  font-weight: bold;
+  color: #38bdf8;
   margin-bottom: 10px;
 }
 
-.manual-row {
-  flex-direction: row;
-  align-items: center;
-  margin-bottom: 15px;
-}
-
-.step-btn {
-  width: 60px;
-  height: 40px;
-  background-color: #334155;
+.dialog-content {
+  font-size: 15px;
   color: #f8fafc;
-  font-size: 16px;
-  border-radius: 8px;
-  margin: 0 4px;
+  margin-bottom: 20px;
+  text-align: center;
 }
 
-.manual-val {
-  font-size: 22px;
-  color: #38bdf8;
-  font-weight: bold;
-  width: 100px;
-  text-align: center;
+.dialog-btns {
+  flex-direction: row;
+  justify-content: center;
+}
+
+.dialog-btn {
+  width: 120px;
+  height: 38px;
+  border-radius: 19px;
+  font-size: 15px;
+  color: #ffffff;
+  margin: 0 10px;
+}
+
+.dialog-btn.confirm {
+  background-color: #0284c7;
+}
+
+.dialog-btn.cancel {
+  background-color: #475569;
 }
 
 .back-btn {
   width: 120px;
-  height: 35px;
+  height: 34px;
   background-color: #334155;
   border-radius: 17px;
   font-size: 14px;
   color: #cbd5e1;
-  margin-top: 5px;
+  margin-top: 2px;
 }
 </style>

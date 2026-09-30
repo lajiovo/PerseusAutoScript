@@ -3,34 +3,55 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PerseusFocus - 学习统计与科目权重分析</title>
+    <title>PerseusFocus - 核心学习多天/多周/多科综合看板</title>
+    <!-- 引入 Chart.js 用于炫酷图表展示 -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="stylesheet" href="./watch.css">
 </head>
 <body>
     <div class="container">
         <header class="header">
-            <h1>⏱️ PerseusFocus 学习统计与权重规划</h1>
-            <p class="subtitle">直观阅览手表端同步学习时间、科目投入权重与加权分析</p>
+            <div class="header-title-row">
+                <h1>PerseusFocus 学习核心全景看板</h1>
+                <span class="badge">RedmiWatch6 顶配版</span>
+            </div>
+            <p class="subtitle">多天、多周、多科综合视图与加权投入深度图表分析</p>
         </header>
 
         <div class="stats-overview">
             <div class="card">
                 <h3>总学习时长</h3>
-                <p id="totalDuration" class="number">0 小时</p>
+                <p id="totalDuration" class="number highlight-blue">0 小时</p>
             </div>
             <div class="card">
                 <h3>同步记录数</h3>
-                <p id="totalRecords" class="number">0 条</p>
+                <p id="totalRecords" class="number highlight-purple">0 条</p>
             </div>
             <div class="card">
                 <h3>总加权得分</h3>
-                <p id="totalWeighted" class="number">0.0</p>
+                <p id="totalWeighted" class="number highlight-green">0.0</p>
+            </div>
+        </div>
+
+        <!-- 炫酷图表展示区 -->
+        <div class="charts-grid">
+            <div class="chart-card">
+                <h3>📈 多天学习趋势分析 (分钟)</h3>
+                <div class="canvas-container">
+                    <canvas id="dailyTrendChart"></canvas>
+                </div>
+            </div>
+            <div class="chart-card">
+                <h3>📊 多科目投入占比与加权柱状图</h3>
+                <div class="canvas-container">
+                    <canvas id="subjectChart"></canvas>
+                </div>
             </div>
         </div>
 
         <div class="main-content">
             <section class="section">
-                <h2>📊 科目投入权重与加权分析</h2>
+                <h2>科目投入权重与加权得分分析</h2>
                 <div class="table-container">
                     <table id="subjectTable">
                         <thead>
@@ -50,7 +71,7 @@
             </section>
 
             <section class="section">
-                <h2>⚙️ 科目权重规划配置</h2>
+                <h2>科目权重科学规划配置</h2>
                 <form id="weightForm" class="weight-form">
                     <div id="weightInputsContainer" class="weight-inputs-grid">
                         <!-- 动态填充 -->
@@ -63,7 +84,7 @@
             </section>
 
             <section class="section">
-                <h2>📜 最近同步学习记录</h2>
+                <h2>最近自动去重同步学习记录</h2>
                 <div class="table-container">
                     <table id="recordTable">
                         <thead>
