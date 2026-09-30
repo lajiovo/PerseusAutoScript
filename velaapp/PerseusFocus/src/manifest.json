@@ -1,5 +1,5 @@
 {
-  "package": "com.application.watch.demo",
+  "package": "com.perseus.focus.watch",
   "name": "PerseusFocus",
   "versionName": "1.0.0",
   "versionCode": 1,
@@ -11,11 +11,17 @@
   "features": [
     {
       "name": "system.router"
+    },
+    {
+      "name": "system.storage"
+    },
+    {
+      "name": "system.fetch"
     }
   ],
   "config": {
     "logLevel": "log",
-    "designWidth": "device-width"
+    "designWidth": "480"
   },
   "router": {
     "entry": "pages/index",
@@ -23,8 +29,17 @@
       "pages/index": {
         "component": "index"
       },
-      "pages/detail": {
-        "component": "detail"
+      "pages/timer": {
+        "component": "timer"
+      },
+      "pages/stats": {
+        "component": "stats"
+      },
+      "pages/plan": {
+        "component": "plan"
+      },
+      "pages/sync": {
+        "component": "sync"
       }
     }
   }

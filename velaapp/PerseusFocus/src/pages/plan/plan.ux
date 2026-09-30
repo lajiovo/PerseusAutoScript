@@ -1,0 +1,254 @@
+<template>
+  <div class="container">
+    <text class="page-title">智能规划与失衡分析</text>
+
+    <!-- 建议展示卡片 -->
+    <div class="advice-card">
+      <text class="advice-title">💡 智能诊断建议</text>
+      <text class="advice-content">{{ adviceText }}</text>
+    </div>
+
+    <!-- 权重对照说明 -->
+    <text class="section-title">权重基准与得分比重</text>
+    <div class="list-container">
+      <div for="{{ analysisList }}" class="analysis-item">
+        <text class="item-name">{{ $item.name }} (权{{ $item.weight }})</text>
+        <text class="item-score">得分: {{ $item.score }}</text>
+        <text class="item-status {{ $item.statusType }}">{{ $item.status }}</text>
+      </div>
+    </div>
+
+    <div class="bottom-btns">
+      <input class="nav-btn" type="button" value="一键同步" onclick="gotoSync" />
+      <input class="nav-btn" type="button" value="返回统计" onclick="goStats" />
+    </div>
+  </div>
+</template>
+
+<script>
+import router from "@system.router";
+import storage from "@system.storage";
+import { SUBJECTS, STORAGE_KEY } from "../../common/constants.js";
+
+export default {
+  private: {
+    adviceText: "正在分析您的学习投入与科目权重...",
+    analysisList: []
+  },
+
+  onInit() {
+    this.analyze();
+  },
+
+  analyze() {
+    storage.get({
+      key: STORAGE_KEY,
+      success: (data) => {
+        let totals = {};
+        SUBJECTS.forEach(s => {
+          totals[s.id] = 0;
+        });
+
+        if (data) {
+          try {
+            const list = JSON.parse(data);
+            list.forEach(item => {
+              if (totals[item.subjectId] !== undefined) {
+                totals[item.subjectId] += item.minutes;
+              }
+            });
+          } catch (e) {}
+        }
+
+        // 计算加权分值
+        let totalWeightedScore = 0;
+        let subjectScores = SUBJECTS.map(s => {
+          const mins = totals[s.id];
+          const score = mins * s.weight;
+          totalWeightedScore += score;
+          return {
+            id: s.id,
+            name: s.name,
+            weight: s.weight,
+            minutes: mins,
+            score: Math.round(score)
+          };
+        });
+
+        // 计算期望权重总和
+        const totalWeightSum = SUBJECTS.reduce((acc, s) => acc + s.weight, 0);
+        const avgExpectedScore = totalWeightedScore > 0 ? (totalWeightedScore / totalWeightSum) : 0;
+
+        let res = [];
+        let lowestSub = null;
+        let minRatio = 999;
+
+        subjectScores.forEach(item => {
+          // 期望分值 = 权重 * 平均每权重的得分
+          const expectedMins = avgExpectedScore; 
+          let status = "正常";
+          let statusType = "normal-status";
+
+          if (item.minutes < expectedMins * 0.75) {
+            status = "投入过少⚠️";
+            statusType = "warn-status";
+            if (item.weight / (item.minutes + 1) > minRatio) {
+              // 寻找最需要补强的科目
+            }
+            if (!lowestSub || item.weight > lowestSub.weight) {
+              lowestSub = item;
+            }
+          } else if (item.minutes > expectedMins * 1.5) {
+            status = "偏科过多⚡";
+            statusType = "over-status";
+          }
+
+          res.push({
+            name: item.name,
+            weight: item.weight,
+            score: item.score,
+            status: status,
+            statusType: statusType
+          });
+        });
+
+        this.analysisList = res;
+
+        if (totalWeightedScore === 0) {
+          this.adviceText = "暂无学习记录，请先添加各科目学习时间以获取智能建议。";
+        } else if (lowestSub) {
+          this.adviceText = `检测到高权重科目【${lowestSub.name}】投入时间相对不足，建议适当增加练习！`;
+        } else {
+          this.adviceText = "您的各科目时间投入与权重分配非常均衡，继续保持！";
+        }
+      },
+      fail: () => {
+        this.adviceText = "暂无学习记录，请先去打卡记录时间。";
+      }
+    });
+  },
+
+  gotoSync() {
+    router.push({ uri: "/pages/sync" });
+  },
+
+  goStats() {
+    router.back();
+  }
+};
+</script>
+
+<style>
+.container {
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: center;
+  width: 480px;
+  height: 480px;
+  background-color: #0f172a;
+  padding: 20px;
+}
+
+.page-title {
+  font-size: 22px;
+  font-weight: bold;
+  color: #38bdf8;
+  margin-bottom: 8px;
+}
+
+.advice-card {
+  width: 440px;
+  height: 80px;
+  background-color: #1e293b;
+  border-radius: 12px;
+  flex-direction: column;
+  justify-content: center;
+  padding: 10px 15px;
+  margin-bottom: 10px;
+}
+
+.advice-title {
+  font-size: 14px;
+  font-weight: bold;
+  color: #fbbf24;
+  margin-bottom: 4px;
+}
+
+.advice-content {
+  font-size: 13px;
+  color: #cbd5e1;
+  lines: 2;
+}
+
+.section-title {
+  font-size: 15px;
+  color: #94a3b8;
+  align-self: flex-start;
+  margin-left: 10px;
+  margin-bottom: 5px;
+}
+
+.list-container {
+  flex-direction: column;
+  width: 440px;
+  height: 220px;
+}
+
+.analysis-item {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  background-color: #1e293b;
+  height: 38px;
+  border-radius: 8px;
+  padding: 0 12px;
+  margin-bottom: 6px;
+  width: 440px;
+}
+
+.item-name {
+  font-size: 14px;
+  color: #f8fafc;
+  width: 120px;
+}
+
+.item-score {
+  font-size: 13px;
+  color: #94a3b8;
+  width: 90px;
+}
+
+.item-status {
+  font-size: 13px;
+  width: 100px;
+  text-align: right;
+}
+
+.normal-status {
+  color: #4ade80;
+}
+
+.warn-status {
+  color: #f87171;
+}
+
+.over-status {
+  color: #fbbf24;
+}
+
+.bottom-btns {
+  flex-direction: row;
+  justify-content: center;
+  margin-top: 5px;
+}
+
+.nav-btn {
+  width: 140px;
+  height: 38px;
+  background-color: #334155;
+  border-radius: 19px;
+  font-size: 14px;
+  color: #f8fafc;
+  margin: 0 10px;
+}
+</style>

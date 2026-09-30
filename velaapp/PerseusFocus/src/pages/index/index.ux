@@ -1,48 +1,92 @@
 <template>
-  <div class="demo-page">
-    <text class="title">{{ $t("a.b") }},欢迎打开{{ title }}</text>
-    <!-- 点击跳转详情页 -->
-    <input class="btn" type="button" value="跳转到详情页" onclick="routeDetail" />
+  <div class="container">
+    <text class="app-title">PerseusFocus</text>
+    <text class="app-subtitle">RedmiWatch6 学习助手</text>
+
+    <div class="menu-list">
+      <div class="menu-item" onclick="gotoTimer">
+        <text class="menu-text">⏱️ 计时/记录</text>
+      </div>
+      <div class="menu-item" onclick="gotoStats">
+        <text class="menu-text">📊 学习统计</text>
+      </div>
+      <div class="menu-item" onclick="gotoPlan">
+        <text class="menu-text">🎯 智能规划</text>
+      </div>
+      <div class="menu-item sync-btn" onclick="gotoSync">
+        <text class="menu-text">🔄 一键同步</text>
+      </div>
+    </div>
   </div>
 </template>
 
 <script>
-import router from "@system.router"
+import router from "@system.router";
 
 export default {
-  // 页面级组件的数据模型，影响传入数据的覆盖机制：private内定义的属性不允许被覆盖
-  private: {
-    title: "示例页面"
+  private: {},
+  gotoTimer() {
+    router.push({ uri: "/pages/timer" });
   },
-
-  routeDetail() {
-    // 跳转到应用内的某个页面，router用法详见：文档->接口->页面路由
-    router.push({
-      uri: "/pages/detail"
-    })
+  gotoStats() {
+    router.push({ uri: "/pages/stats" });
+  },
+  gotoPlan() {
+    router.push({ uri: "/pages/plan" });
+  },
+  gotoSync() {
+    router.push({ uri: "/pages/sync" });
   }
-}
+};
 </script>
 
 <style>
-.demo-page {
+.container {
   flex-direction: column;
-  justify-content: center;
+  justify-content: flex-start;
+  align-items: center;
+  width: 480px;
+  height: 480px;
+  background-color: #0f172a;
+  padding: 30px 20px;
+}
+
+.app-title {
+  font-size: 32px;
+  font-weight: bold;
+  color: #38bdf8;
+  margin-top: 20px;
+}
+
+.app-subtitle {
+  font-size: 18px;
+  color: #94a3b8;
+  margin-bottom: 25px;
+}
+
+.menu-list {
+  flex-direction: column;
+  width: 420px;
   align-items: center;
 }
 
-.title {
-  font-size: 20px;
-  text-align: center;
+.menu-item {
+  width: 400px;
+  height: 60px;
+  background-color: #1e293b;
+  border-radius: 30px;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 12px;
 }
 
-.btn {
-  width: 200px;
-  height: 40px;
-  margin-top: 20px;
-  border-radius: 5px;
-  background-color: #09ba07;
-  font-size: 20px;
-  color: #ffffff;
+.sync-btn {
+  background-color: #0284c7;
+}
+
+.menu-text {
+  font-size: 22px;
+  color: #f8fafc;
+  font-weight: 500;
 }
 </style>

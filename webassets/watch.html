@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PerseusFocus - 学习统计与科目权重分析</title>
+    <link rel="stylesheet" href="./watch.css">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>⏱️ PerseusFocus 学习统计与权重规划</h1>
+            <p class="subtitle">直观阅览手表端同步学习时间、科目投入权重与加权分析</p>
+        </header>
+
+        <div class="stats-overview">
+            <div class="card">
+                <h3>总学习时长</h3>
+                <p id="totalDuration" class="number">0 小时</p>
+            </div>
+            <div class="card">
+                <h3>同步记录数</h3>
+                <p id="totalRecords" class="number">0 条</p>
+            </div>
+            <div class="card">
+                <h3>总加权得分</h3>
+                <p id="totalWeighted" class="number">0.0</p>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <section class="section">
+                <h2>📊 科目投入权重与加权分析</h2>
+                <div class="table-container">
+                    <table id="subjectTable">
+                        <thead>
+                            <tr>
+                                <th>科目名称</th>
+                                <th>学习时长 (分钟)</th>
+                                <th>投入权重</th>
+                                <th>加权得分</th>
+                                <th>打卡次数</th>
+                            </tr>
+                        </thead>
+                        <tbody id="subjectTableBody">
+                            <tr><td colspan="5" class="loading">加载中...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section class="section">
+                <h2>⚙️ 科目权重规划配置</h2>
+                <form id="weightForm" class="weight-form">
+                    <div id="weightInputsContainer" class="weight-inputs-grid">
+                        <!-- 动态填充 -->
+                    </div>
+                    <div class="form-actions">
+                        <button type="submit" class="btn primary">保存权重配置</button>
+                        <button type="button" id="clearBtn" class="btn danger">清空所有学习记录</button>
+                    </div>
+                </form>
+            </section>
+
+            <section class="section">
+                <h2>📜 最近同步学习记录</h2>
+                <div class="table-container">
+                    <table id="recordTable">
+                        <thead>
+                            <tr>
+                                <th>时间</th>
+                                <th>科目</th>
+                                <th>时长 (分钟)</th>
+                                <th>备注说明</th>
+                            </tr>
+                        </thead>
+                        <tbody id="recordTableBody">
+                            <tr><td colspan="4" class="loading">暂无记录</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+    </div>
+
+    <script src="./watch.js"></script>
+</body>
+</html>

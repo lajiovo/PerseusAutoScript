@@ -1,1 +1,8 @@
-{}
+{
+  "watch": {
+    "screenShape": "square",
+    "screenWidth": 480,
+    "screenHeight": 480,
+    "supportWheel": true
+  }
+}

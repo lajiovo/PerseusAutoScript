@@ -27,10 +27,14 @@ from zConfig import get_config
 from zLKserver import lk_bp
 from zInovelServer import inovel_bp
 from zLKCacheViewerServer import lk_cache_viewer_bp
+from zWatchApi import watch_bp
+from zWatchServer import zWatchServer_bp
 app = Flask(__name__)
 app.register_blueprint(lk_bp)
 app.register_blueprint(inovel_bp)
 app.register_blueprint(lk_cache_viewer_bp)
+app.register_blueprint(watch_bp)
+app.register_blueprint(zWatchServer_bp)
 
 # 监听端口
 LISTEN_PORT = get_config("pushserver.listen_port", default=25566)

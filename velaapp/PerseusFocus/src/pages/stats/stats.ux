@@ -1,0 +1,199 @@
+<template>
+  <div class="container">
+    <text class="page-title">学习统计看板</text>
+
+    <!-- 总时长展示 -->
+    <div class="summary-card">
+      <text class="summary-label">总学习时长</text>
+      <text class="summary-value">{{ totalMinutes }} 分钟</text>
+    </div>
+
+    <!-- 科目统计列表 -->
+    <text class="section-title">各科目投入时长</text>
+    <div class="list-container">
+      <div for="{{ statsList }}" class="stat-item">
+        <text class="sub-name">{{ $item.name }}</text>
+        <div class="bar-bg">
+          <div class="bar-fill" style="width: {{ $item.percent }}%;"></div>
+        </div>
+        <text class="sub-time">{{ $item.minutes }}分钟({{ $item.percent }}%)</text>
+      </div>
+    </div>
+
+    <div class="bottom-btns">
+      <input class="nav-btn" type="button" value="智能规划" onclick="gotoPlan" />
+      <input class="nav-btn" type="button" value="返回首页" onclick="goHome" />
+    </div>
+  </div>
+</template>
+
+<script>
+import router from "@system.router";
+import storage from "@system.storage";
+import { SUBJECTS, STORAGE_KEY } from "../../common/constants.js";
+
+export default {
+  private: {
+    totalMinutes: 0,
+    statsList: []
+  },
+
+  onInit() {
+    this.loadStats();
+  },
+
+  loadStats() {
+    storage.get({
+      key: STORAGE_KEY,
+      success: (data) => {
+        if (!data) return;
+        try {
+          const list = JSON.parse(data);
+          let totals = {};
+          SUBJECTS.forEach(s => {
+            totals[s.id] = { name: s.name, minutes: 0 };
+          });
+
+          let sum = 0;
+          list.forEach(item => {
+            if (totals[item.subjectId]) {
+              totals[item.subjectId].minutes += item.minutes;
+              sum += item.minutes;
+            }
+          });
+
+          this.totalMinutes = sum;
+
+          let res = [];
+          SUBJECTS.forEach(s => {
+            const m = totals[s.id].minutes;
+            const pct = sum > 0 ? Math.round((m / sum) * 100) : 0;
+            res.push({
+              id: s.id,
+              name: s.name,
+              minutes: m,
+              percent: pct
+            });
+          });
+          this.statsList = res;
+        } catch (e) {}
+      }
+    });
+  },
+
+  gotoPlan() {
+    router.push({ uri: "/pages/plan" });
+  },
+
+  goHome() {
+    router.replace({ uri: "/pages/index" });
+  }
+};
+</script>
+
+<style>
+.container {
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: center;
+  width: 480px;
+  height: 480px;
+  background-color: #0f172a;
+  padding: 20px;
+}
+
+.page-title {
+  font-size: 22px;
+  font-weight: bold;
+  color: #38bdf8;
+  margin-bottom: 8px;
+}
+
+.summary-card {
+  width: 440px;
+  height: 60px;
+  background-color: #1e293b;
+  border-radius: 12px;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 20px;
+  margin-bottom: 10px;
+}
+
+.summary-label {
+  font-size: 16px;
+  color: #94a3b8;
+}
+
+.summary-value {
+  font-size: 20px;
+  font-weight: bold;
+  color: #38bdf8;
+}
+
+.section-title {
+  font-size: 16px;
+  color: #94a3b8;
+  align-self: flex-start;
+  margin-left: 10px;
+  margin-bottom: 5px;
+}
+
+.list-container {
+  flex-direction: column;
+  width: 440px;
+  height: 240px;
+}
+
+.stat-item {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  width: 440px;
+}
+
+.sub-name {
+  font-size: 14px;
+  color: #f8fafc;
+  width: 50px;
+}
+
+.bar-bg {
+  width: 200px;
+  height: 10px;
+  background-color: #334155;
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+.bar-fill {
+  height: 10px;
+  background-color: #38bdf8;
+  border-radius: 5px;
+}
+
+.sub-time {
+  font-size: 13px;
+  color: #94a3b8;
+  width: 140px;
+  text-align: right;
+}
+
+.bottom-btns {
+  flex-direction: row;
+  justify-content: center;
+  margin-top: 5px;
+}
+
+.nav-btn {
+  width: 140px;
+  height: 38px;
+  background-color: #334155;
+  border-radius: 19px;
+  font-size: 14px;
+  color: #f8fafc;
+  margin: 0 10px;
+}
+</style>
