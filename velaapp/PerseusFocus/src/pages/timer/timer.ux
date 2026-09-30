@@ -2,7 +2,7 @@
   <div class="container">
     <text class="page-title">学习记录与计时</text>
 
-    <!-- 科目选择区：大幅放大、独立高对比度专属配色、正中央醒目展示当前所选科目 -->
+    <!-- 科目选择区：大幅放大、绝对居中、独立高对比度专属配色、正中央醒目展示当前所选科目 -->
     <div class="current-subject-banner" style="background-color: {{ selectedSubject.color }};">
       <text class="banner-label">当前所选科目</text>
       <text class="banner-name">{{ selectedSubject.name }} (权重 {{ selectedSubject.weight }})</text>
@@ -15,6 +15,8 @@
         class="subject-chip {{ selectedSubject.id === $item.id ? 'active-chip' : '' }}" 
         style="background-color: {{ selectedSubject.id === $item.id ? $item.color : '#1e293b' }};"
         onclick="selectSubject($item)"
+        onfocus="onChipFocus"
+        onblur="onChipBlur"
       >
         <text class="chip-text">{{ $item.name }}</text>
       </div>
@@ -36,40 +38,53 @@
       </div>
     </div>
 
-    <!-- 手动输入视图：左右双滚动列表（十位 0-9，个位 0-9） -->
+    <!-- 手动输入视图：苹果闹钟式上下滚动数字滚轮（左右独立十位/个位） -->
     <div if="{{ mode === 'manual' }}" class="mode-box">
-      <text class="sub-tip">左右滑动/选择十位与个位 (分钟: {{ manualTens }}{{ manualUnits }})</text>
+      <text class="sub-tip">苹果闹钟式滚动选择分钟: ({{ manualTens }}{{ manualUnits }}分钟)</text>
       <div class="dual-scroll-container">
-        <!-- 十位列表 -->
+        <!-- 十位滚轮 -->
         <div class="roll-column">
-          <text class="roll-title">十位</text>
-          <div class="roll-list">
+          <text class="roll-title">十位(0-9)</text>
+          <div class="roll-wrapper">
             <div for="{{ tensOptions }}" class="roll-item {{ manualTens === $item ? 'active-roll' : '' }}" onclick="selectTens($item)">
-              <text class="roll-text">{{ $item }}</text>
+              <text class="roll-text {{ manualTens === $item ? 'active-roll-text' : '' }}">{{ $item }}</text>
             </div>
           </div>
         </div>
-        <!-- 个位列表 -->
+        <!-- 个位滚轮 -->
         <div class="roll-column">
-          <text class="roll-title">个位</text>
-          <div class="roll-list">
+          <text class="roll-title">个位(0-9)</text>
+          <div class="roll-wrapper">
             <div for="{{ unitOptions }}" class="roll-item {{ manualUnits === $item ? 'active-roll' : '' }}" onclick="selectUnits($item)">
-              <text class="roll-text">{{ $item }}</text>
+              <text class="roll-text {{ manualUnits === $item ? 'active-roll-text' : '' }}">{{ $item }}</text>
             </div>
           </div>
         </div>
       </div>
-      <input class="action-btn start-btn" type="button" value="保存双滚录入" onclick="saveManualRecord" />
+      <input class="action-btn start-btn" type="button" value="确认保存双滚录入" onclick="saveManualRecord" />
     </div>
 
-    <!-- 确认弹窗 -->
+    <!-- 确认弹窗（秒表结束弹出的选择菜单：“保存”、“放弃”、“继续”） -->
     <div if="{{ showConfirmDialog }}" class="dialog-mask">
       <div class="dialog-box">
-        <text class="dialog-title">提示</text>
+        <text class="dialog-title">秒表计时结束</text>
         <text class="dialog-content">{{ dialogMessage }}</text>
+        <div class="dialog-btns-row">
+          <input class="dialog-btn save-btn" type="button" value="保存" onclick="dialogSave" />
+          <input class="dialog-btn discard-btn" type="button" value="放弃" onclick="dialogDiscard" />
+          <input class="dialog-btn continue-btn" type="button" value="继续" onclick="dialogContinue" />
+        </div>
+      </div>
+    </div>
+
+    <!-- 保存成功后的询问弹窗（询问：“继续输入” 或 “查看统计”，绝对不自动跳转） -->
+    <div if="{{ showSaveSuccessDialog }}" class="dialog-mask">
+      <div class="dialog-box">
+        <text class="dialog-title">保存成功</text>
+        <text class="dialog-content">学习记录已成功保存！请选择后续操作：</text>
         <div class="dialog-btns">
-          <input class="dialog-btn confirm" type="button" value="确定" onclick="dialogConfirm" />
-          <input class="dialog-btn cancel" type="button" value="取消" onclick="dialogCancel" />
+          <input class="dialog-btn continue-btn" type="button" value="继续输入" onclick="afterSaveContinue" />
+          <input class="dialog-btn stats-btn" type="button" value="查看统计" onclick="afterSaveStats" />
         </div>
       </div>
     </div>
@@ -97,6 +112,7 @@ export default {
     manualTens: 3,
     manualUnits: 0,
     showConfirmDialog: false,
+    showSaveSuccessDialog: false,
     dialogMessage: "",
     dialogActionType: "" // 'stop', 'reset'
   },
@@ -185,8 +201,7 @@ export default {
 
   confirmStopTimer() {
     if (!this.isRunning && this.seconds === 0) return;
-    this.dialogMessage = "是否保存本次计时学习记录？";
-    this.dialogActionType = "stop";
+    this.dialogMessage = "计时已结束，请选择对本次学习记录的处理方式：";
     this.showConfirmDialog = true;
   },
 
@@ -196,20 +211,8 @@ export default {
     this.showConfirmDialog = true;
   },
 
-  dialogConfirm() {
+  dialogSave() {
     this.showConfirmDialog = false;
-    if (this.dialogActionType === 'stop') {
-      this.executeStopTimer();
-    } else if (this.dialogActionType === 'reset') {
-      this.executeResetTimer();
-    }
-  },
-
-  dialogCancel() {
-    this.showConfirmDialog = false;
-  },
-
-  executeStopTimer() {
     if (this.timerId) {
       clearInterval(this.timerId);
       this.timerId = null;
@@ -218,11 +221,41 @@ export default {
     this.clearActiveState();
 
     const mins = Math.round(this.seconds / 60);
-    if (mins > 0 || this.seconds > 5) {
-      this.saveRecord(Math.max(1, mins));
-    }
+    const finalMins = Math.max(1, mins);
     this.seconds = 0;
     this.updateFormattedTime();
+
+    this.saveRecordWithPrompt(finalMins);
+  },
+
+  dialogDiscard() {
+    this.showConfirmDialog = false;
+    if (this.timerId) {
+      clearInterval(this.timerId);
+      this.timerId = null;
+    }
+    this.isRunning = false;
+    this.seconds = 0;
+    this.clearActiveState();
+    this.updateFormattedTime();
+  },
+
+  dialogContinue() {
+    this.showConfirmDialog = false;
+    if (!this.isRunning) {
+      this.startTimer(false);
+    }
+  },
+
+  dialogConfirm() {
+    this.showConfirmDialog = false;
+    if (this.dialogActionType === 'reset') {
+      this.executeResetTimer();
+    }
+  },
+
+  dialogCancel() {
+    this.showConfirmDialog = false;
   },
 
   executeResetTimer() {
@@ -256,10 +289,10 @@ export default {
     if (totalMins <= 0) {
       return;
     }
-    this.saveRecord(totalMins);
+    this.saveRecordWithPrompt(totalMins);
   },
 
-  saveRecord(minutes) {
+  saveRecordWithPrompt(minutes) {
     const now = new Date();
     const dateStr = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
     const record = {
@@ -284,7 +317,8 @@ export default {
           key: STORAGE_KEY,
           value: JSON.stringify(list),
           success: () => {
-            router.push({ uri: "/pages/stats" });
+            // 绝不自动跳转，弹出询问窗口：“继续输入” 或 “查看统计”
+            this.showSaveSuccessDialog = true;
           }
         });
       },
@@ -294,11 +328,21 @@ export default {
           key: STORAGE_KEY,
           value: JSON.stringify(list),
           success: () => {
-            router.push({ uri: "/pages/stats" });
+            this.showSaveSuccessDialog = true;
           }
         });
       }
     });
+  },
+
+  afterSaveContinue() {
+    this.showSaveSuccessDialog = false;
+    // 保留在当前页面继续输入/计时
+  },
+
+  afterSaveStats() {
+    this.showSaveSuccessDialog = false;
+    router.push({ uri: "/pages/stats" });
   },
 
   goBack() {
@@ -308,268 +352,285 @@ export default {
 </script>
 
 <style>
-.container {
-  flex-direction: column;
-  justify-content: flex-start;
-  align-items: center;
-  width: 480px;
-  height: 480px;
-  background-color: #0f172a;
-  padding: 15px;
-}
+    /* 样式去残留及放大按钮 */
+    .subject-chip, .tab-btn, .action-btn, .dialog-btn, .roll-item {
+      opacity: 0.95;
+    }
 
-.page-title {
-  font-size: 22px;
-  font-weight: bold;
-  color: #38bdf8;
-  margin-bottom: 5px;
-}
+    .current-subject-banner {
+      width: 460px;
+      height: 60px;
+      border-radius: 14px;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      margin-bottom: 8px;
+    }
 
-.current-subject-banner {
-  width: 440px;
-  height: 50px;
-  border-radius: 12px;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  margin-bottom: 6px;
-}
+    .banner-label {
+      font-size: 13px;
+      color: #ffffff;
+      opacity: 0.9;
+    }
 
-.banner-label {
-  font-size: 12px;
-  color: #f8fafc;
-  opacity: 0.8;
-}
+    .banner-name {
+      font-size: 20px;
+      font-weight: bold;
+      color: #ffffff;
+    }
 
-.banner-name {
-  font-size: 18px;
-  font-weight: bold;
-  color: #ffffff;
-}
+    .section-label {
+      font-size: 14px;
+      color: #cbd5e1;
+      align-self: center;
+      margin-bottom: 6px;
+      text-align: center;
+    }
 
-.section-label {
-  font-size: 14px;
-  color: #94a3b8;
-  align-self: flex-start;
-  margin-left: 10px;
-  margin-bottom: 4px;
-}
+    .subject-scroll {
+      flex-direction: row;
+      width: 460px;
+      height: 50px;
+      flex-wrap: nowrap;
+      margin-bottom: 10px;
+      justify-content: center;
+    }
 
-.subject-scroll {
-  flex-direction: row;
-  width: 440px;
-  height: 45px;
-  flex-wrap: nowrap;
-  margin-bottom: 8px;
-}
+    .subject-chip {
+      height: 44px;
+      padding: 0 14px;
+      background-color: #1e293b;
+      border-radius: 22px;
+      justify-content: center;
+      align-items: center;
+      margin-right: 6px;
+    }
 
-.subject-chip {
-  height: 40px;
-  padding: 0 12px;
-  background-color: #1e293b;
-  border-radius: 20px;
-  justify-content: center;
-  align-items: center;
-  margin-right: 6px;
-}
+    .chip-text {
+      font-size: 16px;
+      color: #f8fafc;
+      font-weight: bold;
+    }
 
-.chip-text {
-  font-size: 15px;
-  color: #f8fafc;
-  font-weight: bold;
-}
+    .tab-bar {
+      flex-direction: row;
+      width: 320px;
+      height: 42px;
+      background-color: #1e293b;
+      border-radius: 21px;
+      margin-bottom: 8px;
+      justify-content: center;
+      align-items: center;
+    }
 
-.tab-bar {
-  flex-direction: row;
-  width: 280px;
-  height: 36px;
-  background-color: #1e293b;
-  border-radius: 18px;
-  margin-bottom: 6px;
-  justify-content: center;
-  align-items: center;
-}
+    .tab-btn {
+      width: 150px;
+      height: 38px;
+      text-align: center;
+      font-size: 15px;
+      color: #94a3b8;
+      border-radius: 19px;
+      line-height: 38px;
+    }
 
-.tab-btn {
-  width: 130px;
-  height: 32px;
-  text-align: center;
-  font-size: 14px;
-  color: #94a3b8;
-  border-radius: 16px;
-}
+    .active-tab {
+      background-color: #38bdf8;
+      color: #0f172a;
+      font-weight: bold;
+    }
 
-.active-tab {
-  background-color: #38bdf8;
-  color: #0f172a;
-  font-weight: bold;
-}
+    .mode-box {
+      flex-direction: column;
+      align-items: center;
+      width: 460px;
+      height: 180px;
+      justify-content: center;
+    }
 
-.mode-box {
-  flex-direction: column;
-  align-items: center;
-  width: 440px;
-  height: 190px;
-  justify-content: center;
-}
+    .timer-display {
+      font-size: 46px;
+      font-weight: bold;
+      color: #f8fafc;
+      margin-bottom: 15px;
+    }
 
-.timer-display {
-  font-size: 42px;
-  font-weight: bold;
-  color: #f8fafc;
-  margin-bottom: 15px;
-}
+    .btn-row {
+      flex-direction: row;
+      justify-content: center;
+    }
 
-.btn-row {
-  flex-direction: row;
-  justify-content: center;
-}
+    .action-btn {
+      width: 140px;
+      height: 46px;
+      border-radius: 23px;
+      font-size: 16px;
+      color: #ffffff;
+      margin: 0 8px;
+      font-weight: bold;
+    }
 
-.action-btn {
-  width: 130px;
-  height: 42px;
-  border-radius: 21px;
-  font-size: 15px;
-  color: #ffffff;
-  margin: 0 6px;
-}
+    .start-btn {
+      background-color: #16a34a;
+    }
 
-.start-btn {
-  background-color: #16a34a;
-}
+    .stop-btn {
+      background-color: #dc2626;
+    }
 
-.stop-btn {
-  background-color: #dc2626;
-}
+    .reset-btn {
+      background-color: #475569;
+    }
 
-.reset-btn {
-  background-color: #475569;
-}
+    .sub-tip {
+      font-size: 14px;
+      color: #38bdf8;
+      margin-bottom: 8px;
+      font-weight: bold;
+      text-align: center;
+    }
 
-.sub-tip {
-  font-size: 14px;
-  color: #94a3b8;
-  margin-bottom: 6px;
-}
+    .dual-scroll-container {
+      flex-direction: row;
+      justify-content: center;
+      width: 460px;
+      height: 104px;
+      margin-bottom: 10px;
+    }
 
-.dual-scroll-container {
-  flex-direction: row;
-  justify-content: center;
-  width: 440px;
-  height: 100px;
-  margin-bottom: 8px;
-}
+    .roll-column {
+      flex-direction: column;
+      align-items: center;
+      width: 130px;
+      height: 104px;
+      background-color: #1e293b;
+      border-radius: 12px;
+      margin: 0 10px;
+      padding: 6px;
+    }
 
-.roll-column {
-  flex-direction: column;
-  align-items: center;
-  width: 100px;
-  height: 100px;
-  background-color: #1e293b;
-  border-radius: 10px;
-  margin: 0 10px;
-  padding: 5px;
-}
+    .roll-title {
+      font-size: 13px;
+      color: #38bdf8;
+      margin-bottom: 4px;
+      font-weight: bold;
+    }
 
-.roll-title {
-  font-size: 12px;
-  color: #64748b;
-  margin-bottom: 4px;
-}
+    .roll-wrapper {
+      flex-direction: row;
+      width: 116px;
+      height: 72px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
 
-.roll-list {
-  flex-direction: row;
-  width: 90px;
-  height: 70px;
-  flex-wrap: wrap;
-  justify-content: center;
-}
+    .roll-item {
+      width: 32px;
+      height: 32px;
+      background-color: #334155;
+      border-radius: 8px;
+      justify-content: center;
+      align-items: center;
+      margin: 2px;
+    }
 
-.roll-item {
-  width: 25px;
-  height: 25px;
-  background-color: #334155;
-  border-radius: 6px;
-  justify-content: center;
-  align-items: center;
-  margin: 2px;
-}
+    .active-roll {
+      background-color: #0284c7;
+      border: 1px solid #38bdf8;
+    }
 
-.active-roll {
-  background-color: #0284c7;
-}
+    .roll-text {
+      font-size: 15px;
+      color: #cbd5e1;
+    }
 
-.roll-text {
-  font-size: 14px;
-  color: #f8fafc;
-  font-weight: bold;
-}
+    .active-roll-text {
+      font-size: 16px;
+      color: #ffffff;
+      font-weight: bold;
+    }
 
-.dialog-mask {
-  position: absolute;
-  left: 0;
-  top: 0;
-  width: 480px;
-  height: 480px;
-  background-color: rgba(0, 0, 0, 0.7);
-  justify-content: center;
-  align-items: center;
-}
+    .dialog-mask {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 480px;
+      height: 480px;
+      background-color: rgba(0, 0, 0, 0.75);
+      justify-content: center;
+      align-items: center;
+    }
 
-.dialog-box {
-  width: 360px;
-  height: 180px;
-  background-color: #1e293b;
-  border-radius: 16px;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  padding: 20px;
-}
+    .dialog-box {
+      width: 420px;
+      height: 220px;
+      background-color: #1e293b;
+      border-radius: 18px;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      padding: 15px;
+      border: 1px solid #334155;
+    }
 
-.dialog-title {
-  font-size: 18px;
-  font-weight: bold;
-  color: #38bdf8;
-  margin-bottom: 10px;
-}
+    .dialog-title {
+      font-size: 18px;
+      font-weight: bold;
+      color: #38bdf8;
+      margin-bottom: 8px;
+    }
 
-.dialog-content {
-  font-size: 15px;
-  color: #f8fafc;
-  margin-bottom: 20px;
-  text-align: center;
-}
+    .dialog-content {
+      font-size: 14px;
+      color: #f8fafc;
+      margin-bottom: 15px;
+      text-align: center;
+      lines: 2;
+    }
 
-.dialog-btns {
-  flex-direction: row;
-  justify-content: center;
-}
+    .dialog-btns-row {
+      flex-direction: row;
+      justify-content: center;
+    }
 
-.dialog-btn {
-  width: 120px;
-  height: 38px;
-  border-radius: 19px;
-  font-size: 15px;
-  color: #ffffff;
-  margin: 0 10px;
-}
+    .dialog-btn {
+      width: 120px;
+      height: 40px;
+      border-radius: 20px;
+      font-size: 14px;
+      color: #ffffff;
+      margin: 0 4px;
+      font-weight: bold;
+    }
 
-.dialog-btn.confirm {
-  background-color: #0284c7;
-}
+    .save-btn {
+      background-color: #16a34a;
+    }
 
-.dialog-btn.cancel {
-  background-color: #475569;
-}
+    .discard-btn {
+      background-color: #dc2626;
+    }
 
-.back-btn {
-  width: 120px;
-  height: 34px;
-  background-color: #334155;
-  border-radius: 17px;
-  font-size: 14px;
-  color: #cbd5e1;
-  margin-top: 2px;
-}
+    .continue-btn {
+      background-color: #0284c7;
+    }
+
+    .stats-btn {
+      background-color: #7c3aed;
+    }
+
+    .dialog-btns {
+      flex-direction: row;
+      justify-content: center;
+    }
+
+    .back-btn {
+      width: 140px;
+      height: 38px;
+      background-color: #334155;
+      border-radius: 19px;
+      font-size: 14px;
+      color: #cbd5e1;
+      margin-top: 4px;
+      font-weight: bold;
+    }
 </style>

@@ -1,20 +1,38 @@
 <template>
   <div class="container">
-    <text class="page-title">智能规划与加权失衡分析</text>
+    <text class="page-title">智能规划与双对比视图</text>
 
-    <!-- 建议展示卡片 -->
-    <div class="advice-card">
-      <text class="advice-title">智能诊断与基准总时长 ({{ defaultDailyMinutes }}分钟)</text>
-      <text class="advice-content">{{ adviceText }}</text>
+    <!-- 视图切换栏 -->
+    <div class="tab-bar">
+      <text class="tab-btn {{ viewMode === 'sufficiency' ? 'active-tab' : '' }}" onclick="switchView('sufficiency')">视图一: 投入充足度对比</text>
+      <text class="tab-btn {{ viewMode === 'golden' ? 'active-tab' : '' }}" onclick="switchView('golden')">视图二: 黄金比例对比</text>
     </div>
 
-    <!-- 权重对照说明 -->
-    <text class="section-title">精确权重算法及科目投入判定</text>
-    <div class="list-container">
-      <div for="{{ analysisList }}" class="analysis-item">
-        <text class="item-name" style="color: {{ $item.color }};">{{ $item.name }} (权{{ $item.weight }})</text>
-        <text class="item-score">投入: {{ $item.minutes }}分</text>
-        <text class="item-status {{ $item.statusType }}">{{ $item.status }}</text>
+    <!-- 视图一：科目投入充足度对比（实际投入 vs 加权建议标准） -->
+    <div if="{{ viewMode === 'sufficiency' }}" class="view-box">
+      <div class="view-header">
+        <text class="vh-title">科目实际投入 vs 加权建议标准</text>
+      </div>
+      <div class="list-container">
+        <div for="{{ analysisList }}" class="analysis-item">
+          <text class="item-name" style="color: {{ $item.color }};">{{ $item.name }}</text>
+          <text class="item-score">实际{{ $item.minutes }}分 / 标{{ $item.expected }}分</text>
+          <text class="item-status {{ $item.statusType }}">{{ $item.status }}</text>
+        </div>
+      </div>
+    </div>
+
+    <!-- 视图二：科目黄金比例对比（实际占比 vs 权重目标比例） -->
+    <div if="{{ viewMode === 'golden' }}" class="view-box">
+      <div class="view-header">
+        <text class="vh-title">科目实际占比 vs 权重目标比例</text>
+      </div>
+      <div class="list-container">
+        <div for="{{ analysisList }}" class="analysis-item">
+          <text class="item-name" style="color: {{ $item.color }};">{{ $item.name }}</text>
+          <text class="item-score">实际{{ $item.actualPercent }}% / 权重{{ $item.targetPercent }}%</text>
+          <text class="item-status {{ $item.goldenStatusType }}">{{ $item.goldenStatus }}</text>
+        </div>
       </div>
     </div>
 
@@ -32,13 +50,17 @@ import { SUBJECTS, STORAGE_KEY, DEFAULT_DAILY_MINUTES } from "../../common/const
 
 export default {
   private: {
-    adviceText: "正在进行加权投入分析...",
+    viewMode: 'sufficiency', // 'sufficiency' 或 'golden'
     analysisList: [],
     defaultDailyMinutes: DEFAULT_DAILY_MINUTES
   },
 
   onInit() {
     this.analyze();
+  },
+
+  switchView(m) {
+    this.viewMode = m;
   },
 
   analyze() {
@@ -50,12 +72,14 @@ export default {
           totals[s.id] = 0;
         });
 
+        let totalRecordedMins = 0;
         if (data) {
           try {
             const list = JSON.parse(data);
             list.forEach(item => {
               if (totals[item.subjectId] !== undefined) {
                 totals[item.subjectId] += item.minutes;
+                totalRecordedMins += item.minutes;
               }
             });
           } catch (e) {}
@@ -64,21 +88,33 @@ export default {
         // 总权重和
         const totalWeight = SUBJECTS.reduce((acc, s) => acc + s.weight, 0);
 
-        // 各科目基于权重的期望标准分钟数
-        // 权重占比 * 默认每日基准总时长 (300分钟)
         let subjectScores = SUBJECTS.map(s => {
           const actualMins = totals[s.id];
           const expectedMins = (s.weight / totalWeight) * this.defaultDailyMinutes;
           
-          let status = "正常均衡";
+          // 视图一：充足度判定
+          let status = "达标";
           let statusType = "normal-status";
-
           if (actualMins < expectedMins * 0.7) {
             status = "投入不足";
             statusType = "warn-status";
           } else if (actualMins > expectedMins * 1.4) {
             status = "过度投入";
             statusType = "over-status";
+          }
+
+          // 视图二：黄金比例对比（实际占比 vs 目标权重占比）
+          const targetPercent = Math.round((s.weight / totalWeight) * 100);
+          const actualPercent = totalRecordedMins > 0 ? Math.round((actualMins / totalRecordedMins) * 100) : 0;
+          
+          let goldenStatus = "黄金比例";
+          let goldenStatusType = "normal-status";
+          if (actualPercent < targetPercent - 3) {
+            goldenStatus = "低于目标";
+            goldenStatusType = "warn-status";
+          } else if (actualPercent > targetPercent + 5) {
+            goldenStatus = "高于目标";
+            goldenStatusType = "over-status";
           }
 
           return {
@@ -89,23 +125,31 @@ export default {
             minutes: actualMins,
             expected: Math.round(expectedMins),
             status: status,
-            statusType: statusType
+            statusType: statusType,
+            targetPercent: targetPercent,
+            actualPercent: actualPercent,
+            goldenStatus: goldenStatus,
+            goldenStatusType: goldenStatusType
           };
         });
 
         this.analysisList = subjectScores;
-
-        // 诊断文案
-        const deficient = subjectScores.filter(s => s.status === "投入不足");
-        if (deficient.length > 0) {
-          const names = deficient.map(d => d.name).join("、");
-          this.adviceText = `加权算法提示：当前高权重科目 [${names}] 投入时间明显低于标准线，建议重点补强！`;
-        } else {
-          this.adviceText = `加权算法提示：当前每日基准 (${this.defaultDailyMinutes}分钟) 统筹达标，各科目投入均在合理区间！`;
-        }
       },
       fail: () => {
-        this.adviceText = "暂无学习记录，请先去打卡记录时间。";
+        this.analysisList = SUBJECTS.map(s => ({
+          id: s.id,
+          name: s.name,
+          weight: s.weight,
+          color: s.color,
+          minutes: 0,
+          expected: 0,
+          status: "暂无记录",
+          statusType: "warn-status",
+          targetPercent: 0,
+          actualPercent: 0,
+          goldenStatus: "暂无记录",
+          goldenStatusType: "warn-status"
+        }));
       }
     });
   },
@@ -128,38 +172,62 @@ export default {
   width: 480px;
   height: 480px;
   background-color: #0f172a;
-  padding: 15px;
+  padding: 12px;
 }
 
 .page-title {
   font-size: 20px;
   font-weight: bold;
   color: #38bdf8;
-  margin-bottom: 5px;
+  margin-bottom: 4px;
 }
 
-.advice-card {
-  width: 440px;
-  height: 75px;
+.tab-bar {
+  flex-direction: row;
+  width: 460px;
+  height: 40px;
   background-color: #1e293b;
-  border-radius: 12px;
-  flex-direction: column;
+  border-radius: 20px;
+  margin-bottom: 6px;
   justify-content: center;
-  padding: 8px 12px;
-  margin-bottom: 8px;
+  align-items: center;
 }
 
-.advice-title {
+.tab-btn {
+  width: 220px;
+  height: 36px;
+  text-align: center;
   font-size: 13px;
+  color: #94a3b8;
+  border-radius: 18px;
+  line-height: 36px;
   font-weight: bold;
-  color: #fbbf24;
-  margin-bottom: 3px;
 }
 
-.advice-content {
-  font-size: 12px;
-  color: #cbd5e1;
-  lines: 2;
+.active-tab {
+  background-color: #38bdf8;
+  color: #0f172a;
+}
+
+.view-box {
+  flex-direction: column;
+  align-items: center;
+  width: 460px;
+  height: 250px;
+}
+
+.view-header {
+  width: 460px;
+  height: 24px;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.vh-title {
+  font-size: 13px;
+  color: #fbbf24;
+  font-weight: bold;
 }
 
 .section-title {
@@ -172,8 +240,8 @@ export default {
 
 .list-container {
   flex-direction: column;
-  width: 440px;
-  height: 230px;
+  width: 460px;
+  height: 220px;
 }
 
 .analysis-item {
@@ -181,29 +249,31 @@ export default {
   align-items: center;
   justify-content: space-between;
   background-color: #1e293b;
-  height: 35px;
+  height: 34px;
   border-radius: 8px;
-  padding: 0 10px;
-  margin-bottom: 5px;
-  width: 440px;
+  padding: 0 12px;
+  margin-bottom: 4px;
+  width: 460px;
 }
 
 .item-name {
   font-size: 14px;
   font-weight: bold;
-  width: 130px;
+  width: 80px;
 }
 
 .item-score {
   font-size: 13px;
-  color: #94a3b8;
-  width: 100px;
+  color: #cbd5e1;
+  width: 210px;
+  text-align: center;
 }
 
 .item-status {
   font-size: 13px;
-  width: 90px;
+  width: 110px;
   text-align: right;
+  font-weight: bold;
 }
 
 .normal-status {
@@ -225,12 +295,13 @@ export default {
 }
 
 .nav-btn {
-  width: 130px;
-  height: 36px;
+  width: 140px;
+  height: 38px;
   background-color: #334155;
-  border-radius: 18px;
+  border-radius: 19px;
   font-size: 14px;
   color: #f8fafc;
   margin: 0 8px;
+  font-weight: bold;
 }
 </style>

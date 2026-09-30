@@ -44,10 +44,10 @@ export default {
           header: {
             'Content-Type': 'application/json'
           },
-          success: (response) => {
+          success: () => {
             this.syncStatus = "同步成功！数据已上传";
           },
-          fail: (data, code) => {
+          fail: () => {
             this.syncStatus = "局域网同步完成(本地已安全保存)";
           }
         });
