@@ -1,50 +1,47 @@
 <template>
   <div class="container">
+    <!-- 顶部标题：精简尺寸，绝不溢出 -->
     <text class="page-title">学习记录与计时</text>
 
-    <!-- 科目选择区：大幅放大、绝对居中、独立高对比度专属配色、正中央醒目展示当前所选科目 -->
+    <!-- 规范要求 3：当前科目 Banner 绝对居中、宽度 440px、高度 50px、圆角 12px -->
     <div class="current-subject-banner" style="background-color: {{ selectedSubject.color }};">
-      <text class="banner-label">当前所选科目</text>
       <text class="banner-name">{{ selectedSubject.name }} (权重 {{ selectedSubject.weight }})</text>
     </div>
 
-    <text class="section-label">切换科目：</text>
+    <!-- 规范要求 4：科目选择滚动区宽度 440px、高度 46px、水平排列、居中对齐 -->
     <div class="subject-scroll">
       <div 
         for="{{ subjects }}" 
         class="subject-chip {{ selectedSubject.id === $item.id ? 'active-chip' : '' }}" 
         style="background-color: {{ selectedSubject.id === $item.id ? $item.color : '#1e293b' }};"
         onclick="selectSubject($item)"
-        onfocus="onChipFocus"
-        onblur="onChipBlur"
       >
         <text class="chip-text">{{ $item.name }}</text>
       </div>
     </div>
 
-    <!-- 模式切换：计时器 vs 左右双滚动列表手动输入 -->
+    <!-- 规范要求 5：模式切换栏宽度 280px、高度 36px、居中 -->
     <div class="tab-bar">
       <text class="tab-btn {{ mode === 'timer' ? 'active-tab' : '' }}" onclick="switchMode('timer')">秒表计时</text>
-      <text class="tab-btn {{ mode === 'manual' ? 'active-tab' : '' }}" onclick="switchMode('manual')">左右双滚录入</text>
+      <text class="tab-btn {{ mode === 'manual' ? 'active-tab' : '' }}" onclick="switchMode('manual')">手动双滚</text>
     </div>
 
-    <!-- 计时器视图 -->
+    <!-- 规范要求 6：计时器视图 / 手动双滚轮视图高度控制在 160px 内，绝不超出 480px 屏幕高度 -->
     <div if="{{ mode === 'timer' }}" class="mode-box">
       <text class="timer-display">{{ formattedTime }}</text>
       <div class="btn-row">
         <input if="{{ !isRunning }}" class="action-btn start-btn" type="button" value="开始计时" onclick="startTimer" />
-        <input if="{{ isRunning }}" class="action-btn stop-btn" type="button" value="结束并保存" onclick="confirmStopTimer" />
+        <input if="{{ isRunning }}" class="action-btn stop-btn" type="button" value="结束保存" onclick="confirmStopTimer" />
         <input class="action-btn reset-btn" type="button" value="重置" onclick="confirmResetTimer" />
       </div>
     </div>
 
-    <!-- 手动输入视图：苹果闹钟式上下滚动数字滚轮（左右独立十位/个位） -->
+    <!-- 手动双滚轮视图 -->
     <div if="{{ mode === 'manual' }}" class="mode-box">
-      <text class="sub-tip">苹果闹钟式滚动选择分钟: ({{ manualTens }}{{ manualUnits }}分钟)</text>
       <div class="dual-scroll-container">
         <!-- 十位滚轮 -->
         <div class="roll-column">
-          <text class="roll-title">十位(0-9)</text>
+          <text class="roll-title">十位</text>
           <div class="roll-wrapper">
             <div for="{{ tensOptions }}" class="roll-item {{ manualTens === $item ? 'active-roll' : '' }}" onclick="selectTens($item)">
               <text class="roll-text {{ manualTens === $item ? 'active-roll-text' : '' }}">{{ $item }}</text>
@@ -53,7 +50,7 @@
         </div>
         <!-- 个位滚轮 -->
         <div class="roll-column">
-          <text class="roll-title">个位(0-9)</text>
+          <text class="roll-title">个位</text>
           <div class="roll-wrapper">
             <div for="{{ unitOptions }}" class="roll-item {{ manualUnits === $item ? 'active-roll' : '' }}" onclick="selectUnits($item)">
               <text class="roll-text {{ manualUnits === $item ? 'active-roll-text' : '' }}">{{ $item }}</text>
@@ -61,10 +58,10 @@
           </div>
         </div>
       </div>
-      <input class="action-btn start-btn" type="button" value="确认保存双滚录入" onclick="saveManualRecord" />
+      <input class="action-btn start-btn" type="button" value="确认保存 ({{ manualTens }}{{ manualUnits }}分钟)" onclick="saveManualRecord" />
     </div>
 
-    <!-- 确认弹窗（秒表结束弹出的选择菜单：“保存”、“放弃”、“继续”） -->
+    <!-- 确认弹窗（秒表结束弹出的选择菜单） -->
     <div if="{{ showConfirmDialog }}" class="dialog-mask">
       <div class="dialog-box">
         <text class="dialog-title">秒表计时结束</text>
@@ -77,18 +74,19 @@
       </div>
     </div>
 
-    <!-- 保存成功后的询问弹窗（询问：“继续输入” 或 “查看统计”，绝对不自动跳转） -->
+    <!-- 保存成功后的询问弹窗 -->
     <div if="{{ showSaveSuccessDialog }}" class="dialog-mask">
       <div class="dialog-box">
         <text class="dialog-title">保存成功</text>
-        <text class="dialog-content">学习记录已成功保存！请选择后续操作：</text>
-        <div class="dialog-btns">
+        <text class="dialog-content">学习记录已保存！选择后续操作：</text>
+        <div class="dialog-btns-row">
           <input class="dialog-btn continue-btn" type="button" value="继续输入" onclick="afterSaveContinue" />
           <input class="dialog-btn stats-btn" type="button" value="查看统计" onclick="afterSaveStats" />
         </div>
       </div>
     </div>
 
+    <!-- 返回按钮 -->
     <input class="back-btn" type="button" value="返回首页" onclick="goBack" />
   </div>
 </template>
@@ -114,7 +112,7 @@ export default {
     showConfirmDialog: false,
     showSaveSuccessDialog: false,
     dialogMessage: "",
-    dialogActionType: "" // 'stop', 'reset'
+    dialogActionType: ""
   },
 
   onInit() {
@@ -201,7 +199,7 @@ export default {
 
   confirmStopTimer() {
     if (!this.isRunning && this.seconds === 0) return;
-    this.dialogMessage = "计时已结束，请选择对本次学习记录的处理方式：";
+    this.dialogMessage = "计时已结束，请选择处理方式：";
     this.showConfirmDialog = true;
   },
 
@@ -245,28 +243,6 @@ export default {
     if (!this.isRunning) {
       this.startTimer(false);
     }
-  },
-
-  dialogConfirm() {
-    this.showConfirmDialog = false;
-    if (this.dialogActionType === 'reset') {
-      this.executeResetTimer();
-    }
-  },
-
-  dialogCancel() {
-    this.showConfirmDialog = false;
-  },
-
-  executeResetTimer() {
-    if (this.timerId) {
-      clearInterval(this.timerId);
-      this.timerId = null;
-    }
-    this.isRunning = false;
-    this.seconds = 0;
-    this.clearActiveState();
-    this.updateFormattedTime();
   },
 
   updateFormattedTime() {
@@ -317,7 +293,6 @@ export default {
           key: STORAGE_KEY,
           value: JSON.stringify(list),
           success: () => {
-            // 绝不自动跳转，弹出询问窗口：“继续输入” 或 “查看统计”
             this.showSaveSuccessDialog = true;
           }
         });
@@ -337,7 +312,6 @@ export default {
 
   afterSaveContinue() {
     this.showSaveSuccessDialog = false;
-    // 保留在当前页面继续输入/计时
   },
 
   afterSaveStats() {
@@ -352,285 +326,283 @@ export default {
 </script>
 
 <style>
-    /* 样式去残留及放大按钮 */
-    .subject-chip, .tab-btn, .action-btn, .dialog-btn, .roll-item {
-      opacity: 0.95;
-    }
+/* 规范要求 1：顶层 .container 必须设为指定属性 */
+.container {
+  width: 480px;
+  height: 480px;
+  background-color: #0f172a;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: center;
+  padding: 15px;
+}
 
-    .current-subject-banner {
-      width: 460px;
-      height: 60px;
-      border-radius: 14px;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      margin-bottom: 8px;
-    }
+/* 规范要求 2：页面标题 page-title 字体合适、无溢出、居中 */
+.page-title {
+  font-size: 18px;
+  font-weight: bold;
+  color: #f8fafc;
+  text-align: center;
+  margin-bottom: 8px;
+  width: 440px;
+  height: 26px;
+}
 
-    .banner-label {
-      font-size: 13px;
-      color: #ffffff;
-      opacity: 0.9;
-    }
+/* 规范要求 3：当前科目 Banner 绝对居中、宽度 440px、高度 50px、圆角 12px */
+.current-subject-banner {
+  width: 440px;
+  height: 50px;
+  border-radius: 12px;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 8px;
+}
 
-    .banner-name {
-      font-size: 20px;
-      font-weight: bold;
-      color: #ffffff;
-    }
+.banner-name {
+  font-size: 16px;
+  font-weight: bold;
+  color: #ffffff;
+  text-align: center;
+}
 
-    .section-label {
-      font-size: 14px;
-      color: #cbd5e1;
-      align-self: center;
-      margin-bottom: 6px;
-      text-align: center;
-    }
+/* 规范要求 4：科目选择滚动区宽度 440px、高度 46px、水平排列、居中对齐、芯片大小合适 */
+.subject-scroll {
+  flex-direction: row;
+  width: 440px;
+  height: 46px;
+  flex-wrap: nowrap;
+  margin-bottom: 8px;
+  justify-content: center;
+  align-items: center;
+}
 
-    .subject-scroll {
-      flex-direction: row;
-      width: 460px;
-      height: 50px;
-      flex-wrap: nowrap;
-      margin-bottom: 10px;
-      justify-content: center;
-    }
+.subject-chip {
+  height: 36px;
+  padding: 0 10px;
+  background-color: #1e293b;
+  border-radius: 18px;
+  justify-content: center;
+  align-items: center;
+  margin-right: 4px;
+}
 
-    .subject-chip {
-      height: 44px;
-      padding: 0 14px;
-      background-color: #1e293b;
-      border-radius: 22px;
-      justify-content: center;
-      align-items: center;
-      margin-right: 6px;
-    }
+.chip-text {
+  font-size: 13px;
+  color: #f8fafc;
+  font-weight: bold;
+}
 
-    .chip-text {
-      font-size: 16px;
-      color: #f8fafc;
-      font-weight: bold;
-    }
+/* 规范要求 5：模式切换栏宽度 280px、高度 36px、居中 */
+.tab-bar {
+  flex-direction: row;
+  width: 280px;
+  height: 36px;
+  background-color: #1e293b;
+  border-radius: 18px;
+  margin-bottom: 8px;
+  justify-content: center;
+  align-items: center;
+}
 
-    .tab-bar {
-      flex-direction: row;
-      width: 320px;
-      height: 42px;
-      background-color: #1e293b;
-      border-radius: 21px;
-      margin-bottom: 8px;
-      justify-content: center;
-      align-items: center;
-    }
+.tab-btn {
+  width: 136px;
+  height: 30px;
+  text-align: center;
+  font-size: 13px;
+  color: #94a3b8;
+  border-radius: 15px;
+  line-height: 30px;
+}
 
-    .tab-btn {
-      width: 150px;
-      height: 38px;
-      text-align: center;
-      font-size: 15px;
-      color: #94a3b8;
-      border-radius: 19px;
-      line-height: 38px;
-    }
+.active-tab {
+  background-color: #38bdf8;
+  color: #0f172a;
+  font-weight: bold;
+}
 
-    .active-tab {
-      background-color: #38bdf8;
-      color: #0f172a;
-      font-weight: bold;
-    }
+/* 规范要求 6：计时器视图 / 手动双滚轮视图高度控制在 160px 内，绝不超出 480px 屏幕高度 */
+.mode-box {
+  flex-direction: column;
+  align-items: center;
+  width: 440px;
+  height: 150px;
+  justify-content: flex-start;
+}
 
-    .mode-box {
-      flex-direction: column;
-      align-items: center;
-      width: 460px;
-      height: 180px;
-      justify-content: center;
-    }
+.timer-display {
+  font-size: 38px;
+  font-weight: bold;
+  color: #f8fafc;
+  margin-bottom: 10px;
+  text-align: center;
+}
 
-    .timer-display {
-      font-size: 46px;
-      font-weight: bold;
-      color: #f8fafc;
-      margin-bottom: 15px;
-    }
+.btn-row {
+  flex-direction: row;
+  justify-content: center;
+}
 
-    .btn-row {
-      flex-direction: row;
-      justify-content: center;
-    }
+.action-btn {
+  width: 120px;
+  height: 40px;
+  border-radius: 20px;
+  font-size: 14px;
+  color: #ffffff;
+  margin: 0 6px;
+  font-weight: bold;
+}
 
-    .action-btn {
-      width: 140px;
-      height: 46px;
-      border-radius: 23px;
-      font-size: 16px;
-      color: #ffffff;
-      margin: 0 8px;
-      font-weight: bold;
-    }
+.start-btn {
+  background-color: #16a34a;
+}
 
-    .start-btn {
-      background-color: #16a34a;
-    }
+.stop-btn {
+  background-color: #dc2626;
+}
 
-    .stop-btn {
-      background-color: #dc2626;
-    }
+.reset-btn {
+  background-color: #475569;
+}
 
-    .reset-btn {
-      background-color: #475569;
-    }
+.dual-scroll-container {
+  flex-direction: row;
+  justify-content: center;
+  width: 440px;
+  height: 90px;
+  margin-bottom: 8px;
+}
 
-    .sub-tip {
-      font-size: 14px;
-      color: #38bdf8;
-      margin-bottom: 8px;
-      font-weight: bold;
-      text-align: center;
-    }
+.roll-column {
+  flex-direction: column;
+  align-items: center;
+  width: 120px;
+  height: 90px;
+  background-color: #1e293b;
+  border-radius: 10px;
+  margin: 0 6px;
+  padding: 4px;
+}
 
-    .dual-scroll-container {
-      flex-direction: row;
-      justify-content: center;
-      width: 460px;
-      height: 104px;
-      margin-bottom: 10px;
-    }
+.roll-title {
+  font-size: 12px;
+  color: #38bdf8;
+  margin-bottom: 2px;
+  font-weight: bold;
+  text-align: center;
+}
 
-    .roll-column {
-      flex-direction: column;
-      align-items: center;
-      width: 130px;
-      height: 104px;
-      background-color: #1e293b;
-      border-radius: 12px;
-      margin: 0 10px;
-      padding: 6px;
-    }
+.roll-wrapper {
+  flex-direction: row;
+  width: 112px;
+  height: 64px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
 
-    .roll-title {
-      font-size: 13px;
-      color: #38bdf8;
-      margin-bottom: 4px;
-      font-weight: bold;
-    }
+.roll-item {
+  width: 20px;
+  height: 28px;
+  background-color: #334155;
+  border-radius: 6px;
+  justify-content: center;
+  align-items: center;
+  margin: 1px;
+}
 
-    .roll-wrapper {
-      flex-direction: row;
-      width: 116px;
-      height: 72px;
-      flex-wrap: wrap;
-      justify-content: center;
-    }
+.active-roll {
+  background-color: #0284c7;
+}
 
-    .roll-item {
-      width: 32px;
-      height: 32px;
-      background-color: #334155;
-      border-radius: 8px;
-      justify-content: center;
-      align-items: center;
-      margin: 2px;
-    }
+.roll-text {
+  font-size: 12px;
+  color: #cbd5e1;
+}
 
-    .active-roll {
-      background-color: #0284c7;
-      border: 1px solid #38bdf8;
-    }
+.active-roll-text {
+  font-size: 13px;
+  color: #ffffff;
+  font-weight: bold;
+}
 
-    .roll-text {
-      font-size: 15px;
-      color: #cbd5e1;
-    }
+/* 规范要求 7：所有按钮、弹窗、遮罩层定位精准 */
+.dialog-mask {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 480px;
+  height: 480px;
+  background-color: rgba(0, 0, 0, 0.75);
+  justify-content: center;
+  align-items: center;
+}
 
-    .active-roll-text {
-      font-size: 16px;
-      color: #ffffff;
-      font-weight: bold;
-    }
+.dialog-box {
+  width: 400px;
+  height: 190px;
+  background-color: #1e293b;
+  border-radius: 16px;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid #334155;
+}
 
-    .dialog-mask {
-      position: absolute;
-      left: 0;
-      top: 0;
-      width: 480px;
-      height: 480px;
-      background-color: rgba(0, 0, 0, 0.75);
-      justify-content: center;
-      align-items: center;
-    }
+.dialog-title {
+  font-size: 16px;
+  font-weight: bold;
+  color: #38bdf8;
+  margin-bottom: 6px;
+  text-align: center;
+}
 
-    .dialog-box {
-      width: 420px;
-      height: 220px;
-      background-color: #1e293b;
-      border-radius: 18px;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      padding: 15px;
-      border: 1px solid #334155;
-    }
+.dialog-content {
+  font-size: 13px;
+  color: #f8fafc;
+  margin-bottom: 12px;
+  text-align: center;
+}
 
-    .dialog-title {
-      font-size: 18px;
-      font-weight: bold;
-      color: #38bdf8;
-      margin-bottom: 8px;
-    }
+.dialog-btns-row {
+  flex-direction: row;
+  justify-content: center;
+}
 
-    .dialog-content {
-      font-size: 14px;
-      color: #f8fafc;
-      margin-bottom: 15px;
-      text-align: center;
-      lines: 2;
-    }
+.dialog-btn {
+  width: 110px;
+  height: 36px;
+  border-radius: 18px;
+  font-size: 13px;
+  color: #ffffff;
+  margin: 0 4px;
+  font-weight: bold;
+}
 
-    .dialog-btns-row {
-      flex-direction: row;
-      justify-content: center;
-    }
+.save-btn {
+  background-color: #16a34a;
+}
 
-    .dialog-btn {
-      width: 120px;
-      height: 40px;
-      border-radius: 20px;
-      font-size: 14px;
-      color: #ffffff;
-      margin: 0 4px;
-      font-weight: bold;
-    }
+.discard-btn {
+  background-color: #dc2626;
+}
 
-    .save-btn {
-      background-color: #16a34a;
-    }
+.continue-btn {
+  background-color: #0284c7;
+}
 
-    .discard-btn {
-      background-color: #dc2626;
-    }
+.stats-btn {
+  background-color: #7c3aed;
+}
 
-    .continue-btn {
-      background-color: #0284c7;
-    }
-
-    .stats-btn {
-      background-color: #7c3aed;
-    }
-
-    .dialog-btns {
-      flex-direction: row;
-      justify-content: center;
-    }
-
-    .back-btn {
-      width: 140px;
-      height: 38px;
-      background-color: #334155;
-      border-radius: 19px;
-      font-size: 14px;
-      color: #cbd5e1;
-      margin-top: 4px;
-      font-weight: bold;
-    }
+.back-btn {
+  width: 130px;
+  height: 36px;
+  background-color: #334155;
+  border-radius: 18px;
+  font-size: 13px;
+  color: #cbd5e1;
+  margin-top: 2px;
+  font-weight: bold;
+}
 </style>
