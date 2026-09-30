@@ -357,10 +357,10 @@ def Handlepush(msg_dict: dict):
                         )
 
                         print(f" -> 解析成功: 总AP {total_ap}, {direction} {change_amount}")
-                        PerseusNotifyMsg(notify_title, notify_body)
+                        # PerseusNotifyMsg(notify_title, notify_body)
                     else:
                         print(" -> 行动力变化未精确匹配，发送默认格式")
-                        PerseusNotifyMsg("⚡ 行动力出现变化", f"{body}\n\n{raw_msg}")
+                        # PerseusNotifyMsg("⚡ 行动力出现变化", f"{body}\n\n{raw_msg}")
 
                 # 3. 判定行动力不足 / 低于最低保留通知
                 elif "行动力不足" in title or "低于最低保留" in title or "行动力不足" in body or "低于最低保留" in body:
@@ -381,10 +381,10 @@ def Handlepush(msg_dict: dict):
                         )
 
                         print(f" -> 解析成功: 当前AP={total_ap}, 保留上限={min_reserve}, 处置={action_taken}")
-                        PerseusNotifyMsg(notify_title, notify_body)
+                        # PerseusNotifyMsg(notify_title, notify_body)
                     else:
                         print(" -> 低于保留值未精确匹配，发送默认通知")
-                        PerseusNotifyMsg("⚠️ 行动力低于最低保留", f"{body}\n\n{raw_msg}")
+                        # PerseusNotifyMsg("⚠️ 行动力低于最低保留", f"{body}\n\n{raw_msg}")
 
                 # 4. 判定舰船经验检测报告
                 elif "舰船经验检测报告" in title:

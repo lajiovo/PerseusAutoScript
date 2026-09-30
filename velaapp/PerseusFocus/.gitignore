@@ -1,0 +1,19 @@
+/.nyc_output
+/coverage
+/node_modules
+/sign
+/dist
+/build
+.husky/
+
+# 补充
+README.md
+package-lock.json
+jsconfig.json
+husky.sh
+.eslintignore
+commitlint.config.js
+.stylelintrc.js
+.prettierrc.js
+.npmignore
+logo.png
