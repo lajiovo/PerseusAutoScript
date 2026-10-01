@@ -1,20 +1,22 @@
 <template>
   <div class="container">
-    <text class="app-title">PerseusFocus</text>
-    <text class="app-subtitle">RedmiWatch6 学习助手</text>
+    <div class="card-absolute">
+      <text class="app-title">PerseusFocus</text>
+      <text class="app-subtitle">RedmiWatch6 学习助手</text>
 
-    <div class="menu-list">
-      <div class="menu-item" onclick="gotoTimer">
-        <text class="menu-text">计时记录</text>
-      </div>
-      <div class="menu-item" onclick="gotoStats">
-        <text class="menu-text">学习统计</text>
-      </div>
-      <div class="menu-item" onclick="gotoPlan">
-        <text class="menu-text">智能规划</text>
-      </div>
-      <div class="menu-item sync-btn" onclick="gotoSync">
-        <text class="menu-text">一键同步</text>
+      <div class="menu-list">
+        <div class="menu-item" onclick="gotoTimer">
+          <text class="menu-text">计时记录</text>
+        </div>
+        <div class="menu-item" onclick="gotoStats">
+          <text class="menu-text">学习统计</text>
+        </div>
+        <div class="menu-item" onclick="gotoPlan">
+          <text class="menu-text">智能规划</text>
+        </div>
+        <div class="menu-item sync-btn" onclick="gotoSync">
+          <text class="menu-text">一键同步</text>
+        </div>
       </div>
     </div>
   </div>
@@ -42,42 +44,58 @@ export default {
 
 <style>
 .container {
+  width: 480px;
+  height: 480px;
+  background-color: #000000;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
+.card-absolute {
+  position: absolute;
+  left: 40px;
+  top: 40px;
+  width: 400px;
+  height: 400px;
+  opacity: 1;
+  border-radius: 48px;
+  background-color: #0f172a;
   flex-direction: column;
   justify-content: flex-start;
   align-items: center;
-  width: 480px;
-  height: 480px;
-  background-color: #0f172a;
-  padding: 30px 20px;
+  padding: 24px 20px;
 }
 
 .app-title {
-  font-size: 32px;
+  font-size: 28px;
   font-weight: bold;
   color: #38bdf8;
-  margin-top: 20px;
+  margin-top: 10px;
+  text-align: center;
 }
 
 .app-subtitle {
-  font-size: 18px;
+  font-size: 15px;
   color: #94a3b8;
-  margin-bottom: 25px;
+  margin-bottom: 20px;
+  text-align: center;
 }
 
 .menu-list {
   flex-direction: column;
-  width: 420px;
+  width: 360px;
   align-items: center;
 }
 
 .menu-item {
-  width: 400px;
-  height: 60px;
+  width: 350px;
+  height: 52px;
   background-color: #1e293b;
-  border-radius: 30px;
+  border-radius: 26px;
   justify-content: center;
   align-items: center;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
 }
 
 .sync-btn {
@@ -85,8 +103,9 @@ export default {
 }
 
 .menu-text {
-  font-size: 22px;
+  font-size: 18px;
   color: #f8fafc;
   font-weight: 500;
+  text-align: center;
 }
 </style>

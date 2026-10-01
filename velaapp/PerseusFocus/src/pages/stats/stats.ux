@@ -1,35 +1,37 @@
 <template>
   <div class="container">
-    <text class="page-title">学习统计看板</text>
+    <div class="card-absolute">
+      <text class="page-title">学习统计看板</text>
 
-    <!-- 日期切换控制区：默认展示“今天”，支持向前/向后最多切换 10 天缓存日期 -->
-    <div class="date-switcher">
-      <input class="switch-arrow" type="button" value="<" onclick="prevDay" />
-      <text class="date-display">{{ currentDateStr }}</text>
-      <input class="switch-arrow" type="button" value=">" onclick="nextDay" />
-    </div>
-
-    <!-- 总时长展示 -->
-    <div class="summary-card">
-      <text class="summary-label">当日总学习时长</text>
-      <text class="summary-value">{{ totalMinutes }} 分钟</text>
-    </div>
-
-    <!-- 科目统计列表 -->
-    <text class="section-title">各科目投入时长与占比</text>
-    <div class="list-container">
-      <div for="{{ statsList }}" class="stat-item">
-        <text class="sub-name">{{ $item.name }}</text>
-        <div class="bar-bg">
-          <div class="bar-fill" style="width: {{ $item.percent }}%; background-color: {{ $item.color }};"></div>
-        </div>
-        <text class="sub-time">{{ $item.minutes }}分钟({{ $item.percent }}%)</text>
+      <!-- 日期切换控制区：默认展示“今天”，支持向前/向后最多切换 10 天缓存日期 -->
+      <div class="date-switcher">
+        <input class="switch-arrow" type="button" value="<" onclick="prevDay" />
+        <text class="date-display">{{ currentDateStr }}</text>
+        <input class="switch-arrow" type="button" value=">" onclick="nextDay" />
       </div>
-    </div>
 
-    <div class="bottom-btns">
-      <input class="nav-btn" type="button" value="智能规划" onclick="gotoPlan" />
-      <input class="nav-btn" type="button" value="返回首页" onclick="goHome" />
+      <!-- 总时长展示 -->
+      <div class="summary-card">
+        <text class="summary-label">当日总学习时长</text>
+        <text class="summary-value">{{ totalMinutes }} 分钟</text>
+      </div>
+
+      <!-- 科目统计列表 -->
+      <text class="section-title">各科目投入时长与占比</text>
+      <div class="list-container">
+        <div for="{{ statsList }}" class="stat-item">
+          <text class="sub-name">{{ $item.name }}</text>
+          <div class="bar-bg">
+            <div class="bar-fill" style="width: {{ $item.percent }}%; background-color: {{ $item.color }};"></div>
+          </div>
+          <text class="sub-time">{{ $item.minutes }}分钟({{ $item.percent }}%)</text>
+        </div>
+      </div>
+
+      <div class="bottom-btns">
+        <input class="nav-btn" type="button" value="智能规划" onclick="gotoPlan" />
+        <input class="nav-btn" type="button" value="返回首页" onclick="goHome" />
+      </div>
     </div>
   </div>
 </template>
@@ -159,118 +161,135 @@ export default {
 
 <style>
 .container {
+  width: 480px;
+  height: 480px;
+  background-color: #000000;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
+.card-absolute {
+  position: absolute;
+  left: 40px;
+  top: 40px;
+  width: 400px;
+  height: 400px;
+  opacity: 1;
+  border-radius: 48px;
+  background-color: #0f172a;
   flex-direction: column;
   justify-content: flex-start;
   align-items: center;
-  width: 480px;
-  height: 480px;
-  background-color: #0f172a;
-  padding: 15px;
+  padding: 14px 16px;
 }
 
 .page-title {
-  font-size: 22px;
+  font-size: 18px;
   font-weight: bold;
   color: #38bdf8;
-  margin-bottom: 5px;
+  margin-bottom: 6px;
+  text-align: center;
 }
 
 .date-switcher {
   flex-direction: row;
-  width: 440px;
-  height: 40px;
+  width: 360px;
+  height: 38px;
   background-color: #1e293b;
   border-radius: 10px;
   justify-content: space-between;
   align-items: center;
   padding: 0 10px;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
 }
 
 .switch-arrow {
-  width: 40px;
-  height: 30px;
+  width: 36px;
+  height: 28px;
   background-color: #334155;
   color: #f8fafc;
-  font-size: 16px;
+  font-size: 14px;
   border-radius: 6px;
+  text-align: center;
 }
 
 .date-display {
-  font-size: 15px;
+  font-size: 14px;
   font-weight: bold;
   color: #38bdf8;
+  text-align: center;
 }
 
 .summary-card {
-  width: 440px;
-  height: 50px;
+  width: 360px;
+  height: 44px;
   background-color: #1e293b;
   border-radius: 10px;
   flex-direction: row;
   justify-content: space-between;
   align-items: center;
-  padding: 0 15px;
-  margin-bottom: 8px;
+  padding: 0 12px;
+  margin-bottom: 6px;
 }
 
 .summary-label {
-  font-size: 15px;
+  font-size: 13px;
   color: #94a3b8;
 }
 
 .summary-value {
-  font-size: 18px;
+  font-size: 16px;
   font-weight: bold;
   color: #38bdf8;
 }
 
 .section-title {
-  font-size: 14px;
+  font-size: 12px;
   color: #94a3b8;
   align-self: flex-start;
-  margin-left: 10px;
+  margin-left: 8px;
   margin-bottom: 4px;
 }
 
 .list-container {
   flex-direction: column;
-  width: 440px;
-  height: 230px;
+  width: 360px;
+  height: 200px;
 }
 
 .stat-item {
   flex-direction: row;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 6px;
-  width: 440px;
+  margin-bottom: 5px;
+  width: 360px;
 }
 
 .sub-name {
-  font-size: 14px;
+  font-size: 13px;
   color: #f8fafc;
-  width: 50px;
+  width: 45px;
   font-weight: bold;
 }
 
 .bar-bg {
-  width: 190px;
-  height: 10px;
+  width: 150px;
+  height: 8px;
   background-color: #334155;
-  border-radius: 5px;
+  border-radius: 4px;
   overflow: hidden;
 }
 
 .bar-fill {
-  height: 10px;
-  border-radius: 5px;
+  height: 8px;
+  border-radius: 4px;
 }
 
 .sub-time {
-  font-size: 13px;
+  font-size: 12px;
   color: #94a3b8;
-  width: 150px;
+  width: 135px;
   text-align: right;
 }
 
@@ -281,12 +300,13 @@ export default {
 }
 
 .nav-btn {
-  width: 130px;
-  height: 36px;
+  width: 110px;
+  height: 34px;
   background-color: #334155;
-  border-radius: 18px;
-  font-size: 14px;
+  border-radius: 17px;
+  font-size: 13px;
   color: #f8fafc;
-  margin: 0 8px;
+  margin: 0 6px;
+  font-weight: bold;
 }
 </style>
