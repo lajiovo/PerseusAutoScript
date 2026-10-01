@@ -56,9 +56,9 @@
           <div class="card-title">系统核心控制</div>
           <div class="btn-group">
             <button class="btn-primary" onclick="sendReq('/ping')">⚡ Ping</button>
-            <button class="btn-success" onclick="sendReq('/start')">▶️ 启动系统</button>
-            <button class="btn-warning" onclick="sendReq('/stop')">⏸️ 暂停系统</button>
-            <button class="btn-accent" onclick="sendReq('/restart')">🔄 重启服务</button>
+            <button class="btn-success" onclick="sendReq('/start')">▶️ 启动</button>
+            <button class="btn-warning" onclick="sendReq('/stop')">⏸️ 暂停</button>
+            <button class="btn-accent" onclick="sendReq('/restart')">🔄 重启</button>
             <button class="btn-danger" onclick="sendReq('/shutdown')">🛑 关机</button>
           </div>
         </div>
@@ -67,8 +67,8 @@
         <div class="card">
           <div class="card-title">Bot 服务</div>
           <div class="btn-group">
-            <button class="btn-success" onclick="sendReq('/bot/start')">🤖 启动 Bot</button>
-            <button class="btn-danger" onclick="sendReq('/bot/shutdown')">🤖 关闭 Bot</button>
+            <button class="btn-success" onclick="sendReq('/bot/start')">🤖 启动</button>
+            <button class="btn-danger" onclick="sendReq('/bot/shutdown')">🤖 关闭</button>
           </div>
         </div>
 
@@ -76,19 +76,19 @@
         <div class="card">
           <div class="card-title">音乐服务</div>
           <div class="btn-group">
-            <button class="btn-success" onclick="sendReq('/music/start')">🎵 播放音乐</button>
-            <button class="btn-accent" onclick="sendReq('/music/ffm')">🎵 播放 FFM</button>
-            <button class="btn-danger" style="flex: 1 1 100%" onclick="sendReq('/music/stop')">⏹️ 停止音乐</button>
+            <button class="btn-success" onclick="sendReq('/music/start')">🎵 MusicDL启动</button>
+            <button class="btn-accent" onclick="sendReq('/music/ffm')">🎵 FFMPEG处理</button>
+            <button class="btn-danger" style="flex: 1 1 100%" onclick="sendReq('/music/stop')">⏹️ MUsicDL结束</button>
           </div>
         </div>
 
         <!-- CP 交互 -->
         <div class="card">
-          <div class="card-title">CP 交互</div>
+          <div class="card-title">Cpolar</div>
           <div class="btn-group">
-            <button class="btn-success" onclick="sendReq('/cp/start')">▶️ CP 启动</button>
-            <button class="btn-danger" onclick="sendReq('/cp/stop')">⏹️ CP 停止</button>
-            <button class="btn-accent" style="flex: 1 1 100%" onclick="sendReq('/cp/get')">📥 CP 获取数据</button>
+            <button class="btn-success" onclick="sendReq('/cp/start')">▶️ 启动</button>
+            <button class="btn-danger" onclick="sendReq('/cp/stop')">⏹️ 停止</button>
+            <button class="btn-accent" style="flex: 1 1 100%" onclick="sendReq('/cp/get')">📥 获取地址</button>
           </div>
         </div>
 
@@ -145,6 +145,7 @@
         <div class="btn-group" style="margin-top: 4px;">
           <button class="btn-accent" style="flex: 1 1 100%" onclick="sendKvDict('/run', 'runKvContainer')">🚀 执行至 /run</button>
         </div>
+
       </div>
 
     </div>
