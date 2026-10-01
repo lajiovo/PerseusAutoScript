@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 import re
 import xml.etree.ElementTree as ET
-
+from zConfig import get_config
 from bs4 import BeautifulSoup
 from ebooklib import epub
 import requests
@@ -22,11 +22,28 @@ HEADERS = {
 }
 
 # 补充函数
+def get_sensitive_patterns():
+    return get_config("bot.opcmd.sensitive_patterns", default=[])
+
+def get_mask_replacement():
+    return get_config("bot.opcmd.mask_replacement", default="***")
+
 def truncate_string(text: str, head: int = 3, tail: int = 3, placeholder: str = "...") -> str:
     """保留字符串头尾字符，中间用占位符替代"""
     if len(text) <= head + tail:
         return text
     return f"{text[:head]}{placeholder}{text[-tail:]}"
+
+def sanitize_path(path_str: str) -> str:
+    """隐私脱敏处理：实时从配置中读取敏感目录并隐藏"""
+    if not path_str:
+        return ""
+    sanitized = path_str
+    patterns = get_sensitive_patterns()
+    replacement = get_mask_replacement()
+    for pattern in patterns:
+        sanitized = sanitized.replace(pattern, replacement)
+    return sanitized
 
 def convert_source_url(source):
     """自动将页面链接转换为对应的 feed.xml 链接（若非 lnovel.animes.garden 则强转）"""
@@ -120,12 +137,39 @@ class NovelEpubExporter:
         """下载网络文件并返回 bytes 和 Content-Type（自动纠正常见的域名字母拼写错误如 lnvoel -> lnovel）"""
         if url:
             url = url.replace("lnvoel.animes.garden", "lnovel.animes.garden")
-        try:
-            resp = requests.get(url, headers=HEADERS, timeout=15)
-            if resp.status_code == 200:
-                return resp.content, resp.headers.get("Content-Type", "")
-        except Exception as e:
-            self.log(f"  [!] 下载失败 ({url}): {e}")
+        
+        # 尝试直接下载，失败重试一次
+        for attempt in range(2):
+            try:
+                resp = requests.get(url, headers=HEADERS, timeout=15)
+                if resp.status_code == 200:
+                    return resp.content, resp.headers.get("Content-Type", "")
+            except Exception as e:
+                if attempt == 0:
+                    continue
+                else:
+                    zBarkCustom.PerseusNotifyMsg("", f"  [!] 直接下载失败 ({truncate_string(url, 5, 10)}): {e}")
+                    self.log(f"  [!] 直接下载失败 ({url}): {e}")
+
+        # 如果直接下载及重试均失败，则使用 PROXY_SERVER = get_config("proxy.http") 作为代理再次进行下载尝试
+        proxy_server = get_config("proxy.http")
+        if proxy_server:
+            proxies = {
+                "http": proxy_server,
+                "https": proxy_server
+            }
+            try:
+                self.log(f"  🌐 正在通过代理下载 ({proxy_server}): {url}")
+                resp = requests.get(url, headers=HEADERS, proxies=proxies, timeout=15)
+                if resp.status_code == 200:
+                    return resp.content, resp.headers.get("Content-Type", "")
+                else:
+                    zBarkCustom.PerseusNotifyMsg("", f"  [!] 棍木下载状态码异常 ({resp.status_code})")
+                    self.log(f"  [!] 代理下载状态码异常: {resp.status_code}")
+            except Exception as e:
+                zBarkCustom.PerseusNotifyMsg("", f"  [!] 棍木下载失败 ({truncate_string(url, 5, 10)}): {e}")
+                self.log(f"  [!] 代理下载失败 ({url}): {e}")
+
         return None, None
 
     def prepare_xml_source(self, source_input):
@@ -604,7 +648,7 @@ def export_novel(source_input, output_dir=None, download_images=True, log_callba
         output_dir=output_dir,
         download_images=download_images,
     )
-    zBarkCustom.PerseusNotifyMsg("export_novel()",truncate_string(str(result),3,7))
+    zBarkCustom.PerseusNotifyMsg("export_novel()",truncate_string(sanitize_path(str(result)),2,1))
     return result
 
 

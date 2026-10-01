@@ -4,7 +4,7 @@ import json
 import threading
 from pathlib import Path
 from flask import Blueprint, request, jsonify, send_from_directory
-from ziNovel import get_cached_novels, export_novel, CACHE_BASE_DIR, BASE_DIR,OUTPUTDIR,convert_source_url
+from ziNovel import get_cached_novels, export_novel, CACHE_BASE_DIR, BASE_DIR,OUTPUTDIR,convert_source_url,truncate_string,sanitize_path
 import zBarkCustom
 
 inovel_bp = Blueprint("inovel_server", __name__, url_prefix="/inovelapi")
@@ -16,13 +16,6 @@ inovel_current_task = {
     "status": "idle",
     "message": ""
 }
-
-# 补充函数
-def truncate_string(text: str, head: int = 3, tail: int = 3, placeholder: str = "...") -> str:
-    """保留字符串头尾字符，中间用占位符替代"""
-    if len(text) <= head + tail:
-        return text
-    return f"{text[:head]}{placeholder}{text[-tail:]}"
 
 @inovel_bp.route("/status", methods=["GET"])
 def get_inovel_status():
@@ -128,7 +121,7 @@ def trigger_inovel_export():
             print(f"[ziNovel] {msg}")
             with inovel_lock:
                 inovel_current_task["message"] = msg
-        zBarkCustom.PerseusNotifyMsg("即将处理源：",str(truncate_string(source, head=5, tail=5)))
+        zBarkCustom.PerseusNotifyMsg("即将处理源：",str(truncate_string(source, head=2, tail=15)))
         try:
             out_path = export_novel(source_input=source, output_dir=OUTPUTDIR, download_images=download_images, log_callback=log_cb)
             with inovel_lock:

@@ -1544,6 +1544,53 @@ def handle_shutdown():
     threading.Thread(target=delayed_exit, daemon=True).start()
     return format_response({"status": "ok", "message": "定时检查已终止，接收服务正在退出..."}, 200)
 
+@app.route("/restart", methods=["GET", "POST"])
+def handle_restart():
+    """接收 /restart 请求：优雅清理资源后，保持管理员权限重新拉起主服务并退出当前进程"""
+    print("🔄 收到 /restart 请求，正在准备重启主服务...")
+    PerseusNotifyMsg("🔄 收到 /restart 请求", "正在清理资源并准备以管理员权限重启服务...")
+
+    # 1. 优雅停止后台定时任务与清理资源
+    try:
+        stop_timer()
+        enter_standby()
+    except Exception as e:
+        print(f"⚠️ 重启前清理定时器/待机状态异常: {e}")
+
+    def delayed_restart():
+        time.sleep(0.8)
+        try:
+            python_exe = sys.executable
+            script_path = os.path.abspath(__file__)
+            script_args = " ".join([f'"{arg}"' for arg in sys.argv[1:]])
+            
+            print(f"🔄 正在通过提权方式重新拉起主服务: python={python_exe}, script={script_path}")
+            
+            # 优先使用 ctypes.windll.shell32.ShellExecuteW 确保继承或提升管理员权限运行
+            if os.name == 'nt':
+                # 以 "runas" 动词触发 UAC 或直接继承当前管理员权限启动
+                ret = ctypes.windll.shell32.ShellExecuteW(
+                    None,
+                    "runas",
+                    python_exe,
+                    f'"{script_path}" {script_args}',
+                    os.getcwd(),
+                    1  # SW_NORMAL
+                )
+                if int(ret) <= 32:
+                    print(f"⚠️ ShellExecuteW 返回错误码 {ret}，尝试通过常规 subprocess 重新拉起...")
+                    subprocess.Popen([python_exe, script_path] + sys.argv[1:])
+            else:
+                subprocess.Popen([python_exe, script_path] + sys.argv[1:])
+        except Exception as e:
+            print(f"❌ 重新拉起主服务失败: {e}")
+            PerseusErrorMsg("❌ 重新拉起主服务失败", str(e))
+        finally:
+            os._exit(0)
+
+    threading.Thread(target=delayed_restart, daemon=True).start()
+    return format_response({"status": "ok", "message": "服务正在重新启动（已触发提权重新拉起进程）"}, 200)
+
 # ==================== 新增：Bot 启动与关闭路由 ====================
 
 @app.route("/bot/start", methods=["GET", "POST"])
