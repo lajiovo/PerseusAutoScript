@@ -1,11 +1,11 @@
 # Perseus AutoTools - 珀尔修斯 AT
 
 <p align="center">
-  <img src="QBot/suoha.png" alt="PerseusAT" width="200">
+  <img src="sources/icon.jpeg" alt="PerseusAT" width="200">
 </p>
 
 <p align="center">
-  <a href="https://deepwiki.com/lajiovo/PerseusAutoScript"><img src="https://deepwiki.com/badge.svg" alt="Ask DeepWiki"></a>
+  <a href="https://deepwiki.com/lajiovo/PerseusAutoScript"><img src="https://deepwiki.com/badge.svg" alt="DeepWiki"></a>
 </p>
 
 <p align="center">
@@ -116,7 +116,6 @@ Perseus/
 │   ├── opcmd.py              # OP 指令集与富媒体卡片处理
 │   ├── server.py             # WebUI 及服务控制端
 │   ├── morecmd.py            # 额外免管理员指令
-│   ├── suoha.png             # 示例图片
 │   ├── botpy.log             # botpy 的日志文件
 │   └── yz.py                 # 云崽 Bot 接入
 ├── brocache/                 # [`zBrowser.py`](zBrowser.py) 缓存文件
@@ -125,6 +124,8 @@ Perseus/
 │   ├── ap/                   # ap 状态暂存
 │   ├── pushlog/              # push 消息日志
 │   └── stats.json            # 大本营统计信息
+├── sources/                  # 资源
+│   └── icon.jpeg/            # README用图标
 ├── browser_downloads/        # [`zBrowser.py`](zBrowser.py) 下载文件
 ├── lkcache/                  # LK 板块的缓存文件
 │   └── <book-name>/          # 单书籍缓存
@@ -178,6 +179,93 @@ Perseus/
 
 ---
 
+## 🚀 安装与启动教程 （必看）
+
+<details>
+<summary>点击展开：</summary>
+
+### 1. 依赖包安装
+本项目基于 Python 3.10+ 开发，核心依赖包括 `Flask`, `playwright`, `botpy` (腾讯频道机器人 SDK) 等。
+```bash
+# 安装 Python 依赖包
+pip install aiohttp botpy beautifulsoup4 ebooklib flask opencc playwright psutil pynput requests ruamel.yaml urllib3 pywin32
+
+# 安装 Playwright 浏览器内核
+playwright install chromium
+```
+
+### 2. 配置文件初始化
+1.   将 [`config.example.yaml`](config.example.yaml) 复制并重命名为 `config.yaml`，按需填入模拟器路径、Bark Key、Token 等。
+2.   将 [`auth.example.json`](auth.example.json) 复制并重命名为 `auth.json`，在指示位置`azurpilot.access-password` 填入Webui访问密码。
+3.   将 [`key.example.json`](QBot/key.example.json) 复制并重命名为 `key.json`，填入自定义密码。
+4.   将 [`Begin.example.bat`](Begin.example.bat) 复制并重命名为 `Begin.bat`，修改填入绝对路径。
+
+### 3. AzurPilot配置
+*   在 错误推送设置、大世界推送设置 等当中填入
+```
+provider: bark
+key: http://127.0.0.1:25566/push
+```
+
+### 4. PRGJZ配置(可选)
+*   使用python运行[`zPgrjzLogin.py`](zPgrjzLogin.py)，登录账户再关闭浏览器，登录信息就会保存到`pgrjzauth.json`。
+
+### 5. 加入系统自动化(可选)
+
+<details>
+<summary>点击展开：</summary>
+
+1. **打开任务计划程序**
+* 按下 `Win + R` 键，输入 `taskschd.msc` 并回车。
+
+2. **创建基本任务**
+* 在右侧操作面板点击 **“创建基本任务...”**。
+* **名称**：填写自定义任务名称（如 `PerseusAutoRun`）。
+
+3. **设置触发器 (何时运行)**
+* 根据需求选择触发时机：
+* **计算机启动时**：系统开机即运行（无需用户登录）。
+* **当前用户登录时**：用户进入桌面时运行。
+* **定时 (每天/每周)**：指定每日固定时间段运行。
+
+4. **设置操作 (执行内容)**
+* 选择 **“启动程序”**。
+* **程序或脚本**：选择[`begin.vbs`](begin.vbs)
+
+
+5. **完成并启用**
+* 勾选 “完成时打开此任务的属性对话框”。
+* 在属性界面的“常规”选项卡中，按需勾选 **“使用最高权限运行”**（如需管理员权限）。
+
+</details>
+
+### 6. 主服务多级启动入口
+Perseus 提供了优雅的多级防闪退、静默挂载启动链：
+1.  （推荐）**一级启动入口 [`begin.vbs`](begin.vbs)**：推荐日常双击使用的无窗口 VBS 脚本。它会自动检测后端 25566 端口，若未运行则自动调用权限提权并拉起批处理脚本。
+2.  **二级启动入口 [`Begin.bat`](Begin.bat)**：负责初始化环境变量并调用 Python 后端。
+3.  **三级启动入口 [`begin.pyw`](begin.pyw)**：通用 Python 入口，自动加载 [`zOnepush.py`](zOnepush.py) 。
+
+### 7. QBot配置
+关于如何获取我的ID和机器人ID并填入配置
+1.  填入appid和appsecret并正常启动QBot
+2.  给机器人设置全量消息
+3.  @机器人并发送该消息
+4.  在`QBot/log/app.log`找到最新一条日志，大致如下
+```
+2026-10-01 21:19:59,305 - [INFO] - root - [on_group_message_create] 群消息 | 群ID: DR61C959404C5BS6GB3NBFFB3CD4677E | 发送者: 3A777891DA3G1BM2OP136620HAAF89A | 内容: <@G1BM2OP13669U777891DA320HAAF89A>
+```
+
+### 8. 模块单走
+这些代码可以单独直接运行，开箱即用
+支持列表如下：
+1. [`zLK.py`](zLK.py) - 支持tkgui
+2. [`ziNovel.py`](ziNovel.py) - 支持tkgui
+3. [`zBrowser.py`](zBrowser.py) - 唯一启动方法
+
+</details>
+
+---
+
 ## 🌐 后端路由清单
 
 <details>
@@ -216,36 +304,6 @@ Perseus/
 *   `GET /vela/api/stats`：手表应用统计状态返回。
 
 ### ...可能有遗漏（？
-
-</details>
-
----
-
-## 🚀 启动流程与多级入口说明
-
-<details>
-<summary>点击展开：（未完工，不要再看了喵）</summary>
-
-### 1. 依赖包安装说明
-本项目基于 Python 3.10+ 开发，核心依赖包括 `Flask`, `playwright`, `requests`, `pyyaml`, `botpy` (腾讯频道机器人 SDK) 等。
-```bash
-# 安装 Python 依赖包
-pip install -r requirements.txt
-
-# 安装 Playwright 浏览器内核
-playwright install chromium
-```
-
-### 2. 配置文件初始化
-*   将 [`config.example.yaml`](config.example.yaml) 复制并重命名为 `config.yaml`，按需填入模拟器路径、Bark Key、Token 等。
-*   将 [`auth.example.json`](auth.example.json) 复制并重命名为 `auth.json`（若需自动化登录功能）。
-*   在 [`QBot/`](QBot/) 目录下配置对应的密钥文件（如 [`key.example.json`](QBot/key.example.json) 对应 `key.json`）。
-
-### 3. 多级启动入口 (`Windows`)
-Perseus 提供了优雅的多级防闪退、静默挂载启动链：
-1.  **一级启动入口 [`begin.vbs`](begin.vbs)**：推荐日常双击使用的无窗口 VBS 脚本。它会自动检测后端 25566 端口，若未运行则自动调用权限提权并拉起批处理脚本。
-2.  **二级启动入口 [`Begin.example.bat`](Begin.example.bat)**（可复制为 `Begin.bat`）：带工作路径校验的批处理脚本，负责初始化环境变量并调用 Python 后端。
-3.  **三级启动入口 [`begin.pyw`](begin.pyw)**：Python 纯静默挂载入口，直接在后台加载 [`zOnepush.py`](zOnepush.py) 的 `main()` 调度逻辑，实现无黑窗口常驻挂机。
 
 </details>
 
