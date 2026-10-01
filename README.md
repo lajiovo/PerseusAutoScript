@@ -1,10 +1,33 @@
-# 🌌 Perseus (lajiovo-autotools) 🐾
+# Perseus AutoTools - 珀尔修斯AT
 
-<div align="center">
-  <img src="QBot/suoha.png" alt="Project Icon" width="150" />
-  <h3>集自动化运维、远程控制、轻量工具箱与辅助自动化脚本于一体的 Python 综合工具库</h3>
-  <p>由开发者与 AI 协作完成，旨在构建一个全能、高效且自动化的“数字管家”。</p>
-</div>
+<p align="center">
+  <img src="QBot\suoha.png" alt="PerseusAT" width="200">
+</p>
+
+<p align="center">
+  <a href="https://deepwiki.com/lajiovo/PerseusAutoScript"><img src="https://deepwiki.com/badge.svg" alt="Ask DeepWiki"></a>
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Python-3.14-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python">
+  <img src="https://img.shields.io/github/license/lajiovo/PerseusAutoScript?style=flat-square&label=License&color=2ea44f" alt="License">
+  <img src="https://img.shields.io/github/stars/lajiovo/PerseusAutoScript?style=flat-square&label=Stars&color=ffcc00" alt="Stars">
+  <img src="https://img.shields.io/github/forks/lajiovo/PerseusAutoScript?style=flat-square&label=Forks&color=58a6ff" alt="Forks">
+  <img src="https://img.shields.io/github/issues/lajiovo/PerseusAutoScript?style=flat-square&label=Issues&color=f85149" alt="Issues">
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/github/last-commit/lajiovo/PerseusAutoScript?style=flat-square&label=Last%20Commit&color=8b949e" alt="Last Commit">
+  <img src="https://img.shields.io/github/commit-activity/m/lajiovo/PerseusAutoScript?style=flat-square&label=Commit%20Activity&color=8957e5" alt="Commit Activity">
+  <img src="https://img.shields.io/github/repo-size/lajiovo/PerseusAutoScript?style=flat-square&label=Repo%20Size&color=orange" alt="Repo Size">
+  <img src="https://img.shields.io/github/languages/top/lajiovo/PerseusAutoScript?style=flat-square&label=Top%20Language&color=3776AB" alt="Top Language">
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/github/contributors/lajiovo/PerseusAutoScript?style=flat-square&label=Contributors&color=00b4d8" alt="Contributors">
+  <img src="https://img.shields.io/github/issues-pr/lajiovo/PerseusAutoScript?style=flat-square&label=Pull%20Requests&color=ffb703" alt="Pull Requests">
+  <img src="https://img.shields.io/github/issues-pr-closed/lajiovo/PerseusAutoScript?style=flat-square&label=PRs%20Closed&color=2ea44f" alt="Closed Pull Requests">
+</p>
 
 ---
 
