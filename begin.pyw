@@ -1,4 +1,3 @@
-import zPerseusLogger
-print("here is begin.pyw")
-import zOnepush
-zOnepush.main()
+import main
+print("这里是begin.pyw")
+main.zOnepush.main()

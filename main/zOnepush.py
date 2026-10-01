@@ -1553,7 +1553,6 @@ def handle_restart():
     # 1. 优雅停止后台定时任务与清理资源
     try:
         stop_timer()
-        enter_standby()
     except Exception as e:
         print(f"⚠️ 重启前清理定时器/待机状态异常: {e}")
 
