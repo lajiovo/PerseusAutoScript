@@ -590,7 +590,8 @@ def start_alas_mumu_check_timer():
                     _save_stats(stats)
                 print("⏱️ [统计模块] autocheck处理次数+1")
                 # 1. 运行前检查签到记录文件
-                log_path = 'last_checkin.txt'
+                current_dir = os.path.dirname(os.path.abspath(__file__))
+                log_path = str(os.path.join(current_dir, 'last_checkin.txt'))
                 today_str = datetime.date.today().isoformat()  # YYYY-MM-DD
 
                 # 如果文件不存在，新建空文件

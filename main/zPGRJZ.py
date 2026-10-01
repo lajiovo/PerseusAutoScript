@@ -12,7 +12,8 @@ def run(headless: bool = True) -> bool:
     """
     try:
         # 1. 运行前检查签到记录文件
-        log_path = 'last_checkin.txt'
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        log_path = str(os.path.join(current_dir, 'last_checkin.txt'))
         today_str = datetime.date.today().isoformat()  # YYYY-MM-DD
 
         # 如果文件不存在，新建空文件
@@ -37,7 +38,7 @@ def run(headless: bool = True) -> bool:
         """
 
         # 2. Playwright 自动化任务
-        auth_file = 'pgrjzauth.json'
+        auth_file = str(os.path.join(current_dir, 'pgrjzauth.json'))
 
         VIEW_WIDTH = 380
         VIEW_HEIGHT = 750

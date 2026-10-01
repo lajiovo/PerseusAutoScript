@@ -72,7 +72,7 @@
     *   **WEBui**：提供的后端网页入口进行可视化管理
 
 ### 4. 🛠️ 百宝箱工具集 (Addition)
-*   🌐 **完整网页后端**：自带导航网页 [`index.html`](webassets/index.html) ，快捷跳转各板块
+*   🌐 **完整网页后端**：自带导航网页 [`index.html`](main/webassets/index.html) ，快捷跳转各板块
 *   🛡️ **管理员提权**：校验管理员权限
 *   🌐 **Cpolar内网穿透**：一键启动 HTTP 隧道，自动关停保护
 *   🎵 **MusicDL控制**：
@@ -195,9 +195,9 @@ playwright install chromium
 ```
 
 ### 2. 配置文件初始化
-1.   将 [`config.example.yaml`](config.example.yaml) 复制并重命名为 `config.yaml`，按需填入模拟器路径、Bark Key、Token 等。
-2.   将 [`auth.example.json`](auth.example.json) 复制并重命名为 `auth.json`，在指示位置`azurpilot.access-password` 填入Webui访问密码。
-3.   将 [`key.example.json`](QBot/key.example.json) 复制并重命名为 `key.json`，填入自定义密码。
+1.   将 [`main/config.example.yaml`](main/config.example.yaml) 复制并重命名为 `config.yaml`，按需填入模拟器路径、Bark Key、Token 等。
+2.   将 [`main/auth.example.json`](main/auth.example.json) 复制并重命名为 `auth.json`，在指示位置`azurpilot.access-password` 填入Webui访问密码。
+3.   将 [`QBot/key.example.json`](QBot/key.example.json) 复制并重命名为 `key.json`，填入自定义密码。
 4.   将 [`Begin.example.bat`](Begin.example.bat) 复制并重命名为 `Begin.bat`，修改填入绝对路径。
 
 ### 3. AzurPilot配置
@@ -208,7 +208,7 @@ key: http://127.0.0.1:25566/push
 ```
 
 ### 4. PRGJZ配置(可选)
-*   使用python运行[`zPgrjzLogin.py`](zPgrjzLogin.py)，登录账户再关闭浏览器，登录信息就会保存到`pgrjzauth.json`。
+*   使用python运行[`main/zPgrjzLogin.py`](main/zPgrjzLogin.py)，登录账户再关闭浏览器，登录信息就会保存到`pgrjzauth.json`。
 
 ### 5. 加入系统自动化(可选)
 
@@ -243,7 +243,7 @@ key: http://127.0.0.1:25566/push
 Perseus 提供了优雅的多级防闪退、静默挂载启动链：
 1.  （推荐）**一级启动入口 [`begin.vbs`](begin.vbs)**：推荐日常双击使用的无窗口 VBS 脚本。它会自动检测后端 25566 端口，若未运行则自动调用权限提权并拉起批处理脚本。
 2.  **二级启动入口 [`Begin.bat`](Begin.bat)**：负责初始化环境变量并调用 Python 后端。
-3.  **三级启动入口 [`begin.pyw`](begin.pyw)**：通用 Python 入口，自动加载 [`zOnepush.py`](zOnepush.py) 。
+3.  **三级启动入口 [`begin.pyw`](begin.pyw)**：通用 Python 入口，自动加载 [`zOnepush.py`](main/zOnepush.py) 。
 
 ### 7. QBot配置
 关于如何获取我的ID和机器人ID并填入配置
@@ -258,9 +258,9 @@ Perseus 提供了优雅的多级防闪退、静默挂载启动链：
 ### 8. 模块单走
 这些代码可以单独直接运行，开箱即用
 支持列表如下：
-1. [`zLK.py`](zLK.py) - 支持tkgui
-2. [`ziNovel.py`](ziNovel.py) - 支持tkgui
-3. [`zBrowser.py`](zBrowser.py) - 唯一启动方法
+1. [`main/zLK.py`](main/zLK.py) - 支持tkgui
+2. [`main/ziNovel.py`](main/ziNovel.py) - 支持tkgui
+3. [`main/zBrowser.py`](main/zBrowser.py) - 唯一启动方法
 
 </details>
 
@@ -274,7 +274,7 @@ Perseus 提供了优雅的多级防闪退、静默挂载启动链：
 本项目后端以 [`zOnepush.py`](zOnepush.py) 为核心 Flask 调度枢纽，通过蓝图 (Blueprint) 机制聚合了多个子服务模块：
 
 ### 1. 主控大本营 (`zOnepush.py`) 核心路由
-*   `GET /main/` / `GET /main/<path:filename>`：托管 Web 后台控制面板静态资源（[`webassets/`](webassets/)）。
+*   `GET /main/` / `GET /main/<path:filename>`：托管 Web 后台控制面板静态资源（[`main/webassets/`](main/webassets/)）。
 *   `GET/POST /push`：外部消息接收与分发推送核心接口。
 *   `GET/POST /start`、`/stop`、`/restart`、`/shutdown`：主控及子服务生命周期管理。
 *   `GET/POST /bot/start`、`/bot/shutdown`：QBot 机器人进程的快捷启停。
