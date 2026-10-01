@@ -1692,16 +1692,6 @@ def handle_pushlog_get(level, span):
 def handle_ping():
     return format_response({"handlepush": HANDLEPUSH}, 200)
 
-@app.route("/help", methods=["GET"])
-def get_help():
-    html_dir = os.path.dirname(os.path.abspath(__file__))
-    html_filename = "WebHome.html"
-    
-    if not os.path.exists(os.path.join(html_dir, html_filename)):
-        return f"HTML文件未找到: {html_filename}", 404
-        
-    return send_from_directory(html_dir, html_filename)
-
 @app.route("/run", methods=["GET", "POST"])
 def handle_run():
     req_data = {}
