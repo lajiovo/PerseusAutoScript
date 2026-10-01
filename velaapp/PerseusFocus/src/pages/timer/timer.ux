@@ -39,22 +39,30 @@
     <!-- 手动双滚轮视图 -->
     <div if="{{ mode === 'manual' }}" class="mode-box">
       <div class="dual-scroll-container">
-        <!-- 十位滚轮 -->
+        <!-- 十位滚轮 (竖直单列，带上下微调按钮与中间高亮可视窗口) -->
         <div class="roll-column">
           <text class="roll-title">十位</text>
-          <div class="roll-wrapper">
-            <div for="{{ tensOptions }}" class="roll-item {{ manualTens === $item ? 'active-roll' : '' }}" onclick="selectTens($item)">
-              <text class="roll-text {{ manualTens === $item ? 'active-roll-text' : '' }}">{{ $item }}</text>
+          <div class="roll-wheel-box">
+            <text class="roll-arrow" onclick="scrollTensUp()">▲</text>
+            <div class="roll-list">
+              <div for="{{ tensOptions }}" class="roll-item {{ manualTens === $item ? 'active-roll' : '' }}" onclick="selectTens($item)">
+                <text class="roll-text {{ manualTens === $item ? 'active-roll-text' : '' }}">{{ $item }}</text>
+              </div>
             </div>
+            <text class="roll-arrow" onclick="scrollTensDown()">▼</text>
           </div>
         </div>
-        <!-- 个位滚轮 -->
+        <!-- 个位滚轮 (竖直单列，带上下微调按钮与中间高亮可视窗口) -->
         <div class="roll-column">
           <text class="roll-title">个位</text>
-          <div class="roll-wrapper">
-            <div for="{{ unitOptions }}" class="roll-item {{ manualUnits === $item ? 'active-roll' : '' }}" onclick="selectUnits($item)">
-              <text class="roll-text {{ manualUnits === $item ? 'active-roll-text' : '' }}">{{ $item }}</text>
+          <div class="roll-wheel-box">
+            <text class="roll-arrow" onclick="scrollUnitsUp()">▲</text>
+            <div class="roll-list">
+              <div for="{{ unitOptions }}" class="roll-item {{ manualUnits === $item ? 'active-roll' : '' }}" onclick="selectUnits($item)">
+                <text class="roll-text {{ manualUnits === $item ? 'active-roll-text' : '' }}">{{ $item }}</text>
+              </div>
             </div>
+            <text class="roll-arrow" onclick="scrollUnitsDown()">▼</text>
           </div>
         </div>
       </div>
@@ -256,8 +264,40 @@ export default {
     this.manualTens = t;
   },
 
+  scrollTensUp() {
+    if (this.manualTens > 0) {
+      this.manualTens--;
+    } else {
+      this.manualTens = 9;
+    }
+  },
+
+  scrollTensDown() {
+    if (this.manualTens < 9) {
+      this.manualTens++;
+    } else {
+      this.manualTens = 0;
+    }
+  },
+
   selectUnits(u) {
     this.manualUnits = u;
+  },
+
+  scrollUnitsUp() {
+    if (this.manualUnits > 0) {
+      this.manualUnits--;
+    } else {
+      this.manualUnits = 9;
+    }
+  },
+
+  scrollUnitsDown() {
+    if (this.manualUnits < 9) {
+      this.manualUnits++;
+    } else {
+      this.manualUnits = 0;
+    }
   },
 
   saveManualRecord() {
@@ -469,18 +509,18 @@ export default {
   flex-direction: row;
   justify-content: center;
   width: 440px;
-  height: 90px;
-  margin-bottom: 8px;
+  height: 98px;
+  margin-bottom: 6px;
 }
 
 .roll-column {
   flex-direction: column;
   align-items: center;
-  width: 120px;
-  height: 90px;
+  width: 130px;
+  height: 98px;
   background-color: #1e293b;
   border-radius: 10px;
-  margin: 0 6px;
+  margin: 0 8px;
   padding: 4px;
 }
 
@@ -492,37 +532,58 @@ export default {
   text-align: center;
 }
 
-.roll-wrapper {
-  flex-direction: row;
-  width: 112px;
-  height: 64px;
-  flex-wrap: wrap;
+.roll-wheel-box {
+  flex-direction: column;
+  align-items: center;
+  width: 120px;
+  height: 76px;
+  background-color: #0f172a;
+  border-radius: 8px;
+  padding: 2px;
+}
+
+.roll-arrow {
+  font-size: 11px;
+  color: #38bdf8;
+  height: 14px;
+  line-height: 14px;
+  text-align: center;
+  width: 120px;
+}
+
+.roll-list {
+  flex-direction: column;
+  width: 120px;
+  height: 44px;
+  align-items: center;
   justify-content: center;
 }
 
 .roll-item {
-  width: 20px;
-  height: 28px;
-  background-color: #334155;
+  width: 100px;
+  height: 38px;
+  background-color: transparent;
   border-radius: 6px;
   justify-content: center;
   align-items: center;
-  margin: 1px;
 }
 
 .active-roll {
   background-color: #0284c7;
+  border: 1px solid #38bdf8;
 }
 
 .roll-text {
-  font-size: 12px;
-  color: #cbd5e1;
+  font-size: 14px;
+  color: #64748b;
+  text-align: center;
 }
 
 .active-roll-text {
-  font-size: 13px;
+  font-size: 20px;
   color: #ffffff;
   font-weight: bold;
+  text-align: center;
 }
 
 /* 规范要求 7：所有按钮、弹窗、遮罩层定位精准 */
