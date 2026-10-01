@@ -636,10 +636,10 @@ def enter_standby():
         print(f"⚠️ zAlas.cleanup() 执行失败: {e}")
         
     try:
-        print("🧹 正在执行 zMumu.cleanup()...")
-        zMumu.cleanup()
+        print("🧹 正在执行 zMumu.mumu_kill()...")
+        zMumu.mumu_kill()
     except Exception as e:
-        print(f"⚠️ zMumu.cleanup() 执行失败: {e}")
+        print(f"⚠️ zMumu.mumu_kill() 执行失败: {e}")
         
     print("⏸️ 已切换至待机状态。")
 
@@ -1512,7 +1512,11 @@ def handle_start():
     HANDLEPUSH = True
     
     try:
-        print("▶️ 收到 /start 请求，正在运行 run_alas_mumu_check...")
+        print("▶️ 收到 /start 请求，正在运行 zMumu.hidemumu()")
+        zMumu.hidemumu()
+        print("▶️ 收到 /start 请求，正在运行 zAlas.start()")
+        zAlas.start()
+        print("正在运行 run_alas_mumu_check...")
         run_alas_mumu_check()
         with stats_lock:
             stats = _load_stats()

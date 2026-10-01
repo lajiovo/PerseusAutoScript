@@ -2,6 +2,7 @@ import os
 import json
 import datetime
 from flask import Blueprint, request, jsonify
+import zBarkCustom
 
 # 创建 watch_bp 蓝图
 watch_bp = Blueprint('watch_bp', __name__)
@@ -115,6 +116,14 @@ def vela_sync():
                 added_count += 1
 
         save_json(DATA_FILE, existing_records)
+
+        zBarkCustom.PerseusNotifyMsg("vela_sync()",str({
+            "status": "success",
+            "message": f"同步完成：新增 {added_count} 条记录，自动过滤重复 {duplicate_count} 条",
+            "added_count": added_count,
+            "duplicate_count": duplicate_count,
+            "total_records": len(existing_records)
+        }))
 
         return jsonify({
             "status": "success",

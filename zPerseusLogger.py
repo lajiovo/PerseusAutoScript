@@ -32,7 +32,7 @@ from zConfig import get_config
 LOG_DIR = get_config("logger.log_dir", default="logs")
 LOG_FILE_NAME = get_config("logger.log_file_name", default="app.log")
 MAX_BYTES = get_config("logger.max_bytes", default=512 * 1024)
-BACKUP_COUNT = get_config("logger.backup_count", default=20)
+BACKUP_COUNT = get_config("logger.backup_count", default=10)
 # ================================================
 
 class LoggerWriter:

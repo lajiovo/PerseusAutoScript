@@ -4,6 +4,8 @@ from pathlib import Path
 
 from zConfig import get_config
 
+import zBarkCustom
+
 # 定义源目录与目标目录
 SRC_DIR = Path(get_config("ffmpeg.paths.src_dir"))
 DST_DIR = Path(get_config("ffmpeg.paths.dst_dir"))
@@ -92,6 +94,7 @@ def process_audio():
                 "错误：未找到 ffmpeg 程序，请确保已将 ffmpeg 添加到系统环境变量 Path 中。"
             )
             break
+    zBarkCustom.PerseusNotifyMsg(f"{len(mp3_files)} 个 MP3 文件处理完成")
 
 
 if __name__ == "__main__":

@@ -6,6 +6,7 @@ import xml.etree.ElementTree as ET
 from bs4 import BeautifulSoup
 from ebooklib import epub
 import requests
+import zBarkCustom
 
 # 根目录与基础配置
 BASE_DIR = Path(__file__).parent
@@ -19,6 +20,13 @@ HEADERS = {
         "Chrome/120.0.0.0 Safari/537.36"
     )
 }
+
+# 补充函数
+def truncate_string(text: str, head: int = 3, tail: int = 3, placeholder: str = "...") -> str:
+    """保留字符串头尾字符，中间用占位符替代"""
+    if len(text) <= head + tail:
+        return text
+    return f"{text[:head]}{placeholder}{text[-tail:]}"
 
 def convert_source_url(source):
     """自动将页面链接转换为对应的 feed.xml 链接（若非 lnovel.animes.garden 则强转）"""
@@ -591,11 +599,13 @@ def export_novel(source_input, output_dir=None, download_images=True, log_callba
     >>> export_novel("https://example.com/feed.xml", output_dir="./output")
     """
     exporter = NovelEpubExporter(log_callback=log_callback)
-    return exporter.export(
+    result = exporter.export(
         source_input=source_input,
         output_dir=output_dir,
         download_images=download_images,
     )
+    zBarkCustom.PerseusNotifyMsg("export_novel()",truncate_string(str(result),3,7))
+    return result
 
 
 class AppGUI:

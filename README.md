@@ -21,7 +21,6 @@
     *   **经验报告**：汇总舰队舰船等级进度，预测经验满额剩余时间。
     *   **异常拦截**：捕捉 `EmulatorNotRunningError` 等关键错误并自动触发修复。
     *   **多端推送**：同步推送到手机 Bark App 及 QQ 群。
-* 🧹 **广告弹窗清理（可选）**：提供可选的弹窗清理逻辑，按需自动拦截并清理 MuMu 模拟器的广告弹窗。
 
 ### 2. 🤖 QBot 智能管家 (QQ Bot)
 基于 `botpy` 实现的深度交互机器人，集成在 [`QBot/`](QBot/) 目录下：
@@ -105,7 +104,6 @@ Perseus/
 │        └── metadata.json    # 书籍信息
 ├── logs/                     # 大本营的日志文件
 ├── temp_images/              # 乱飞的云崽图片消息缓存
-├── quick_tools/              # 轻量化快捷小工具目录
 ├── webassets/                # Web 后台/控制面板前端静态资源
 │   ├── index.html            # 导航页
 │   ├── dash.html             # 控制页
@@ -130,7 +128,6 @@ Perseus/
 ├── zBrowser.py               # 代理浏览器一键启动
 ├── zConfig.py                # 全局配置读取与解析模块
 ├── zCpolar.py                # Cpolar 内网穿透隧道管理
-├── zEditProxy.py             # 程序与系统 Git 代理一键修改
 ├── zFfmpeg.py                # FFmpeg 音频压缩
 ├── zLK.py                    # 轻之国度电子书抓取、解析与 EPUB 打包
 ├── zLKbro.py                 # 已废弃
