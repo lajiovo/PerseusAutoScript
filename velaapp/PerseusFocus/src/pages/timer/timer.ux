@@ -37,37 +37,60 @@
         </div>
       </div>
 
-      <!-- 手动双滚轮视图 -->
-      <div if="{{ mode === 'manual' }}" class="mode-box">
-        <div class="dual-scroll-container">
-          <!-- 十位滚轮 (竖直单列，带上下微调按钮与中间高亮可视窗口) -->
-          <div class="roll-column">
-            <text class="roll-title">十位</text>
-            <div class="roll-wheel-box">
-              <text class="roll-arrow" onclick="scrollTensUp()">▲</text>
-              <div class="roll-list">
-                <div for="{{ tensOptions }}" class="roll-item {{ manualTens === $item ? 'active-roll' : '' }}" onclick="selectTens($item)">
-                  <text class="roll-text {{ manualTens === $item ? 'active-roll-text' : '' }}">{{ $item }}</text>
-                </div>
-              </div>
-              <text class="roll-arrow" onclick="scrollTensDown()">▼</text>
+      <!-- 手动双滚轮/输入视图：左侧数字键盘(3列4行+占两格确定按钮)，右侧十位个位上下切换控制区 -->
+      <div if="{{ mode === 'manual' }}" class="mode-box manual-mode-box">
+        <!-- 顶部组合输入展示与提示 -->
+        <div class="manual-display-row">
+          <text class="manual-display-label">已输入时长：</text>
+          <text class="manual-display-value">{{ manualTens }}{{ manualUnits }} 分钟</text>
+        </div>
+
+        <div class="manual-main-container">
+          <!-- 左侧：3列4行数字键盘与确定按钮布局 -->
+          <div class="keypad-container">
+            <div class="keypad-row">
+              <input class="key-btn" type="button" value="1" onclick="appendDigit(1)" />
+              <input class="key-btn" type="button" value="2" onclick="appendDigit(2)" />
+              <input class="key-btn" type="button" value="3" onclick="appendDigit(3)" />
+            </div>
+            <div class="keypad-row">
+              <input class="key-btn" type="button" value="4" onclick="appendDigit(4)" />
+              <input class="key-btn" type="button" value="5" onclick="appendDigit(5)" />
+              <input class="key-btn" type="button" value="6" onclick="appendDigit(6)" />
+            </div>
+            <div class="keypad-row">
+              <input class="key-btn" type="button" value="7" onclick="appendDigit(7)" />
+              <input class="key-btn" type="button" value="8" onclick="appendDigit(8)" />
+              <input class="key-btn" type="button" value="9" onclick="appendDigit(9)" />
+            </div>
+            <div class="keypad-row">
+              <input class="key-btn" type="button" value="0" onclick="appendDigit(0)" />
+              <input class="key-btn confirm-grid-btn" type="button" value="确定" onclick="saveManualRecord" />
             </div>
           </div>
-          <!-- 个位滚轮 (竖直单列，带上下微调按钮与中间高亮可视窗口) -->
-          <div class="roll-column">
-            <text class="roll-title">个位</text>
-            <div class="roll-wheel-box">
-              <text class="roll-arrow" onclick="scrollUnitsUp()">▲</text>
-              <div class="roll-list">
-                <div for="{{ unitOptions }}" class="roll-item {{ manualUnits === $item ? 'active-roll' : '' }}" onclick="selectUnits($item)">
-                  <text class="roll-text {{ manualUnits === $item ? 'active-roll-text' : '' }}">{{ $item }}</text>
-                </div>
+
+          <!-- 右侧：上下可点切换的“十位”和“个位”选择控制区 -->
+          <div class="stepper-container">
+            <!-- 十位控制区 -->
+            <div class="step-column">
+              <text class="step-title">十位</text>
+              <div class="step-box">
+                <text class="step-arrow" onclick="scrollTensUp()">▲</text>
+                <text class="step-value">{{ manualTens }}</text>
+                <text class="step-arrow" onclick="scrollTensDown()">▼</text>
               </div>
-              <text class="roll-arrow" onclick="scrollUnitsDown()">▼</text>
+            </div>
+            <!-- 个位控制区 -->
+            <div class="step-column">
+              <text class="step-title">个位</text>
+              <div class="step-box">
+                <text class="step-arrow" onclick="scrollUnitsUp()">▲</text>
+                <text class="step-value">{{ manualUnits }}</text>
+                <text class="step-arrow" onclick="scrollUnitsDown()">▼</text>
+              </div>
             </div>
           </div>
         </div>
-        <input class="action-btn start-btn" type="button" value="确认保存 ({{ manualTens }}{{ manualUnits }}分钟)" onclick="saveManualRecord" />
       </div>
 
       <!-- 确认弹窗（秒表结束弹出的选择菜单） -->
@@ -260,6 +283,12 @@ export default {
     const m = String(Math.floor((this.seconds % 3600) / 60)).padStart(2, '0');
     const s = String(this.seconds % 60).padStart(2, '0');
     this.formattedTime = `${h}:${m}:${s}`;
+  },
+
+  appendDigit(num) {
+    // 按数字键逻辑：将输入数字循环移位或依次更新十位和个位
+    this.manualTens = this.manualUnits;
+    this.manualUnits = num;
   },
 
   selectTens(t) {
@@ -479,6 +508,134 @@ export default {
   width: 360px;
   height: 140px;
   justify-content: flex-start;
+}
+
+.manual-mode-box {
+  height: 200px;
+  justify-content: flex-start;
+}
+
+.manual-display-row {
+  flex-direction: row;
+  width: 360px;
+  height: 26px;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.manual-display-label {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.manual-display-value {
+  font-size: 14px;
+  font-weight: bold;
+  color: #38bdf8;
+  margin-left: 6px;
+}
+
+.manual-main-container {
+  flex-direction: row;
+  width: 360px;
+  height: 165px;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.keypad-container {
+  flex-direction: column;
+  width: 220px;
+  height: 165px;
+  justify-content: space-between;
+}
+
+.keypad-row {
+  flex-direction: row;
+  width: 220px;
+  height: 38px;
+  justify-content: space-between;
+}
+
+.key-btn {
+  width: 68px;
+  height: 38px;
+  background-color: #1e293b;
+  border-radius: 8px;
+  font-size: 14px;
+  color: #f8fafc;
+  font-weight: bold;
+  text-align: center;
+}
+
+.confirm-grid-btn {
+  width: 144px;
+  height: 38px;
+  background-color: #16a34a;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #ffffff;
+  font-weight: bold;
+  text-align: center;
+}
+
+.stepper-container {
+  flex-direction: column;
+  width: 130px;
+  height: 165px;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.step-column {
+  flex-direction: column;
+  width: 130px;
+  height: 78px;
+  background-color: #1e293b;
+  border-radius: 10px;
+  align-items: center;
+  padding: 4px;
+  justify-content: space-between;
+}
+
+.step-title {
+  font-size: 11px;
+  color: #38bdf8;
+  font-weight: bold;
+  text-align: center;
+  height: 16px;
+  line-height: 16px;
+}
+
+.step-box {
+  flex-direction: row;
+  width: 120px;
+  height: 48px;
+  background-color: #0f172a;
+  border-radius: 8px;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 10px;
+}
+
+.step-arrow {
+  font-size: 16px;
+  color: #38bdf8;
+  width: 30px;
+  height: 48px;
+  line-height: 48px;
+  text-align: center;
+}
+
+.step-value {
+  font-size: 18px;
+  font-weight: bold;
+  color: #ffffff;
+  width: 40px;
+  height: 48px;
+  line-height: 48px;
+  text-align: center;
 }
 
 .timer-display {
