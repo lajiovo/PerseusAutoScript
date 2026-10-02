@@ -73,7 +73,9 @@
 
 ### 4. 🛠️ 百宝箱工具集 (Addition)
 *   🌐 **完整网页后端**：自带导航网页 [`index.html`](main/webassets/index.html) ，快捷跳转各板块
+*   📻 **实时日志**：网页后端实时查看各进程日志
 *   🛡️ **管理员提权**：校验管理员权限
+*   📈 **统计信息**：从Push处理次数到运行时长统计等
 *   🌐 **Cpolar内网穿透**：一键启动 HTTP 隧道，自动关停保护
 *   🎵 **MusicDL控制**：
     *   **局域网内访问**：基于端口重用与双向流量透传
@@ -254,13 +256,18 @@ Perseus 提供了优雅的多级防闪退、静默挂载启动链：
 ```
 2026-10-01 21:19:59,305 - [INFO] - root - [on_group_message_create] 群消息 | 群ID: DR61C959404C5BS6GB3NBFFB3CD4677E | 发送者: 3A777891DA3G1BM2OP136620HAAF89A | 内容: <@G1BM2OP13669U777891DA320HAAF89A>
 ```
+5.  设置初始主人后，发送`#op help`获取指令菜单
 
 ### 8. 模块单走
 这些代码可以单独直接运行，开箱即用
+
 支持列表如下：
 1. [`main/zLK.py`](main/zLK.py) - 支持tkgui
 2. [`main/ziNovel.py`](main/ziNovel.py) - 支持tkgui
 3. [`main/zBrowser.py`](main/zBrowser.py) - 唯一启动方法
+
+### 9. 云崽接入
+该功能稳定性差，教程略
 
 </details>
 
