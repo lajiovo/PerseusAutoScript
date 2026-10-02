@@ -324,6 +324,18 @@ Perseus 提供了优雅的多级防闪退、静默挂载启动链：
 
 ---
 
+## ❤ 依赖与相关项目 (Dependencies & Related Projects)
+
+| 项目 | 说明 |
+| --- | --- |
+| [AzurPilot](https://github.com/wess09/AzurPilot) | 碧蓝航线自动化辅助工具 |
+| [botpy](https://github.com/tencent-connect/botpy) | 基于机器人开放平台API实现的机器人框架 |
+| [Go Music DL](https://github.com/guohuiyuan/go-music-dl) | 一个音乐搜索与下载工具 |
+| [TRSS-Yunzai](https://github.com/TimeRainStarSky/Yunzai) | Yunzai 应用端 |
+| [lnovel](https://github.com/yjl9903/lnovel) | 提供轻小说开放接口和 RSS 订阅 |
+
+---
+
 ## ⚖️ 开源/个人项目免责声明 (Disclaimer)
 
 1.  **仅供学习交流**：本仓库所提供的所有自动化脚本、爬虫工具、模拟器控制插件及 QBot 互动功能，**仅供计算机技术爱好者进行学习、研究与交流使用**。

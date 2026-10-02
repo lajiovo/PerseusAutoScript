@@ -500,6 +500,7 @@ class NovelEpubExporter:
         self.log(
             f"\n📚 开始处理 {len(items)} 个章节 (下载插图: {'是' if download_images else '否'})..."
         )
+        zBarkCustom.PerseusNotifyMsg("遍历处理章节",f"📚 开始处理 {len(items)} 个章节 (下载插图: {'是' if download_images else '否'})...")
 
         for idx, item in enumerate(items, start=1):
             ch_title = item.findtext("title", f"第 {idx} 章").strip()
