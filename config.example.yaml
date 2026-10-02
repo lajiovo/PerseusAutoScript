@@ -189,6 +189,7 @@ bot:
       - "D:\\???\\Perseus\\logs"
       - "D:\\???\\Perseus\\QBot"
       - "D:\\???\\Perseus\\yunzai\\logs"
+      - "D:\\???\\Perseus\\QBot\\log"
 
     # Alas 错误日志专有路径
     alas_error_log_path: "D:\\???\\AzurPilot\\log\\error\\alas"
