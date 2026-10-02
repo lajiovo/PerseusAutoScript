@@ -38,7 +38,7 @@
             box-sizing: border-box;
             margin: 0;
             padding: 0;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
         }
 
         body {
@@ -79,7 +79,7 @@
             font-weight: 600;
         }
 
-        /* 顶部专属标签与Azurpilot分类栏 */
+        /* 要求的 category-bar 分类栏 */
         .category-bar {
             background-color: var(--panel-bg);
             border-bottom: 1px solid var(--border-color);
@@ -195,6 +195,18 @@
             justify-content: space-between;
         }
 
+        /* 特殊子分类徽章（Azurpilot launcher/gui/alas等） */
+        .sub-badge {
+            font-size: 0.65rem;
+            padding: 1px 6px;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .badge-launcher { background-color: rgba(210, 153, 34, 0.2); color: var(--warning-color); }
+        .badge-gui { background-color: rgba(88, 166, 255, 0.2); color: var(--accent-color); }
+        .badge-alas { background-color: rgba(46, 160, 67, 0.2); color: var(--success-color); }
+        .badge-sub { background-color: rgba(139, 148, 158, 0.2); color: var(--text-muted); }
+
         content-area {
             flex: 1;
             display: flex;
@@ -273,13 +285,18 @@
             border-radius: 6px;
             padding: 16px;
             color: var(--text-color);
-            font-family: ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, monospace;
-            font-size: 0.85rem;
+            font-family: Fira Code, Consolas, Monaco, monospace;
             line-height: 1.5;
             white-space: pre-wrap;
             word-break: break-all;
             min-height: 100%;
         }
+
+        /* 字体大小设定 */
+        pre.font-small { font-size: 0.75rem; }
+        pre.font-medium { font-size: 0.85rem; }
+        pre.font-large { font-size: 1.0rem; }
+        pre.font-xlarge { font-size: 1.2rem; }
 
         /* 级别染色样式 */
         .log-error { color: var(--danger-color); font-weight: bold; }
@@ -312,14 +329,15 @@
         </div>
     </header>
 
-    <!-- 专属标签与Azurpilot分类筛选栏 -->
+    <!-- 要求 1 & 2: <div class="category-bar"> 用于清晰展示各分类快捷切换 -->
     <div class="category-bar" id="categoryBar">
         <span style="font-size: 0.85rem; color: var(--text-muted); font-weight: 600;">快捷分类：</span>
         <button class="cat-btn active" data-category="all">全部文件夹</button>
-        <button class="cat-btn" data-category="launcher">AzurPilot Launcher</button>
-        <button class="cat-btn" data-category="gui">AzurPilot GUI</button>
-        <button class="cat-btn" data-category="alas">AzurPilot Alas</button>
-        <button class="cat-btn" data-category="qbot">QBot / Perseus</button>
+        <button class="cat-btn" data-category="yunzai">云崽日志 (Yunzai)</button>
+        <button class="cat-btn" data-category="perseus_logs">主服务日志 (Perseus)</button>
+        <button class="cat-btn" data-category="azurpilot">AzurPilot 日志</button>
+        <button class="cat-btn" data-category="qbot_log">机器人日志 (QBOTLOG)</button>
+        <button class="cat-btn" data-category="qbot_sdk">QBotSDK日志 (QBOTSDKLOG)</button>
     </div>
 
     <div class="main-container">
@@ -360,13 +378,22 @@
                     </label>
                 </div>
                 <div class="toolbar-right">
+                    <!-- 要求 3: 可选字体大小 -->
+                    <label for="fontSizeSelect">字体：</label>
+                    <select id="fontSizeSelect" style="padding: 4px 8px;">
+                        <option value="small">小</option>
+                        <option value="medium" selected>中</option>
+                        <option value="large">大</option>
+                        <option value="xlarge">特大</option>
+                    </select>
                     <label class="toggle-switch" title="是否保留行首的标准时间戳">
                         <input type="checkbox" id="timestampToggle" checked> 保留时间戳
                     </label>
+                    <!-- 要求 4: 默认关闭日志染色 -->
                     <label class="toggle-switch" title="高亮显示 ERROR / WARNING / INFO">
-                        <input type="checkbox" id="highlightToggle" checked> 日志染色
+                        <input type="checkbox" id="highlightToggle"> 日志染色
                     </label>
-                    <label for="linesSelect">加载行数：</label>
+                    <label for="linesSelect">行数：</label>
                     <select id="linesSelect" style="padding: 4px 8px;">
                         <option value="50">50行</option>
                         <option value="100" selected>100行</option>
@@ -380,7 +407,7 @@
             </div>
 
             <div class="log-viewer-container" id="logContainer">
-                <pre id="logContent">请在左侧选择需要查看的日志文件...</pre>
+                <pre id="logContent" class="font-medium">请在左侧选择需要查看的日志文件...</pre>
             </div>
 
             <div class="status-bar">
@@ -390,321 +417,7 @@
         </content-area>
     </div>
 
-    <script>
-        let allFoldersData = [];
-        let currentFolder = "";
-        let currentFile = "";
-        let autoRefreshTimer = null;
-        let allFilesData = [];
-        let rawLogContent = "";
-
-        const folderSelect = document.getElementById("folderSelect");
-        const fileList = document.getElementById("fileList");
-        const searchInput = document.getElementById("searchInput");
-        const logContent = document.getElementById("logContent");
-        const currentFilePath = document.getElementById("currentFilePath");
-        const currentFolderTag = document.getElementById("currentFolderTag");
-        const refreshBtn = document.getElementById("refreshBtn");
-        const autoRefreshToggle = document.getElementById("autoRefreshToggle");
-        const autoScrollToggle = document.getElementById("autoScrollToggle");
-        const timestampToggle = document.getElementById("timestampToggle");
-        const highlightToggle = document.getElementById("highlightToggle");
-        const themeToggleBtn = document.getElementById("themeToggleBtn");
-        const linesSelect = document.getElementById("linesSelect");
-        const scrollTopBtn = document.getElementById("scrollTopBtn");
-        const scrollBottomBtn = document.getElementById("scrollBottomBtn");
-        const logContainer = document.getElementById("logContainer");
-        const fileStatusInfo = document.getElementById("fileStatusInfo");
-        const updateTimeInfo = document.getElementById("updateTimeInfo");
-        const categoryBar = document.getElementById("categoryBar");
-
-        // 主题切换
-        let isDarkMode = true;
-        themeToggleBtn.onclick = () => {
-            isDarkMode = !isDarkMode;
-            if (isDarkMode) {
-                document.body.classList.remove("light-theme");
-                themeToggleBtn.textContent = "🌙 模式";
-            } else {
-                document.body.classList.add("light-theme");
-                themeToggleBtn.textContent = "☀️ 模式";
-            }
-        };
-
-        // 初始化加载预设文件夹
-        async function loadFolders() {
-            try {
-                const res = await fetch("/logapi/folders");
-                const data = await res.json();
-                if (data.status === "success" && data.folders) {
-                    allFoldersData = data.folders;
-                    renderFolderSelect(allFoldersData);
-
-                    // 默认寻找名为 bot.log 或类似的主服务日志，或者默认第一个
-                    if (allFoldersData.length > 0) {
-                        // 尝试优先选择包含 qbot 或 perseus 或第一个文件夹
-                        const defaultFolder = allFoldersData.find(f => f.path.includes("QBot") || f.path.includes("logs")) || allFoldersData[0];
-                        currentFolder = defaultFolder.path;
-                        folderSelect.value = currentFolder;
-                        currentFolderTag.textContent = defaultFolder.tags.join(", ") || defaultFolder.name;
-                        await loadFiles(currentFolder, true);
-                    }
-                } else {
-                    folderSelect.innerHTML = `<option value="">加载失败</option>`;
-                }
-            } catch (err) {
-                console.error("加载文件夹失败:", err);
-                folderSelect.innerHTML = `<option value="">网络错误</option>`;
-            }
-        }
-
-        // 渲染文件夹下拉框
-        function renderFolderSelect(folders, filterCategory = "all") {
-            folderSelect.innerHTML = "";
-            let filtered = folders;
-            if (filterCategory !== "all") {
-                if (filterCategory === "qbot") {
-                    filtered = folders.filter(f => f.path.includes("QBot") || f.path.includes("Perseus"));
-                } else {
-                    filtered = folders.filter(f => f.category === filterCategory);
-                }
-                if (filtered.length === 0) {
-                    filtered = folders; // 如果没有匹配的则显示全部，避免空下拉
-                }
-            }
-
-            filtered.forEach(f => {
-                const opt = document.createElement("option");
-                opt.value = f.path;
-                opt.textContent = `[${f.category.toUpperCase()}] ${f.name} (${f.path})`;
-                folderSelect.appendChild(opt);
-            });
-
-            if (filtered.length > 0) {
-                // 如果当前选中的文件夹不在过滤后的列表中，则切换到第一个
-                if (!filtered.some(f => f.path === currentFolder)) {
-                    currentFolder = filtered[0].path;
-                    folderSelect.value = currentFolder;
-                    loadFiles(currentFolder, true);
-                } else {
-                    folderSelect.value = currentFolder;
-                }
-            }
-        }
-
-        // 分类按钮点击事件
-        categoryBar.querySelectorAll(".cat-btn").forEach(btn => {
-            btn.onclick = (e) => {
-                categoryBar.querySelectorAll(".cat-btn").forEach(b => b.classList.remove("active"));
-                e.target.classList.add("active");
-                const cat = e.target.getAttribute("data-category");
-                renderFolderSelect(allFoldersData, cat);
-            };
-        });
-
-        // 加载指定文件夹下的文件列表
-        async function loadFiles(folderPath, autoSelectMainLog = false) {
-            currentFolder = folderPath;
-            const folderObj = allFoldersData.find(f => f.path === folderPath);
-            if (folderObj) {
-                currentFolderTag.textContent = folderObj.tags.join(", ") || folderObj.name;
-            }
-
-            fileList.innerHTML = `<div style="padding: 16px; text-align: center; color: var(--text-muted); font-size: 0.85rem;">加载文件中...</div>`;
-            try {
-                const res = await fetch(`/logapi/files?folder=${encodeURIComponent(folderPath)}`);
-                const data = await res.json();
-                if (data.status === "success" && data.files) {
-                    allFilesData = data.files;
-                    renderFileList(allFilesData);
-
-                    if (allFilesData.length > 0) {
-                        // 寻找主服务日志（如 botpy.log, app.log, main.log 或最新的日志文件）
-                        let targetFile = allFilesData[0].name;
-                        if (autoSelectMainLog) {
-                            const mainLog = allFilesData.find(f => f.name.includes("botpy.log") || f.name.includes("app.log") || f.name.includes("main.log"));
-                            if (mainLog) {
-                                targetFile = mainLog.name;
-                            }
-                        }
-                        if (!currentFile || !allFilesData.some(f => f.name === currentFile)) {
-                            selectFile(targetFile, true);
-                        } else {
-                            selectFile(currentFile, false);
-                        }
-                    } else {
-                        currentFile = "";
-                        logContent.textContent = "当前文件夹下没有日志文件";
-                        currentFilePath.textContent = `${currentFolder} (空)`;
-                    }
-                } else {
-                    fileList.innerHTML = `<div style="padding: 16px; text-align: center; color: var(--danger-color); font-size: 0.85rem;">${data.message || '无文件'}</div>`;
-                }
-            } catch (err) {
-                console.error("加载文件列表失败:", err);
-                fileList.innerHTML = `<div style="padding: 16px; text-align: center; color: var(--danger-color); font-size: 0.85rem;">加载失败</div>`;
-            }
-        }
-
-        // 渲染文件列表
-        function renderFileList(files) {
-            const filter = searchInput.value.toLowerCase();
-            fileList.innerHTML = "";
-            const filtered = files.filter(f => f.name.toLowerCase().includes(filter));
-
-            if (filtered.length === 0) {
-                fileList.innerHTML = `<div style="padding: 16px; text-align: center; color: var(--text-muted); font-size: 0.85rem;">没有匹配的日志文件</div>`;
-                return;
-            }
-
-            filtered.forEach(f => {
-                const item = document.createElement("div");
-                item.className = `file-item ${currentFile === f.name ? 'active' : ''}`;
-
-                const sizeKb = (f.size / 1024).toFixed(1) + " KB";
-                const dateStr = new Date(f.mtime * 1000).toLocaleString();
-
-                item.innerHTML = `
-                    <div class="file-name">${f.name}</div>
-                    <div class="file-meta">
-                        <span>${sizeKb}</span>
-                        <span>${dateStr}</span>
-                    </div>
-                `;
-                item.onclick = () => selectFile(f.name, true);
-                fileList.appendChild(item);
-            });
-        }
-
-        // 选中文件并加载内容
-        function selectFile(fileName, autoScroll = false) {
-            currentFile = fileName;
-            document.querySelectorAll(".file-item").forEach(el => {
-                if (el.querySelector(".file-name").textContent === fileName) {
-                    el.classList.add("active");
-                } else {
-                    el.classList.remove("active");
-                }
-            });
-            currentFilePath.textContent = `${currentFolder} / ${fileName}`;
-            loadContent(autoScroll);
-        }
-
-        // 格式化渲染日志内容（处理时间戳和高亮染色）
-        function formatAndRenderContent() {
-            if (!rawLogContent) {
-                logContent.innerHTML = "(文件内容为空)";
-                return;
-            }
-
-            const keepTimestamp = timestampToggle.checked;
-            const enableHighlight = highlightToggle.checked;
-
-            const lines = rawLogContent.split("\n");
-            const processedLines = lines.map(line => {
-                let displayLine = line;
-
-                // 1. 去掉/保留时间戳处理
-                // 常见时间戳格式如: 2026-10-02 08:43:29,978 或 2026-10-02T...
-                if (!keepTimestamp) {
-                    // 正则匹配常见的时间戳并移除
-                    displayLine = displayLine.replace(/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}([,.]\d+)?\s*/, "");
-                }
-
-                // HTML 转义防止 XSS
-                displayLine = escapeHtml(displayLine);
-
-                // 2. DEBUG/INFO 染色
-                if (enableHighlight) {
-                    if (displayLine.includes("[ERROR]") || displayLine.includes("ERROR") || displayLine.includes("异常")) {
-                        return `<span class="log-error">${displayLine}</span>`;
-                    } else if (displayLine.includes("[WARNING]") || displayLine.includes("WARNING") || displayLine.includes("警告")) {
-                        return `<span class="log-warn">${displayLine}</span>`;
-                    } else if (displayLine.includes("[INFO]") || displayLine.includes("INFO")) {
-                        return `<span class="log-info">${displayLine}</span>`;
-                    } else if (displayLine.includes("[DEBUG]") || displayLine.includes("DEBUG")) {
-                        return `<span class="log-debug">${displayLine}</span>`;
-                    }
-                }
-
-                return displayLine;
-            });
-
-            logContent.innerHTML = processedLines.join("\n");
-        }
-
-        function escapeHtml(text) {
-            return text
-                .replace(/&/g, "&amp;")
-                .replace(/</g, "&lt;")
-                .replace(/>/g, "&gt;")
-                .replace(/"/g, "&quot;")
-                .replace(/'/g, "&#039;");
-        }
-
-        // 加载日志内容
-        async function loadContent(forceScroll = false) {
-            if (!currentFolder || !currentFile) return;
-            const lines = linesSelect.value;
-            try {
-                const res = await fetch(`/logapi/content?folder=${encodeURIComponent(currentFolder)}&file=${encodeURIComponent(currentFile)}&lines=${lines}`);
-                const data = await res.json();
-                if (data.status === "success") {
-                    rawLogContent = data.content || "";
-                    formatAndRenderContent();
-
-                    fileStatusInfo.textContent = `大小: ${(data.size / 1024).toFixed(1)} KB`;
-                    updateTimeInfo.textContent = `最后更新：${new Date().toLocaleTimeString()}`;
-
-                    if (forceScroll || autoScrollToggle.checked) {
-                        logContainer.scrollTop = logContainer.scrollHeight;
-                    }
-                } else {
-                    logContent.textContent = `加载失败: ${data.message}`;
-                }
-            } catch (err) {
-                console.error("加载日志内容失败:", err);
-            }
-        }
-
-        // 定时自动刷新
-        function setupAutoRefresh() {
-            if (autoRefreshTimer) clearInterval(autoRefreshTimer);
-            if (autoRefreshToggle.checked) {
-                autoRefreshTimer = setInterval(() => loadContent(false), 3000);
-            }
-        }
-
-        // 事件绑定
-        folderSelect.onchange = (e) => {
-            currentFile = "";
-            loadFiles(e.target.value, true);
-        };
-
-        searchInput.oninput = () => {
-            renderFileList(allFilesData);
-        };
-
-        refreshBtn.onclick = () => loadContent(true);
-        linesSelect.onchange = () => loadContent(true);
-        timestampToggle.onchange = () => formatAndRenderContent();
-        highlightToggle.onchange = () => formatAndRenderContent();
-
-        scrollTopBtn.onclick = () => {
-            logContainer.scrollTop = 0;
-        };
-
-        scrollBottomBtn.onclick = () => {
-            logContainer.scrollTop = logContainer.scrollHeight;
-        };
-
-        autoRefreshToggle.onchange = () => {
-            setupAutoRefresh();
-        };
-
-        // 初始化
-        loadFolders();
-        setupAutoRefresh();
-    </script>
+    <!-- 要求 1: 独立引入 log.js -->
+    <script src="/main/log.js"></script>
 </body>
 </html>

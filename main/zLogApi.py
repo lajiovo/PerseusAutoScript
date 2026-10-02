@@ -8,29 +8,40 @@ log_bp = Blueprint('log_bp', __name__, url_prefix='/logapi')
 
 def get_path_metadata(path_str):
     """
-    识别路径特征并返回标签和 Azurpilot 专属分类
-    分类：launcher, gui, alas, other
+    识别路径特征并返回标签和分类
+    要求：
+    - 调整路径判定顺序：先判定 yunzai，再判定 Perseus/logs、AzurPilot、Perseus/QBot/log、Perseus/QBot。
+    - 确保返回的 metadata 中带有准确的分类名称。
     """
     normalized = path_str.replace("\\", "/")
     tags = []
     category = "other"
     
-    if "AzurPilot" in normalized:
-        tags.append("AzurPilot")
-        if "launcher" in normalized.lower():
-            category = "launcher"
-        elif "gui" in normalized.lower():
-            category = "gui"
-        elif "alas" in normalized.lower() or "alas" in normalized:
-            category = "alas"
-        else:
-            category = "other"
-    elif "Perseus/logs" in normalized or normalized.endswith("Perseus/logs") or "/logs" in normalized:
-        tags.append("Perseus/logs")
-    elif "Perseus/QBot/log" in normalized or "Perseus/QBot" in normalized:
-        tags.append("QBot")
-    elif "yunzai" in normalized.lower():
-        tags.append("Yunzai")
+    # 按照最新精细化要求调整后的优先级判定顺序：
+    # 1. yunzai
+    # 2. Perseus/logs (主服务日志)
+    # 3. AzurPilot (Azurpilot日志)
+    # 4. Perseus/QBot/log (机器人日志)
+    # 5. Perseus/QBot (QBotSDK日志)
+    
+    if "yunzai" in normalized.lower():
+        tags.append("云崽日志")
+        category = "yunzai"
+    elif "perseus/logs" in normalized.lower() or normalized.lower().endswith("perseus/logs") or ("/logs" in normalized.lower() and "perseus" in normalized.lower() and "qbot" not in normalized.lower()):
+        tags.append("主服务日志")
+        category = "perseus_logs"
+    elif "azurpilot" in normalized.lower():
+        tags.append("Azurpilot日志")
+        category = "azurpilot"
+    elif "perseus/qbot/log" in normalized.lower():
+        tags.append("机器人日志")
+        category = "qbot_log"
+    elif "perseus/qbot" in normalized.lower():
+        tags.append("QBotSDK日志")
+        category = "qbot_sdk"
+    else:
+        tags.append("其他日志")
+        category = "other"
         
     return tags, category
 
