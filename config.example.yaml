@@ -210,3 +210,11 @@ bot:
     node : "C:\\Program Files\\nodejs\\node.exe"
     # ⚠ yunzai安装文件夹
     yzdir : "D:\\???\\Perseus\\yunzai"
+
+bnp:
+  # ⚠ 你的bili_novel_packer存放位置
+  exe_dir : "D:\\???"
+  # ⚠ 它的实际名称
+  exe_path: "bili_novel_packer.exe"
+  # 日志名称是固定的，不用管
+  log_path: "bili_novel.log"

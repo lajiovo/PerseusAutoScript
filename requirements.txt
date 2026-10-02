@@ -1,0 +1,13 @@
+aiohttp
+botpy
+beautifulsoup4
+ebooklib
+flask
+opencc
+playwright
+psutil
+pynput
+requests
+ruamel.yaml
+urllib3
+pywin32

@@ -333,6 +333,11 @@ Perseus 提供了优雅的多级防闪退、静默挂载启动链：
 | [Go Music DL](https://github.com/guohuiyuan/go-music-dl) | 一个音乐搜索与下载工具 |
 | [TRSS-Yunzai](https://github.com/TimeRainStarSky/Yunzai) | Yunzai 应用端 |
 | [lnovel](https://github.com/yjl9903/lnovel) | 提供轻小说开放接口和 RSS 订阅 |
+| [bili_novel_packer](https://github.com/montaro2017/bili_novel_packer) | 可以将支持的轻小说网站中的小说打包成EPUB格式 |
+| [Playwright](https://github.com/microsoft/playwright-python) | a Python library to automate browsers with a single API |
+| [beautifulsoup4](https://www.crummy.com/software/BeautifulSoup/) | HTML/XML 解析库，常用于网页爬虫与数据提取 |
+| [ebooklib](https://github.com/aerkalov/ebooklib) | a Python library for managing EPUB2/EPUB3 |
+| [Flask](https://github.com/pallets/flask) | a lightweight WSGI web application framework |
 
 ---
 
