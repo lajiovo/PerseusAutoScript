@@ -313,6 +313,137 @@
             display: flex;
             justify-content: space-between;
         }
+
+        /* 手机端响应式适配媒体查询 (Media Queries) */
+        @media screen and (max-width: 768px) {
+            body {
+                height: 100vh;
+                overflow: auto;
+            }
+
+            header {
+                padding: 8px 12px;
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 8px;
+            }
+
+            header > div:last-child {
+                width: 100%;
+                justify-content: space-between;
+            }
+
+            .category-bar {
+                padding: 6px 12px;
+                gap: 6px;
+                overflow-x: auto;
+                white-space: nowrap;
+                flex-wrap: nowrap;
+                -webkit-overflow-scrolling: touch;
+            }
+
+            .cat-btn {
+                padding: 3px 8px;
+                font-size: 0.75rem;
+                flex-shrink: 0;
+            }
+
+            .main-container {
+                flex-direction: column;
+                height: auto;
+                overflow: visible;
+                flex: none;
+            }
+
+            aside {
+                width: 100% !important;
+                max-height: 280px;
+                border-right: none;
+                border-bottom: 1px solid var(--border-color);
+                padding: 12px;
+            }
+
+            .file-list {
+                max-height: 140px;
+            }
+
+            content-area {
+                width: 100% !important;
+                height: 60vh;
+                min-height: 400px;
+                display: flex;
+                flex-direction: column;
+            }
+
+            .toolbar {
+                padding: 8px 12px;
+                gap: 8px;
+            }
+
+            .toolbar-left, .toolbar-right {
+                gap: 6px;
+                width: 100%;
+                justify-content: space-between;
+            }
+
+            .log-viewer-container {
+                padding: 8px;
+                -webkit-overflow-scrolling: touch;
+            }
+
+            pre {
+                padding: 10px;
+                font-size: 0.75rem;
+                white-space: pre-wrap;
+                word-break: break-all;
+            }
+        }
+
+        /* 横屏模式 (Landscape) 针对小屏手机的特殊优化 */
+        @media screen and (max-height: 500px) and (orientation: landscape) {
+            body {
+                height: 100vh;
+                overflow: auto;
+            }
+
+            header {
+                padding: 4px 12px;
+            }
+
+            header h1 {
+                font-size: 1rem;
+            }
+
+            .category-bar {
+                padding: 4px 12px;
+            }
+
+            .main-container {
+                flex-direction: row;
+                height: calc(100vh - 85px);
+            }
+
+            aside {
+                width: 280px !important;
+                max-height: none;
+                height: 100%;
+                border-right: 1px solid var(--border-color);
+                border-bottom: none;
+            }
+
+            .file-list {
+                flex: 1;
+                max-height: none;
+            }
+
+            content-area {
+                height: 100%;
+            }
+
+            .log-viewer-container {
+                height: calc(100vh - 160px);
+            }
+        }
     </style>
 </head>
 <body>
@@ -323,13 +454,13 @@
             <h1>PerseusLogViewer</h1>
             <span class="badge" id="currentFolderTag">系统日志实时监控</span>
         </div>
-        <div style="display: flex; align-items: center; gap: 12px;">
-            <span id="currentFilePath" style="font-size: 0.85rem; color: var(--text-muted);">请选择文件夹与日志文件</span>
+        <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap; justify-content: flex-end;">
+            <span id="currentFilePath" style="font-size: 0.85rem; color: var(--text-muted); max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">请选择文件夹与日志文件</span>
             <button class="btn" id="themeToggleBtn" title="切换夜间/日间模式">🌙 模式</button>
         </div>
     </header>
 
-    <!-- 要求 1 & 2: <div class="category-bar"> 用于清晰展示各分类快捷切换 -->
+    <!-- 要求的 category-bar 分类栏 -->
     <div class="category-bar" id="categoryBar">
         <span style="font-size: 0.85rem; color: var(--text-muted); font-weight: 600;">快捷分类：</span>
         <button class="cat-btn active" data-category="all">全部文件夹</button>
