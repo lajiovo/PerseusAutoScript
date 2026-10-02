@@ -377,7 +377,7 @@ if sys.stderr is None:
     sys.stderr = open(os.devnull, "w", encoding="utf-8")
 
 # 获取上一级目录路径
-parent_dir = Path(__file__).resolve().parent.parent
+parent_dir = Path(__file__).resolve().parent.parent / "main"
 
 def load_module_from_parent(module_name: str):
     """动态加载上级目录中的 Python 模块"""
