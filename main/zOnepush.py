@@ -963,18 +963,22 @@ def parse_tasks_html(html_content):
                 scheduler_stats[lbl] = v
 
         # 2. 解析任务项 (rail-task-item)
-        task_items = re.findall(r'<a[^>]*data-task="([^"]*)"[^>]*class="([^"]*)"[^>]*>((.*?)</a>)', html_content, re.DOTALL | re.IGNORECASE)
+        task_items = re.findall(r'<a[^>]*data-task="([^"]*)"[^>]*class="([^"]*)"[^>]*>(.*?)</a>', html_content, re.DOTALL | re.IGNORECASE)
         if not task_items:
-            task_items = re.findall(r'<a[^>]*class="[^"]*rail-task-item[^"]*"[^>]*>((.*?)</a>)', html_content, re.DOTALL | re.IGNORECASE)
-            formatted_items = []
-            for item_html in task_items:
-                html_str = item_html[0] if isinstance(item_html, tuple) else item_html
-                dt_match = re.search(r'data-task="([^"]*)"', html_str, re.IGNORECASE)
+            raw_items = re.findall(r'<a[^>]*class="[^"]*rail-task-item[^"]*"[^>]*>(.*?)</a>', html_content, re.DOTALL | re.IGNORECASE)
+            task_items = []
+            for item_html in raw_items:
+                dt_match = re.search(r'data-task="([^"]*)"', item_html, re.IGNORECASE)
                 dt = dt_match.group(1) if dt_match else ""
-                formatted_items.append((dt, "", html_str))
-            task_items = formatted_items
+                task_items.append((dt, "", item_html))
 
-        for task_key, class_str, inner_html in task_items:
+        for item in task_items:
+            if len(item) == 4:
+                task_key, class_str, _, inner_html = item
+            elif len(item) == 3:
+                task_key, class_str, inner_html = item
+            else:
+                continue
             status = "waiting"
             full_lower = (class_str + inner_html).lower()
             if "running" in full_lower or "运行中" in full_lower:
