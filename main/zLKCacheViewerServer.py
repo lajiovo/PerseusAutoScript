@@ -108,15 +108,15 @@ def get_all_lkcache_images():
     print(f"[LKCacheViewer] 开始扫描 lkcache 基础路径: {LK_CACHE_BASE}")
     if os.path.exists(LK_CACHE_BASE):
         book_folders = sorted(os.listdir(LK_CACHE_BASE))
-        print(f"[LKCacheViewer] 发现 lkcache 下的顶层条目共 {len(book_folders)} 个: {book_folders}")
+        # print(f"[LKCacheViewer] 发现 lkcache 下的顶层条目共 {len(book_folders)} 个: {book_folders}")
         # 遍历 lkcache 下的各个书籍文件夹
         for book_folder in book_folders:
             b_path = os.path.join(LK_CACHE_BASE, book_folder)
             if not os.path.isdir(b_path):
-                print(f"[LKCacheViewer] 跳过非目录条目: {book_folder}")
+                # print(f"[LKCacheViewer] 跳过非目录条目: {book_folder}")
                 continue
             
-            print(f"[LKCacheViewer] 正在递归扫描书籍目录: {book_folder} (绝对路径: {b_path})")
+            # print(f"[LKCacheViewer] 正在递归扫描书籍目录: {book_folder} (绝对路径: {b_path})")
             
             # 书籍名称即为文件夹名
             title = book_folder
@@ -133,11 +133,11 @@ def get_all_lkcache_images():
                         author = meta.get("author", author)
                         if "book_id" in meta:
                             b_id = str(meta.get("book_id"))
-                    print(f"[LKCacheViewer] 成功读取书籍元数据: title={title}, author={author}, book_id={b_id}")
+                    # print(f"[LKCacheViewer] 成功读取书籍元数据: title={title}, author={author}, book_id={b_id}")
                 except Exception as e:
                     print(f"[LKCacheViewer] 读取书籍元数据失败 ({meta_path}): {e}")
-            else:
-                print(f"[LKCacheViewer] 书籍目录下未发现 metadata.json: {meta_path}")
+            # else:
+                # print(f"[LKCacheViewer] 书籍目录下未发现 metadata.json: {meta_path}")
             
             # 严格适应 lkcache/<book-name>/ 的真实层级（包含子目录/分卷/分章节），递归查找所有的 images_mapped 文件夹及插图
             found_image_paths = set()
@@ -145,12 +145,12 @@ def get_all_lkcache_images():
             
             for root, dirs, files in os.walk(b_path):
                 rel_root = os.path.relpath(root, b_path)
-                if rel_root != ".":
-                    print(f"[LKCacheViewer]   - 递归扫描子目录: {rel_root} (子目录数: {len(dirs)}, 文件数: {len(files)})")
+                # if rel_root != ".":
+                    # print(f"[LKCacheViewer]   - 递归扫描子目录: {rel_root} (子目录数: {len(dirs)}, 文件数: {len(files)})")
                 
                 if os.path.basename(root) == "images_mapped":
                     rel_dir_from_base = os.path.relpath(root, LK_CACHE_BASE).replace("\\", "/")
-                    print(f"[LKCacheViewer]   > 发现 images_mapped 文件夹: {root}, 相对路径: {rel_dir_from_base}")
+                    # print(f"[LKCacheViewer]   > 发现 images_mapped 文件夹: {root}, 相对路径: {rel_dir_from_base}")
                     valid_files_in_folder = 0
                     for f_name in sorted(files):
                         if f_name.lower().endswith(('.jpg', '.jpeg', '.png', '.gif', '.webp', '.avif')):
@@ -169,11 +169,11 @@ def get_all_lkcache_images():
                                         "original_url": ""
                                     })
                                     valid_files_in_folder += 1
-                    print(f"[LKCacheViewer]   > images_mapped 文件夹中有效插图数量: {valid_files_in_folder}")
+                    # print(f"[LKCacheViewer]   > images_mapped 文件夹中有效插图数量: {valid_files_in_folder}")
             
-            print(f"[LKCacheViewer] 书籍 [{title}] (ID: {b_id}) 递归扫描完成，共找到有效插图: {book_images_count} 张")
-    else:
-        print(f"[LKCacheViewer] 错误: lkcache 基础路径不存在: {LK_CACHE_BASE}")
+            # print(f"[LKCacheViewer] 书籍 [{title}] (ID: {b_id}) 递归扫描完成，共找到有效插图: {book_images_count} 张")
+    # else:
+        # print(f"[LKCacheViewer] 错误: lkcache 基础路径不存在: {LK_CACHE_BASE}")
 
     print(f"[LKCacheViewer] 整个 lkcache 扫描结束，总计找到插图: {len(result_images)} 张")
     return jsonify({"status": "ok", "images": result_images})
