@@ -1225,6 +1225,9 @@ def handle_main_stats_get():
 
     return format_response({
         "status": "ok",
+        "handlepush": HANDLEPUSH,
+        "mumu_running": True,
+        "alas_running": True,
         "zOnepush": {
             "auto_check_count": stats["auto_check_count"],
             "push_handle_count": stats["push_handle_count"],

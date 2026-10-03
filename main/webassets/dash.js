@@ -129,7 +129,7 @@ window.addEventListener('DOMContentLoaded', () => {
   async function loadSystemStatusAndDashboard() {
     try {
       // 1. 获取 /main/sv/get 状态
-      const svRes = await fetch('/main/sv/get');
+      const svRes = await fetch('/main/stats/get');
       if (svRes.ok) {
         const svData = await svRes.json();
         const data = svData.data || svData;
@@ -149,21 +149,6 @@ window.addEventListener('DOMContentLoaded', () => {
         if (alasEl) {
           alasEl.textContent = data.alas_running ? '🟢 运行中' : '⚪ 未运行';
           alasEl.style.color = data.alas_running ? '#10b981' : '#94a3b8';
-        }
-      }
-
-      // 2. 获取 /main/ap/get 仪表盘 HTML
-      const apRes = await fetch('/main/ap/get');
-      if (apRes.ok) {
-        const apData = await apRes.json();
-        const htmlContent = apData.html || (apData.data && apData.data.html);
-        const container = document.getElementById('dashboardContainer');
-        if (container) {
-          if (htmlContent && htmlContent.trim() !== '') {
-            container.innerHTML = htmlContent;
-          } else {
-            container.innerHTML = '<p style="color: #94a3b8; font-size: 0.85rem; text-align: center;">暂无仪表盘缓存数据，请先执行 Playwright 任务获取。</p>';
-          }
         }
       }
     } catch (e) {

@@ -1,6 +1,11 @@
 function updateElementText(id, text) {
-    const el = document.getElementById(id) || document.querySelector(`#section-status #${id}`);
-    if (el) el.textContent = text;
+    // 1. 使用 querySelectorAll 获取页面中所有符合条件的元素（包括全局 ID 和 #section-status 内的 ID）
+    const elements = document.querySelectorAll(`#${id}, #section-status #${id}`);
+    
+    // 2. 遍历所有找到的元素，逐个更新文本
+    elements.forEach(el => {
+        el.textContent = text;
+    });
 }
 
 async function loadAllStatusData() {
