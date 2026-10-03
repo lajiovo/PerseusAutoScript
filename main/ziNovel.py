@@ -152,6 +152,7 @@ class NovelEpubExporter:
                     self.log(f"  [!] 直接下载失败 ({url}): {e}")
 
         # 如果直接下载及重试均失败，则使用 PROXY_SERVER = get_config("proxy.http") 作为代理再次进行下载尝试
+        """
         proxy_server = get_config("proxy.http")
         if proxy_server:
             proxies = {
@@ -169,6 +170,7 @@ class NovelEpubExporter:
             except Exception as e:
                 zBarkCustom.PerseusNotifyMsg("", f"  [!] 棍木下载失败 ({truncate_string(url, 5, 10)}): {e}")
                 self.log(f"  [!] 代理下载失败 ({url}): {e}")
+        """
 
         return None, None
 

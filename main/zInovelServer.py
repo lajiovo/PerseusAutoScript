@@ -31,22 +31,60 @@ def serve_inovel_servercache(filepath):
     """直接提供 servercache/inovel 下文件静态访问（支持封面、插图等）"""
     return send_from_directory(CACHE_BASE_DIR, filepath)
 
+def format_size(size_bytes):
+    """格式化文件大小为友好的带单位字符串"""
+    try:
+        size_bytes = int(size_bytes)
+    except Exception:
+        return "0 B"
+    if size_bytes < 1024:
+        return f"{size_bytes} B"
+    elif size_bytes < 1024 * 1024:
+        return f"{size_bytes / 1024:.2f} KB"
+    else:
+        return f"{size_bytes / (1024 * 1024):.2f} MB"
+
 @inovel_bp.route("/books", methods=["GET"])
 def list_inovel_books():
-    """获取所有已缓存的书籍列表（带封面、插图列表、XML路径等）"""
+    """获取所有已缓存的书籍列表（带分页、封面、插图列表、XML大小等）"""
     raw_novels = get_cached_novels()
+    
+    # 获取分页参数
+    try:
+        page = int(request.args.get("page", 1))
+        page_size = int(request.args.get("page_size", 10))
+    except ValueError:
+        page = 1
+        page_size = 10
+
+    if page < 1: page = 1
+    if page_size < 1: page_size = 10
+
+    total_count = len(raw_novels)
+    start_idx = (page - 1) * page_size
+    end_idx = start_idx + page_size
+    
+    paginated_novels = raw_novels[start_idx:end_idx]
     result = []
 
-    for item in raw_novels:
+    for item in paginated_novels:
         folder_path = Path(item["folder_path"])
         book_title = item["title"]
         
         # 查找封面
-        cover_url = ""
         local_cover = ""
         images_dir = folder_path / "images"
         images_json_path = folder_path / "images.json"
+        xml_path_file = folder_path / "feed.xml"
         
+        # 计算 feed.xml 文件大小
+        xml_size_bytes = 0
+        if xml_path_file.exists():
+            try:
+                xml_size_bytes = xml_path_file.stat().st_size
+            except Exception:
+                xml_size_bytes = 0
+
         image_mapping = {}
         if images_json_path.exists():
             try:
@@ -83,6 +121,8 @@ def list_inovel_books():
             "title": book_title,
             "mtime": item["mtime"],
             "xml_path": item["xml_path"],
+            "xml_size_bytes": xml_size_bytes,
+            "xml_size_formatted": format_size(xml_size_bytes),
             "local_cover": local_cover,
             "images": images_list,
             "has_epub": has_epub,
@@ -90,7 +130,81 @@ def list_inovel_books():
             "image_count": len(images_list)
         })
 
-    return jsonify({"status": "ok", "books": result})
+    return jsonify({
+        "status": "ok",
+        "total": total_count,
+        "page": page,
+        "page_size": page_size,
+        "total_pages": (total_count + page_size - 1) // page_size if page_size > 0 else 1,
+        "books": result
+    })
+
+@inovel_bp.route("/book/delete", methods=["POST", "DELETE"])
+def delete_inovel_book():
+    """删除指定的书籍目录及所有缓存文件（通过书名/目录名）"""
+    data = request.get_json(silent=True) or request.form.to_dict() or request.args.to_dict()
+    title = data.get("title") or data.get("book_title")
+    if not title:
+        return jsonify({"status": "error", "message": "缺少要删除的书籍标题(title)"}), 400
+
+    target_dir = CACHE_BASE_DIR / sanitize_path(title)
+    if not target_dir.exists():
+        # 尝试遍历查找匹配名称的文件夹
+        found = False
+        if CACHE_BASE_DIR.exists():
+            for folder in CACHE_BASE_DIR.iterdir():
+                if folder.is_dir() and folder.name.lower() == title.lower():
+                    target_dir = folder
+                    found = True
+                    break
+        if not found:
+            return jsonify({"status": "error", "message": f"未找到该书籍的缓存目录: {title}"}), 404
+
+    try:
+        import shutil
+        shutil.rmtree(target_dir)
+        # 同时检查并删除对应的 epub 文件（若存在）
+        epub_file = OUTPUTDIR / f"{title}.epub"
+        if epub_file.exists():
+            epub_file.unlink()
+        return jsonify({"status": "ok", "message": f"书籍《{title}》及其缓存已成功删除"})
+    except Exception as e:
+        return jsonify({"status": "error", "message": f"删除书籍目录失败: {e}"}), 500
+
+@inovel_bp.route("/book/xml", methods=["GET"])
+def get_inovel_book_xml():
+    """查看/获取指定书籍的 feed.xml 内容或文件"""
+    title = request.args.get("title")
+    if not title:
+        return jsonify({"status": "error", "message": "缺少书籍标题(title)参数"}), 400
+
+    target_xml = CACHE_BASE_DIR / title / "feed.xml"
+    if not target_xml.exists():
+        return jsonify({"status": "error", "message": f"未找到该书的 feed.xml 文件"}), 404
+
+    return send_from_directory(target_xml.parent, "feed.xml", mimetype="application/xml")
+
+@inovel_bp.route("/book/images", methods=["GET"])
+def get_inovel_book_images():
+    """获取某本书的插图列表 API"""
+    title = request.args.get("title")
+    if not title:
+        return jsonify({"status": "error", "message": "缺少书籍标题(title)参数"}), 400
+
+    folder_path = CACHE_BASE_DIR / title
+    images_dir = folder_path / "images"
+    images_list = []
+
+    if images_dir.exists():
+        for img_file in sorted(images_dir.iterdir()):
+            if img_file.is_file():
+                rel_img_path = f"{title}/images/{img_file.name}"
+                images_list.append({
+                    "filename": img_file.name,
+                    "url": f"/inovelapi/servercache/{rel_img_path}"
+                })
+
+    return jsonify({"status": "ok", "title": title, "images": images_list, "count": len(images_list)})
 
 @inovel_bp.route("/export", methods=["POST"])
 def trigger_inovel_export():
