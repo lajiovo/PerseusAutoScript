@@ -16,6 +16,7 @@
       --accent: #38bdf8;
       --accent-hover: #0ea5e9;
       --danger: #f43f5e;
+      --success: #22c55e;
     }
     * {
       box-sizing: border-box;
@@ -86,6 +87,13 @@
     .btn:hover {
       background-color: var(--accent-hover);
     }
+    .btn-danger {
+      background-color: var(--danger);
+      color: #fff;
+    }
+    .btn-danger:hover {
+      background-color: #e11d48;
+    }
     .main-container {
       flex: 1;
       padding: 24px;
@@ -115,6 +123,7 @@
       flex-direction: column;
       transition: transform 0.2s, box-shadow 0.2s;
       cursor: pointer;
+      position: relative;
     }
     .image-card:hover {
       transform: translateY(-4px);
@@ -185,6 +194,7 @@
       color: var(--text-muted);
       font-size: 16px;
     }
+
     /* 模态框样式 */
     .modal-overlay {
       position: fixed;
@@ -197,7 +207,7 @@
       align-items: center;
       justify-content: center;
       z-index: 1000;
-      padding: 40px;
+      padding: 20px;
       backdrop-filter: blur(4px);
     }
     .modal-content {
@@ -246,47 +256,69 @@
       align-items: center;
       gap: 16px;
     }
-    .modal-image-wrapper {
-      max-height: 60vh;
-      display: flex;
-      justify-content: center;
-    }
-    .modal-image-wrapper img {
-      max-width: 100%;
-      max-height: 60vh;
-      object-fit: contain;
-      border-radius: 6px;
-      border: 1px solid var(--card-border);
-    }
-    .modal-details {
+
+    /* 正方形格子与阅读器 */
+    .images-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+      gap: 12px;
       width: 100%;
-      background-color: #0f172a;
+      align-content: start;
+    }
+    .img-item {
+      background: #0f172a;
+      border: 1px solid var(--card-border);
       border-radius: 8px;
-      padding: 16px;
-      font-size: 13px;
+      overflow: hidden;
+      aspect-ratio: 1 / 1;
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      position: relative;
+      cursor: pointer;
+      transition: all 0.2s;
     }
-    .detail-row {
-      display: flex;
-      justify-content: space-between;
-      word-break: break-all;
+    .img-item:hover {
+      border-color: var(--accent);
+      transform: scale(1.02);
     }
-    .detail-label {
-      color: var(--text-muted);
-      min-width: 90px;
+    .img-item img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
     }
-    .detail-value {
-      color: var(--text-main);
-      text-align: right;
+    .img-item span {
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      background: rgba(0, 0, 0, 0.7);
+      color: #fff;
+      font-size: 10px;
+      padding: 4px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
-    .detail-value a {
-      color: var(--accent);
-      text-decoration: none;
-    }
-    .detail-value a:hover {
-      text-decoration: underline;
+
+    /* 移动端适配 */
+    @media (max-width: 768px) {
+      header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+        padding: 12px;
+      }
+      .toolbar {
+        flex-wrap: wrap;
+      }
+      .search-input, .select-box, .btn {
+        width: 100%;
+      }
+      .grid-container {
+        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+        gap: 12px;
+      }
+      .image-thumb-wrapper {
+        height: 180px;
+      }
     }
   </style>
 </head>
@@ -303,21 +335,23 @@
           class="search-input" 
           placeholder="搜索图片名称或来源书籍..." 
         />
-        <select v-model="selectedBook" class="select-box">
+        <select v-model="selectedBook" class="select-box" @change="handleBookChange">
           <option value="">全部书籍 ({{ allBooks.length }} 本)</option>
           <option v-for="b in allBooks" :value="b.book_id" :key="b.book_id">{{ b.title }} (ID: {{ b.book_id }})</option>
         </select>
-        <button class="btn" @click="loadImages">🔄 刷新插图</button>
+        <button class="btn" @click="loadData">🔄 刷新数据</button>
       </div>
     </header>
 
     <div class="main-container">
       <div class="stats-bar">
-        <span>当前展示插图总数: <strong>{{ filteredImages.length }}</strong> 张 (总计缓存: {{ allImages.length }} 张)</span>
+        <span>当前展示: <strong>{{ selectedBook ? currentBookImages.length : filteredImages.length }}</strong> 张插图 (总计书籍: {{ allBooks.length }} 本)</span>
+        <button class="btn btn-danger" v-if="selectedBook" @click="deleteCurrentBook">🗑️ 删除当前书籍缓存</button>
       </div>
 
-      <div class="grid-container" v-if="filteredImages.length > 0">
-        <div class="image-card" v-for="(img, idx) in filteredImages" :key="idx" @click="openDetail(img)">
+      <!-- 书籍列表视图（未选择具体书籍时展示，或全局插图视图） -->
+      <div class="grid-container" v-if="!selectedBook && filteredImages.length > 0">
+        <div class="image-card" v-for="(img, idx) in filteredImages" :key="idx" @click="openReaderGlobal(idx)">
           <div class="image-thumb-wrapper">
             <img :src="img.url" @error="handleImageError" alt="插图" loading="lazy" />
           </div>
@@ -325,9 +359,26 @@
             <div class="image-title" :title="img.filename">{{ img.filename }}</div>
             <div class="image-meta">
               <span class="book-badge" :title="img.book_title">{{ img.book_title || ('Book ' + img.book_id) }}</span>
-              <span>ID: {{ img.book_id }}</span>
+              <span @click.stop="selectBook(img.book_id)" style="cursor:pointer; color:var(--accent);">查看该书 ➔</span>
             </div>
           </div>
+        </div>
+      </div>
+
+      <!-- 选择特定书籍后展示该书的插图正方形网格 -->
+      <div v-else-if="selectedBook">
+        <div style="margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between;">
+          <h2>📚 {{ currentBookTitle }} (共 {{ currentBookImages.length }} 张插图)</h2>
+          <button class="btn" @click="selectedBook = ''">返回全部书籍</button>
+        </div>
+        <div class="images-grid" v-if="currentBookImages.length > 0">
+          <div class="img-item" v-for="(img, idx) in currentBookImages" :key="img.filename" @click="openReaderBook(idx)">
+            <img :src="img.url" @error="handleImageError" alt="插图" loading="lazy" />
+            <span>{{ img.filename }}</span>
+          </div>
+        </div>
+        <div class="empty-state" v-else>
+          <p>该书籍文件夹下暂无缓存插图。</p>
         </div>
       </div>
 
@@ -336,39 +387,18 @@
       </div>
     </div>
 
-    <!-- 详情与放大查看模态框 -->
-    <div class="modal-overlay" v-if="activeImage" @click.self="closeDetail">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h3 :title="activeImage.filename">📄 {{ activeImage.filename }}</h3>
-          <button class="close-btn" @click="closeDetail">&times;</button>
+    <!-- 左右切换自适应图片阅读器模态框 -->
+    <div class="modal-overlay" v-if="readerIndex >= 0" @click="closeReader" style="z-index: 2000;">
+      <div style="position: relative; width: 92vw; height: 92vh; display: flex; flex-direction: column; align-items: center; justify-content: center;" @click.stop>
+        <div style="position: absolute; top: 10px; left: 20px; color: #fff; font-size: 14px; font-weight: bold; z-index: 2010;">
+          {{ readerTitle }} ({{ readerIndex + 1 }} / {{ readerList.length }})
         </div>
-        <div class="modal-body">
-          <div class="modal-image-wrapper">
-            <img :src="activeImage.url" alt="大图详情" />
-          </div>
-          <div class="modal-details">
-            <div class="detail-row">
-              <span class="detail-label">所属书籍:</span>
-              <span class="detail-value">{{ activeImage.book_title || ('Book ' + activeImage.book_id) }} (ID: {{ activeImage.book_id }})</span>
-            </div>
-            <div class="detail-row">
-              <span class="detail-label">文件名称:</span>
-              <span class="detail-value">{{ activeImage.filename }}</span>
-            </div>
-            <div class="detail-row" v-if="activeImage.original_url">
-              <span class="detail-label">原始网址:</span>
-              <span class="detail-value">
-                <a :href="activeImage.original_url" target="_blank">{{ activeImage.original_url }}</a>
-              </span>
-            </div>
-            <div class="detail-row">
-              <span class="detail-label">服务器路径:</span>
-              <span class="detail-value">
-                <a :href="activeImage.url" target="_blank">{{ activeImage.url }}</a>
-              </span>
-            </div>
-          </div>
+        <button type="button" class="close-btn" style="position: absolute; top: 10px; right: 20px; color: #fff; font-size: 28px; z-index: 2020; background: rgba(0,0,0,0.5); width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer;" @click.stop="closeReader">&times;</button>
+        
+        <div style="flex: 1; display: flex; align-items: center; justify-content: center; width: 100%; position: relative; overflow: hidden;">
+          <button type="button" @click.stop="prevImage" style="position: absolute; left: 10px; background: rgba(0,0,0,0.6); color: #fff; border: none; font-size: 28px; padding: 12px 18px; cursor: pointer; border-radius: 6px; z-index: 2010;">‹</button>
+          <img :src="readerList[readerIndex] ? readerList[readerIndex].url : ''" style="max-width: 100%; max-height: 82vh; object-fit: contain; border-radius: 6px;" alt="大图" />
+          <button type="button" @click.stop="nextImage" style="position: absolute; right: 10px; background: rgba(0,0,0,0.6); color: #fff; border: none; font-size: 28px; padding: 12px 18px; cursor: pointer; border-radius: 6px; z-index: 2010;">›</button>
         </div>
       </div>
     </div>
@@ -381,53 +411,72 @@
       setup() {
         const allImages = ref([]);
         const allBooks = ref([]);
+        const currentBookImages = ref([]);
         const searchKeyword = ref("");
         const selectedBook = ref("");
-        const activeImage = ref(null);
+        
+        // 阅读器状态
+        const readerIndex = ref(-1);
+        const readerList = ref([]);
+        const readerTitle = ref("");
 
-        // 异步加载所有缓存书籍及插图数据
-        const loadImages = async () => {
+        const loadData = async () => {
           try {
-            // 1. 获取所有书籍列表
+            // 1. 获取所有书籍
             const booksRes = await fetch('/lkvapi/books/all');
             const booksData = await booksRes.json();
             if (booksData.status === 'ok') {
               allBooks.value = booksData.books || [];
             }
 
-            // 2. 遍历所有书籍获取各自的插图列表
-            let loadedImages = [];
-            for (const book of allBooks.value) {
-              try {
-                const imgRes = await fetch(`/lkvapi/book/${book.book_id}/images`);
-                const imgData = await imgRes.json();
-                if (imgData.status === 'ok' && imgData.images) {
-                  for (const img of imgData.images) {
-                    loadedImages.push({
-                      ...img,
-                      book_id: book.book_id,
-                      book_title: book.title
-                    });
-                  }
-                }
-              } catch (err) {
-                console.error(`加载书籍 ${book.book_id} 插图失败:`, err);
-              }
+            // 2. 获取全局所有插图
+            const imgRes = await fetch('/lkvapi/lkcache/images');
+            const imgData = await imgRes.json();
+            if (imgData.status === 'ok') {
+              allImages.value = imgData.images || [];
             }
-            allImages.value = loadedImages;
+
+            // 如果当前已选中某本书，顺便更新该书插图
+            if (selectedBook.value) {
+              fetchBookImages(selectedBook.value);
+            }
           } catch (e) {
             console.error("加载数据异常:", e);
           }
         };
 
-        // 过滤后的插图列表
+        const fetchBookImages = async (bookId) => {
+          try {
+            const res = await fetch(`/lkvapi/book/${bookId}/images`);
+            const data = await res.json();
+            if (data.status === 'ok') {
+              currentBookImages.value = data.images || [];
+            }
+          } catch (e) {
+            console.error("获取书籍插图失败:", e);
+          }
+        };
+
+        const handleBookChange = () => {
+          if (selectedBook.value) {
+            fetchBookImages(selectedBook.value);
+          } else {
+            currentBookImages.value = [];
+          }
+        };
+
+        const selectBook = (bookId) => {
+          selectedBook.value = bookId;
+          fetchBookImages(bookId);
+        };
+
+        const currentBookTitle = computed(() => {
+          const b = allBooks.value.find(item => String(item.book_id) === String(selectedBook.value));
+          return b ? b.title : selectedBook.value;
+        });
+
         const filteredImages = computed(() => {
           return allImages.value.filter(img => {
-            // 按书籍筛选
-            if (selectedBook.value && String(img.book_id) !== String(selectedBook.value)) {
-              return false;
-            }
-            // 按关键词搜索 (匹配文件名或书名)
             if (searchKeyword.value.trim()) {
               const kw = searchKeyword.value.trim().toLowerCase();
               const matchName = img.filename && img.filename.toLowerCase().includes(kw);
@@ -441,12 +490,56 @@
           });
         });
 
-        const openDetail = (img) => {
-          activeImage.value = img;
+        const openReaderGlobal = (idx) => {
+          readerList.value = filteredImages.value;
+          readerIndex.value = idx;
+          readerTitle.value = filteredImages.value[idx].book_title || ('Book ' + filteredImages.value[idx].book_id);
         };
 
-        const closeDetail = () => {
-          activeImage.value = null;
+        const openReaderBook = (idx) => {
+          readerList.value = currentBookImages.value;
+          readerIndex.value = idx;
+          readerTitle.value = currentBookTitle.value;
+        };
+
+        const closeReader = () => {
+          readerIndex.value = -1;
+        };
+
+        const prevImage = () => {
+          if (readerIndex.value > 0) {
+            readerIndex.value--;
+          } else {
+            readerIndex.value = readerList.value.length - 1;
+          }
+        };
+
+        const nextImage = () => {
+          if (readerIndex.value < readerList.value.length - 1) {
+            readerIndex.value++;
+          } else {
+            readerIndex.value = 0;
+          }
+        };
+
+        const deleteCurrentBook = async () => {
+          if (!selectedBook.value) return;
+          if (!confirm(`确认要删除当前书籍 (ID/文件夹: ${selectedBook.value}) 的所有缓存及插图吗？`)) return;
+          try {
+            const res = await fetch(`/lkvapi/book/${selectedBook.value}/delete`, {
+              method: 'POST'
+            });
+            const data = await res.json();
+            if (data.status === 'ok') {
+              alert(data.message || '删除成功');
+              selectedBook.value = "";
+              loadData();
+            } else {
+              alert('删除失败: ' + data.message);
+            }
+          } catch (e) {
+            alert('请求异常: ' + e);
+          }
         };
 
         const handleImageError = (e) => {
@@ -454,19 +547,29 @@
         };
 
         onMounted(() => {
-          loadImages();
+          loadData();
         });
 
         return {
           allImages,
           allBooks,
+          currentBookImages,
           searchKeyword,
           selectedBook,
-          activeImage,
+          currentBookTitle,
           filteredImages,
-          loadImages,
-          openDetail,
-          closeDetail,
+          readerIndex,
+          readerList,
+          readerTitle,
+          loadData,
+          handleBookChange,
+          selectBook,
+          openReaderGlobal,
+          openReaderBook,
+          closeReader,
+          prevImage,
+          nextImage,
+          deleteCurrentBook,
           handleImageError
         };
       }

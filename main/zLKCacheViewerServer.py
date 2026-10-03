@@ -183,6 +183,42 @@ def serve_lk_cache_files(filepath):
     """提供 lk cache 文件夹内静态文件（如图片等）的访问服务"""
     return send_from_directory(LK_CACHE_BASE, filepath)
 
+@lk_cache_viewer_bp.route("/book/<book_id>/delete", methods=["POST"])
+def delete_book_cache(book_id):
+    """删除特定书籍/文件夹下的所有缓存及插图"""
+    import shutil
+    if not os.path.exists(LK_CACHE_BASE):
+        return jsonify({"status": "error", "message": "lkcache 目录不存在"})
+    
+    target_b_path = None
+    for book_folder in os.listdir(LK_CACHE_BASE):
+        b_path = os.path.join(LK_CACHE_BASE, book_folder)
+        if not os.path.isdir(b_path):
+            continue
+        # 匹配文件夹名或 metadata.json 中的 book_id
+        if book_folder == str(book_id):
+            target_b_path = b_path
+            break
+        meta_path = os.path.join(b_path, "metadata.json")
+        if os.path.exists(meta_path):
+            try:
+                with open(meta_path, "r", encoding="utf-8") as f:
+                    meta = json.load(f)
+                    if "book_id" in meta and str(meta.get("book_id")) == str(book_id):
+                        target_b_path = b_path
+                        break
+            except Exception:
+                pass
+                
+    if target_b_path and os.path.exists(target_b_path):
+        try:
+            shutil.rmtree(target_b_path)
+            return jsonify({"status": "ok", "message": f"成功删除书籍缓存: {book_id}"})
+        except Exception as e:
+            return jsonify({"status": "error", "message": f"删除文件夹失败: {str(e)}"})
+            
+    return jsonify({"status": "error", "message": f"未找到对应的书籍缓存: {book_id}"})
+
 @lk_cache_viewer_bp.route("/viewer", methods=["GET"])
 def serve_lk_cache_viewer_page():
     """直接渲染/访问 lkcacheviewer.html 页面"""
