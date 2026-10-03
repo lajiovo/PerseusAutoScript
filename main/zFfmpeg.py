@@ -94,7 +94,7 @@ def process_audio():
                 "错误：未找到 ffmpeg 程序，请确保已将 ffmpeg 添加到系统环境变量 Path 中。"
             )
             break
-    zBarkCustom.PerseusNotifyMsg(f"{len(mp3_files)} 个 MP3 文件处理完成")
+    zBarkCustom.PerseusNotifyMsg("process_audio():",f"{len(mp3_files)} 个 MP3 文件处理完成")
 
 
 if __name__ == "__main__":

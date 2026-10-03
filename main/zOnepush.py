@@ -1614,6 +1614,7 @@ def handle_bot_start():
 @app.route("/bot/shutdown", methods=["GET", "POST"])
 def handle_bot_shutdown():
     """接收 /bot/shutdown 请求：精准结束 QBot 进程"""
+    PerseusErrorMsg("","收到 bot/shutdown 请求：将结束 QBot 进程")
     try:
         kill_qbot_process()
         return format_response({
@@ -1776,12 +1777,20 @@ def handle_music_ffm():
         print("🧵 正在单开线程运行 ffmrun()...")
         ffmpeg_thread = threading.Thread(target=ffmrun, daemon=True)
         ffmpeg_thread.start()
+        PerseusErrorMsg("",str({
+            "status": "ok",
+            "message": "ffmrun() 已在后台单开线程成功启动"
+        }))
         return format_response({
             "status": "ok",
             "message": "ffmrun() 已在后台单开线程成功启动"
         }, 200)
     except Exception as e:
         print(f"❌ ffmrun 启动失败: {e}")
+        PerseusErrorMsg("",str({
+            "status": "error",
+            "message": f"ffmrun 启动失败: {str(e)}"
+        }))
         return format_response({
             "status": "error",
             "message": f"ffmrun 启动失败: {str(e)}"
@@ -1792,12 +1801,20 @@ def handle_music_stop():
     """接收 /music/stop 请求：清理端口、强杀进程、关闭 musicdl 线程及 ffm 线程"""
     try:
         stop_musicdl_services()
+        PerseusErrorMsg("",str({
+            "status": "ok",
+            "message": "MusicDL 进程及 37777 端口已清理，MusicDL 与 ffm 线程已停止"
+        }))
         return format_response({
             "status": "ok",
             "message": "MusicDL 进程及 37777 端口已清理，MusicDL 与 ffm 线程已停止"
         }, 200)
     except Exception as e:
         print(f"❌ MusicDL 终止失败: {e}")
+        PerseusErrorMsg("",str({
+            "status": "error",
+            "message": f"MusicDL 终止失败: {str(e)}"
+        }))
         return format_response({
             "status": "error",
             "message": f"MusicDL 终止失败: {str(e)}"
