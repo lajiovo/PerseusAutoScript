@@ -520,6 +520,10 @@
                     <label class="toggle-switch" title="是否保留行首的标准时间戳">
                         <input type="checkbox" id="timestampToggle" checked> 保留时间戳
                     </label>
+                    <!-- 新增：过滤 HTTP 访问/静态请求日志开关（默认勾选） -->
+                    <label class="toggle-switch" title="过滤掉类似 GET /... HTTP/1.1, 304 -, 静态文件访问等噪音日志">
+                        <input type="checkbox" id="filterHttpToggle" checked> 过滤HTTP/静态请求
+                    </label>
                     <!-- 要求 4: 默认关闭日志染色 -->
                     <label class="toggle-switch" title="高亮显示 ERROR / WARNING / INFO">
                         <input type="checkbox" id="highlightToggle"> 日志染色

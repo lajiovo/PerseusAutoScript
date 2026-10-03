@@ -19,6 +19,7 @@ const refreshBtn = document.getElementById("refreshBtn");
 const autoRefreshToggle = document.getElementById("autoRefreshToggle");
 const autoScrollToggle = document.getElementById("autoScrollToggle");
 const timestampToggle = document.getElementById("timestampToggle");
+const filterHttpToggle = document.getElementById("filterHttpToggle");
 const highlightToggle = document.getElementById("highlightToggle");
 const themeToggleBtn = document.getElementById("themeToggleBtn");
 const linesSelect = document.getElementById("linesSelect");
@@ -250,7 +251,10 @@ function formatAndRenderContent() {
     var enableHighlight = highlightToggle ? highlightToggle.checked : false;
 
     var lines = rawLogContent.split("\n");
-    var processedLines = lines.map(function(line) {
+    var processedLines = [];
+
+    for (var i = 0; i < lines.length; i++) {
+        var line = lines[i];
         var displayLine = line;
 
         if (!keepTimestamp) {
@@ -261,18 +265,18 @@ function formatAndRenderContent() {
 
         if (enableHighlight) {
             if (displayLine.indexOf("[ERROR]") !== -1 || displayLine.indexOf("ERROR") !== -1 || displayLine.indexOf("异常") !== -1) {
-                return "<span class='log-error'>" + displayLine + "</span>";
+                displayLine = "<span class='log-error'>" + displayLine + "</span>";
             } else if (displayLine.indexOf("[WARNING]") !== -1 || displayLine.indexOf("WARNING") !== -1 || displayLine.indexOf("警告") !== -1) {
-                return "<span class='log-warn'>" + displayLine + "</span>";
+                displayLine = "<span class='log-warn'>" + displayLine + "</span>";
             } else if (displayLine.indexOf("[INFO]") !== -1 || displayLine.indexOf("INFO") !== -1) {
-                return "<span class='log-info'>" + displayLine + "</span>";
+                displayLine = "<span class='log-info'>" + displayLine + "</span>";
             } else if (displayLine.indexOf("[DEBUG]") !== -1 || displayLine.indexOf("DEBUG") !== -1) {
-                return "<span class='log-debug'>" + displayLine + "</span>";
+                displayLine = "<span class='log-debug'>" + displayLine + "</span>";
             }
         }
 
-        return displayLine;
-    });
+        processedLines.push(displayLine);
+    }
 
     logContent.innerHTML = processedLines.join("\n");
 }
@@ -292,8 +296,10 @@ async function loadContent(forceScroll) {
     if (forceScroll === undefined) forceScroll = false;
     if (!currentFolder || !currentFile) return;
     var lines = linesSelect ? linesSelect.value : "100";
+    var filterHttp = filterHttpToggle ? filterHttpToggle.checked : true;
+    var filterHttpVal = filterHttp ? "1" : "0";
     try {
-        var res = await fetch("/logapi/content?folder=" + encodeURIComponent(currentFolder) + "&file=" + encodeURIComponent(currentFile) + "&lines=" + lines);
+        var res = await fetch("/logapi/content?folder=" + encodeURIComponent(currentFolder) + "&file=" + encodeURIComponent(currentFile) + "&lines=" + lines + "&filter_http=" + filterHttpVal);
         var data = await res.json();
         if (data.status === "success") {
             rawLogContent = data.content || "";
@@ -337,6 +343,7 @@ if (searchInput) {
 if (refreshBtn) refreshBtn.onclick = function() { loadContent(true); };
 if (linesSelect) linesSelect.onchange = function() { loadContent(true); };
 if (timestampToggle) timestampToggle.onchange = function() { formatAndRenderContent(); };
+if (filterHttpToggle) filterHttpToggle.onchange = function() { loadContent(true); };
 if (highlightToggle) highlightToggle.onchange = function() { formatAndRenderContent(); };
 
 if (scrollTopBtn) {

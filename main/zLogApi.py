@@ -169,12 +169,14 @@ def api_get_files():
 @log_bp.route("/content", methods=["GET"])
 def api_get_content():
     """
-    GET /logapi/content?folder=<folder_path>&file=<file_name>&lines=100: 
-    返回指定文件的最新内容（支持增量读取或完整读取，方便前端实时刷新）。
+    GET /logapi/content?folder=<folder_path>&file=<file_name>&lines=100&filter_http=true/false: 
+    返回指定文件的最新内容（支持服务端过滤 HTTP 访问/静态请求及回溯满指定行数）。
     """
     folder_path = request.args.get("folder", "")
     file_name = request.args.get("file", "")
     lines_param = request.args.get("lines", "100")
+    filter_http_param = request.args.get("filter_http", "true").lower()
+    filter_http = filter_http_param in ("true", "1", "yes")
     
     if not folder_path or not file_name:
         return jsonify({
@@ -190,7 +192,7 @@ def api_get_content():
         return jsonify({
             "status": "error",
             "message": "File not found or access denied"
-        }), 404
+        }, 404)
 
     try:
         try:
@@ -198,21 +200,54 @@ def api_get_content():
         except ValueError:
             num_lines = 100
 
-        # 高效读取文件末尾指定行数的内容
-        content_lines = []
         file_size = os.path.getsize(file_path)
         
+        # 定义过滤 HTTP/静态请求的判断函数
+        def is_http_noise(line):
+            if not filter_http:
+                return False
+            lower = line.lower()
+            # 特征匹配：
+            # 1. 包含 " - - [" 或 "HTTP/1." 或请求方法 GET/POST/PUT/DELETE
+            # 2. 包含状态码或状态段 "304 -"、"404 -"、"200 -"、"500 -" 等
+            # 3. 静态资源常见后缀
+            if (
+                " - - [" in line or
+                "http/1." in lower or
+                "get /" in lower or
+                "post /" in lower or
+                "put /" in lower or
+                "delete /" in lower or
+                " - 304 -" in line or
+                " - 404 -" in line or
+                " - 200 -" in line or
+                " - 500 -" in line or
+                '" 304 -' in line or
+                '" 404 -' in line or
+                '" 200 -' in line or
+                '" 500 -' in line or
+                r'\.(js|css|ico|png|jpg|jpeg|gif|svg|woff|woff2|ttf|map)(\?.*)?["\s]' in lower
+            ):
+                return True
+            return False
+
         with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
-            if num_lines <= 0:
-                content = f.read()
-            else:
-                # 简单高效的按行读取尾部
-                all_lines = f.readlines()
-                if len(all_lines) > num_lines:
-                    content_lines = all_lines[-num_lines:]
-                else:
-                    content_lines = all_lines
-                content = "".join(content_lines)
+            all_lines = f.readlines()
+
+        if num_lines <= 0:
+            # 全文过滤
+            filtered_lines = [l for l in all_lines if not is_http_noise(l)]
+            content = "".join(filtered_lines)
+        else:
+            # 回溯查找：从文件末尾向前扫描，直到收集到指定数量的有效非噪音日志行
+            valid_lines = []
+            idx = len(all_lines) - 1
+            while idx >= 0 and len(valid_lines) < num_lines:
+                line = all_lines[idx]
+                if not is_http_noise(line):
+                    valid_lines.insert(0, line)
+                idx -= 1
+            content = "".join(valid_lines)
 
         return jsonify({
             "status": "success",
