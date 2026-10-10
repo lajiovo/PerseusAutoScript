@@ -14,7 +14,7 @@ except ImportError:
     def PerseusWarningMsg(msg, code=""): print(f"[WARN] {code} {msg}")
 
 
-def is_site_accessible(url="http://192.168.10.3:22267/"):
+def is_site_accessible(url="http://127.0.0.1:22267/"):
     """
     轻量级检查目标网页是否可访问
     """
@@ -25,7 +25,7 @@ def is_site_accessible(url="http://192.168.10.3:22267/"):
         return False
 
 
-def wait_for_site_ready(url="http://192.168.10.3:22267/", max_wait_sec=180):
+def wait_for_site_ready(url="http://127.0.0.1:22267/", max_wait_sec=180):
     """
     循环检查网页状态，在最长指定时间内等待网页在线。
     """
@@ -316,7 +316,7 @@ def get_screenshot(page):
 def main(
     headless: bool = True,
     task_list: list = None,
-    base_url: str = "http://192.168.10.3:22267/",
+    base_url: str = "http://127.0.0.1:22267/",
 ):
     """
     任务简称对照表：
@@ -418,7 +418,7 @@ if __name__ == "__main__":
     result = main(
         headless=False,
         task_list=default_tasks,
-        base_url="http://192.168.10.3:22267/"
+        base_url="http://127.0.0.1:22267/"
     )
     
     print("\n" + "="*40)
