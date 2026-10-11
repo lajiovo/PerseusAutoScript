@@ -63,7 +63,7 @@
     *   **插图处理**：自动下载补齐插图
     *   **EPUB生成**：自动打包成epub
     *   **TKgui**：提供独立的Tkinter GUI桌面程序进行可视化管理
-*   📖 **哔哩轻小说 & iNovel**：
+*   📖 **哔哩轻小说 & [iNovel](https://github.com/yjl9903/lnovel)**：
     *   **资源下载**：解析哔哩轻小说链接，并从iNovel站获取资源
     *   **XML解析缓存**：自动解析 `feed.xml` ，并识别解析分卷
     *   **插图处理**：自动下载补齐插图
@@ -104,9 +104,6 @@ Perseus/
 ---
 
 ## 🚀 安装与启动教程 （必看）
-
-<details>
-<summary>点击展开：</summary>
 
 ### 1. 依赖包安装
 本项目基于 Python 3.10+ 开发，核心依赖包括 `Flask`, `playwright`, `botpy` (腾讯频道机器人 SDK) 等。
@@ -204,7 +201,7 @@ Perseus 提供了优雅的多级防闪退、静默挂载启动链：
 
 ## ❤ 依赖与相关项目 (Dependencies & Related Projects)
 
-| 项目 | 说明 |
+| 依赖/相关项目 | 说明 |
 | --- | --- |
 | [AzurPilot](https://github.com/wess09/AzurPilot) | 碧蓝航线自动化辅助工具 |
 | [botpy](https://github.com/tencent-connect/botpy) | 基于机器人开放平台API实现的机器人框架 |
