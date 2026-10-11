@@ -9,6 +9,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const statFilesEl = document.getElementById('stat-files');
     const statLinesEl = document.getElementById('stat-lines');
     const statCharsEl = document.getElementById('stat-chars');
+    
+    // 顶部新增指标卡元素
+    const statMaxFileEl = document.getElementById('stat-max-file');
+    const statMaxMetaEl = document.getElementById('stat-max-meta');
+    const statAvgLinesEl = document.getElementById('stat-avg-lines');
+    const statAvgCharsEl = document.getElementById('stat-avg-chars');
+
     const langTableBody = document.querySelector('#lang-table tbody');
     const fileTableBody = document.querySelector('#file-table tbody');
     const searchInput = document.getElementById('search-input');
@@ -34,7 +41,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
     }
 
-    // 辅助函数：提取文件名（用于文件详情列表只显示文件名）
+    // 辅助函数：提取文件名
     function extractFileName(filePath) {
         if (!filePath) return '';
         const cleanPath = filePath.replace(/\\/g, '/');
@@ -45,7 +52,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return cleanPath;
     }
 
-    // 辅助函数：从完整绝对路径或路径字符串中只提取文件夹名
+    // 辅助函数：只提取文件夹名
     function extractFolderName(dirPath) {
         if (!dirPath) return '未知目录';
         const cleanPath = dirPath.replace(/[/\\]+$/, '');
@@ -111,10 +118,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 right: 10
             },
             grid: {
-                top: 40,
-                bottom: 30,
-                left: 50,
-                right: 30,
+                top: 45,
+                bottom: 35,
+                left: 55,
+                right: 40,
                 containLabel: true
             },
             xAxis: {
@@ -195,7 +202,7 @@ document.addEventListener('DOMContentLoaded', () => {
         myChart.setOption(option);
     }
 
-    // 初始化并渲染文件规模 Top 柱状图
+    // 初始化并渲染文件规模 Top 双 Y 轴柱状图（行数与字符数对等规模/多系列对比）
     function initTopChart(filesData) {
         const chartDom = document.getElementById('echarts-top-container');
         if (!chartDom) return;
@@ -239,14 +246,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     let result = `<div style="font-weight:600; margin-bottom:4px; color:#c084fc;">${fullFile.path}</div>`;
                     result += `<div style="font-size:12px; color:#94a3b8; margin-bottom:6px;">语言: ${fullFile.language} | 大小: ${formatSize(fullFile.size)}</div>`;
                     params.forEach(param => {
-                        let unit = param.seriesName === '行数' ? ' 行' : ' 字符';
+                        let unit = param.seriesName === '代码行数' ? ' 行' : ' 字符';
                         result += `<div style="display:flex; justify-content:space-between; gap:16px;"><span>${param.marker} ${param.seriesName}:</span><span style="font-weight:bold; font-family:monospace;">${Number(param.value).toLocaleString()}${unit}</span></div>`;
                     });
                     return result;
                 }
             },
             legend: {
-                data: ['行数', '字符数'],
+                data: ['代码行数', '字符数'],
                 textStyle: {
                     color: '#94a3b8',
                     fontSize: 12
@@ -255,21 +262,35 @@ document.addEventListener('DOMContentLoaded', () => {
                 right: 10
             },
             grid: {
-                top: 40,
-                bottom: 20,
-                left: 110,
-                right: 30,
+                top: 45,
+                bottom: 25,
+                left: 120,
+                right: 60,
                 containLabel: true
             },
-            xAxis: {
-                type: 'value',
-                splitLine: {
-                    lineStyle: { color: 'rgba(51, 65, 85, 0.25)', type: 'dashed' }
+            // 双 X 轴实现对等规模/多系列对比展示（底层 X 轴为行数，顶层 X 轴为字符数）
+            xAxis: [
+                {
+                    type: 'value',
+                    name: '行数',
+                    position: 'bottom',
+                    splitLine: {
+                        lineStyle: { color: 'rgba(51, 65, 85, 0.25)', type: 'dashed' }
+                    },
+                    axisLine: { show: false },
+                    axisTick: { show: false },
+                    axisLabel: { color: '#38bdf8' }
                 },
-                axisLine: { show: false },
-                axisTick: { show: false },
-                axisLabel: { color: '#94a3b8' }
-            },
+                {
+                    type: 'value',
+                    name: '字符数',
+                    position: 'top',
+                    splitLine: { show: false },
+                    axisLine: { show: false },
+                    axisTick: { show: false },
+                    axisLabel: { color: '#c084fc' }
+                }
+            ],
             yAxis: {
                 type: 'category',
                 data: fileNames,
@@ -285,17 +306,18 @@ document.addEventListener('DOMContentLoaded', () => {
             },
             series: [
                 {
-                    name: '行数',
+                    name: '代码行数',
                     type: 'bar',
+                    xAxisIndex: 0,
                     data: linesValues,
-                    barMaxWidth: 16,
+                    barMaxWidth: 14,
                     itemStyle: {
                         borderRadius: [0, 4, 4, 0],
                         color: new echarts.graphic.LinearGradient(1, 0, 0, 0, [
-                            { offset: 0, color: '#c084fc' },
-                            { offset: 1, color: '#7c3aed' }
+                            { offset: 0, color: '#38bdf8' },
+                            { offset: 1, color: '#0284c7' }
                         ]),
-                        shadowColor: 'rgba(192, 132, 252, 0.4)',
+                        shadowColor: 'rgba(56, 189, 248, 0.4)',
                         shadowBlur: 10
                     },
                     animationDuration: 1500,
@@ -304,15 +326,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 {
                     name: '字符数',
                     type: 'bar',
+                    xAxisIndex: 1,
                     data: charsValues,
-                    barMaxWidth: 16,
+                    barMaxWidth: 14,
                     itemStyle: {
                         borderRadius: [0, 4, 4, 0],
                         color: new echarts.graphic.LinearGradient(1, 0, 0, 0, [
-                            { offset: 0, color: '#38bdf8' },
-                            { offset: 1, color: '#0284c7' }
+                            { offset: 0, color: '#c084fc' },
+                            { offset: 1, color: '#7c3aed' }
                         ]),
-                        shadowColor: 'rgba(56, 189, 248, 0.4)',
+                        shadowColor: 'rgba(192, 132, 252, 0.4)',
                         shadowBlur: 10
                     },
                     animationDuration: 1800,
@@ -452,6 +475,26 @@ document.addEventListener('DOMContentLoaded', () => {
                 statFilesEl.textContent = formatNumber(data.total_files);
                 statLinesEl.textContent = formatNumber(data.total_lines);
                 statCharsEl.textContent = formatNumber(data.total_chars);
+
+                // 计算并渲染额外指标卡片：“最大文件情况”与“平均文件情况”
+                if (data.files && data.files.length > 0) {
+                    // 最大文件（按行数最多或字符数最多，通常行数最多作为主指标）
+                    const maxFile = [...data.files].sort((a, b) => b.lines - a.lines)[0];
+                    statMaxFileEl.textContent = maxFile.path;
+                    statMaxFileEl.title = maxFile.path;
+                    statMaxMetaEl.innerHTML = `行数: <span style="color:var(--accent-blue); font-family:monospace;">${formatNumber(maxFile.lines)}</span> | 字符: <span style="color:var(--accent-purple); font-family:monospace;">${formatNumber(maxFile.chars)}</span>`;
+
+                    // 平均文件情况
+                    const avgLines = Math.round(data.total_lines / data.total_files);
+                    const avgChars = Math.round(data.total_chars / data.total_files);
+                    statAvgLinesEl.textContent = `${formatNumber(avgLines)} 行`;
+                    statAvgCharsEl.textContent = `${formatNumber(avgChars)} 字符`;
+                } else {
+                    statMaxFileEl.textContent = '无文件';
+                    statMaxMetaEl.textContent = '-';
+                    statAvgLinesEl.textContent = '0 行';
+                    statAvgCharsEl.textContent = '0 字符';
+                }
 
                 // 语言统计
                 const sortedLangs = Object.entries(data.languages).sort((a, b) => b[1].lines - a[1].lines);

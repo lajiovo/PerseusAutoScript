@@ -53,21 +53,27 @@
             </div>
         </div>
 
-        <!-- 图表显隐控制面板 -->
-        <div class="chart-control-panel glass-panel">
-            <div class="panel-header" style="margin-bottom: 12px;">
-                <h2>🎛️ 图表显示控制面板</h2>
-                <span class="badge-count">多维切换</span>
+        <!-- 顶部额外增加指标卡：最大文件情况与平均文件情况 -->
+        <div class="extra-metrics-grid">
+            <div class="card bento-card metric-card">
+                <div class="card-icon max-icon">👑</div>
+                <div class="card-info">
+                    <h3>最大文件情况</h3>
+                    <p id="stat-max-file" class="stat-desc">-</p>
+                    <div id="stat-max-meta" class="stat-subvalue">-</div>
+                </div>
+                <div class="card-glow"></div>
             </div>
-            <div class="checkbox-group">
-                <label class="checkbox-label">
-                    <input type="checkbox" id="toggle-lang-chart" checked>
-                    <span>语言代码行数与分布图</span>
-                </label>
-                <label class="checkbox-label">
-                    <input type="checkbox" id="toggle-top-chart" checked>
-                    <span>单文件规模 Top 柱状图</span>
-                </label>
+            <div class="card bento-card metric-card">
+                <div class="card-icon avg-icon">📈</div>
+                <div class="card-info">
+                    <h3>平均文件情况</h3>
+                    <div class="avg-stats-row">
+                        <span>平均行数: <strong id="stat-avg-lines">-</strong></span>
+                        <span>平均字符: <strong id="stat-avg-chars">-</strong></span>
+                    </div>
+                </div>
+                <div class="card-glow"></div>
             </div>
         </div>
 
@@ -80,10 +86,10 @@
             <div id="echarts-container" class="echarts-container"></div>
         </div>
 
-        <!-- ECharts 炫酷图表区 2: 文件 Top 柱状图 -->
+        <!-- ECharts 炫酷图表区 2: 文件 Top 柱状图（行数与字符数双 Y 轴对等规模/多系列对比展示） -->
         <div class="chart-section glass-panel" id="section-top-chart">
             <div class="panel-header">
-                <h2>🚀 单文件规模 Top 柱状图 (行数 / 字符数)</h2>
+                <h2>🚀 单文件规模 Top 柱状图 (行数与字符数双 Y 轴对比)</h2>
                 <span class="badge-count" id="top-chart-badge">Top 15 文件</span>
             </div>
             <div id="echarts-top-container" class="echarts-container"></div>
@@ -149,7 +155,29 @@
                 </div>
             </div>
         </div>
+
+        <!-- 留出底部控制面板高度的占位符，防止内容被遮挡 -->
+        <div class="footer-spacer"></div>
     </div>
+
+    <!-- 图表显示控制面板：固定在页面最底部 (Footer 区域)，提供美观的开关复选框 -->
+    <footer class="footer-control-panel">
+        <div class="footer-panel-content">
+            <div class="footer-brand">
+                <span>🎛️ 图表显示控制</span>
+            </div>
+            <div class="checkbox-group">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="toggle-lang-chart" checked>
+                    <span>语言代码行数与分布图</span>
+                </label>
+                <label class="checkbox-label">
+                    <input type="checkbox" id="toggle-top-chart" checked>
+                    <span>单文件规模 Top 双轴柱状图</span>
+                </label>
+            </div>
+        </div>
+    </footer>
 
     <script src="codestatus.js"></script>
 </body>
