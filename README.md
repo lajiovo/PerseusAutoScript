@@ -96,85 +96,7 @@
 
 ```
 Perseus/
-├── QBot/                     # QBot 机器人独立服务目录
-│   ├── assets/               # 静态资源文件
-│   │    ├── index.html       # 主页面
-│   │    └── chat.html        # 聊天页面
-│   ├── temp_images/          # 云崽图片消息缓存
-│   ├── botdata/              # 机器人数据
-│   │    ├── c2chistory/      # 私聊聊天记录
-│   │    ├── grouphistory/    # 群聊聊天记录
-│   │    ├── groupinfo/       # 群聊信息
-│   │    ├── userdata/        # 用户的游戏数据
-│   │    ├── userinfo/        # 用户信息
-│   │    ├── extra.json       # 其他信息
-│   │    └── opsetting.json   # 管理员设置
-│   ├── log/                  # 机器人板块日志
-│   ├── config.py             # QBot 配置脚本
-│   ├── game.py               # 简易互动小游戏逻辑
-│   ├── gameconfig.json       # 游戏配置文件
-│   ├── key.example.json      # Web 密钥示例文件
-│   ├── main.py               # QBot 启动入口
-│   ├── opcmd.py              # OP 指令集与富媒体卡片处理
-│   ├── server.py             # WebUI 及服务控制端
-│   ├── morecmd.py            # 额外免管理员指令
-│   ├── botpy.log             # botpy 的日志文件
-│   └── yz.py                 # 云崽 Bot 接入
-├── brocache/                 # [`zBrowser.py`](zBrowser.py) 缓存文件
-├── servercache/              # 大本营的缓存文件
-│   ├── clipboard/            # clipboard 缓存
-│   ├── ap/                   # ap 状态暂存
-│   ├── pushlog/              # push 消息日志
-│   └── stats.json            # 大本营统计信息
-├── sources/                  # 资源
-│   └── icon.jpeg/            # README用图标
-├── browser_downloads/        # [`zBrowser.py`](zBrowser.py) 下载文件
-├── lkcache/                  # LK 板块的缓存文件
-│   └── <book-name>/          # 单书籍缓存
-│        ├── .../             # 分卷和分章节的文本与插图
-│        ├── images_mapped    # 封面映射
-│        └── metadata.json    # 书籍信息
-├── logs/                     # 大本营的日志文件
-├── temp_images/              # 临时图片消息缓存
-├── webassets/                # Web 后台/控制面板前端静态资源
-│   ├── index.html            # 导航页
-│   ├── dash.html             # 控制页
-│   ├── clipboard.html        # 在线剪切板
-│   └── status.html           # 仪表盘暨统计信息
-├── begin.vbs                 # 一级启动入口 (VBS 无窗口防闪退)
-├── Begin.example.bat         # 二级启动入口 示例 (CMD 批处理)
-├── begin.pyw                 # 三级启动入口 (Python 后端静默挂载)
-├── zOnepush.py               # 主控大本营中心调度与状态监控 (主 Flask 应用入口)
-├── LICENSE                   # 项目开源许可证 (GPL v3)
-├── README.md                 # 项目说明文档
-├── auth.example.json         # AzurpilotWebui 认证信息配置示例
-├── config.example.yaml       # 主配置文件示例
-├── zAlas.py                  # AzurPilot 自动化控制与更新逻辑
-├── zBanMumu.py               # MuMu 模拟器广告弹窗处理
-├── zBark.py                  # Bark 消息推送核心模块
-├── zBarkCustom.py            # 自定义消息推送接口
-├── zBrowser.py               # 滚木浏览器一键启动
-├── zConfig.py                # 全局配置读取与解析模块
-├── zCpolar.py                # Cpolar 内网穿透隧道管理
-├── zFfmpeg.py                # FFmpeg 音频压缩
-├── zLK.py                    # 轻之国度电子书抓取、解析与 EPUB 打包核心
-├── zLKapi.py                 # LK 接口逻辑
-├── zLKserver.py              # LK 后端蓝图路由服务 (`/lkapi`)
-├── zLKCacheViewerServer.py   # LK 缓存查看蓝图路由服务 (`/lkvapi`)
-├── zInovelServer.py          # 轻小说后端蓝图路由服务 (`/inovelapi`)
-├── ziNovel.py                # 轻小说核心爬虫与导出逻辑
-├── zWatchApi.py              # 智能手表同步与状态统计蓝图路由 (`/vela`)
-├── zWatchServer.py           # 智能手表服务端蓝图兼容层
-├── zMainHandler.py           # 消息转发和多任务轮询调度
-├── zMumu.py                  # MuMu 模拟器进程管理与提权
-├── zMusicDL.py               # MusicDL 音乐服务启动与局域网广播
-├── zPGRJZ.py                 # 苹果软件站签到等扩展自动化任务
-├── zPerseusLogger.py         # 全局日志轮转与格式化处理
-├── zPgrjzLogin.py            # 苹果软件站网页登录入口
-├── zPlaywright.py            # 旧版 Playwright 控制逻辑
-├── zPlaywrighNew.py          # 新版 Playwright 控制核心
-├── pgrjzauth.json            # 苹果软件站登录信息 (运行时生成)
-└── last_checkin.txt          # 签到日期记录
+├── 项目结构大改，暂时略
 ```
 
 </details>
@@ -259,60 +181,16 @@ Perseus 提供了优雅的多级防闪退、静默挂载启动链：
 5.  设置初始主人后，发送`#op help`获取指令菜单
 
 ### 8. 模块单走
-这些代码可以单独直接运行，开箱即用
+这些代码可以直接运行，开箱即用
 
 支持列表如下：
-1. [`main/zLK.py`](main/zLK.py) - 支持tkgui
-2. [`main/ziNovel.py`](main/ziNovel.py) - 支持tkgui
-3. [`main/zBrowser.py`](main/zBrowser.py) - 唯一启动方法
+1. [`main/zLK.py`](main/zLK.py) - 稳定入口,tkinter
+2. [`main/ziNovel.py`](main/ziNovel.py) - 备选入口,tkinter
+3. [`main/zBrowser.py`](main/zBrowser.py) - 唯一入口,playwright
+4. [`main/zBNP.py`](main/zBNP.py) - 稳定方法,tkinter
 
 ### 9. 云崽接入
 该功能稳定性差，教程略
-
-</details>
-
----
-
-## 🌐 后端路由清单
-
-<details>
-<summary>点击展开：</summary>
-
-本项目后端以 [`zOnepush.py`](zOnepush.py) 为核心 Flask 调度枢纽，通过蓝图 (Blueprint) 机制聚合了多个子服务模块：
-
-### 1. 主控大本营 (`zOnepush.py`) 核心路由
-*   `GET /main/` / `GET /main/<path:filename>`：托管 Web 后台控制面板静态资源（[`main/webassets/`](main/webassets/)）。
-*   `GET/POST /push`：外部消息接收与分发推送核心接口。
-*   `GET/POST /start`、`/stop`、`/restart`、`/shutdown`：主控及子服务生命周期管理。
-*   `GET/POST /bot/start`、`/bot/shutdown`：QBot 机器人进程的快捷启停。
-*   `GET/POST /music/start`、`/music/stop`、`/music/ffm`：音乐服务与 FFmpeg 压缩任务调控。
-*   `GET/POST /cp/start`、`/cp/stop`、`/cp/get`：Cpolar 内网穿透隧道控制与公网地址获取。
-*   `GET/POST /lk`、`/lk/<book_id>` 等：轻之国度电子书抓取异步任务触发。
-*   `GET /ping`、`GET /help`：健康检查与帮助指令返回。
-
-### 2. LK 电子书服务蓝图 (`zLKserver.py`，前缀 `/lkapi`)
-*   `GET /lkapi/status`：获取电子书爬虫运行状态。
-*   `GET /lkapi/tasks`：列出当前异步爬虫任务队列。
-*   `POST /lkapi/book/<book_id>/crawl`：触发指定书籍全本抓取。
-*   `POST /lkapi/book/<book_id>/epub`：将抓取缓存打包生成 EPUB 电子书。
-*   `GET /lkapi/books/all`：获取所有已缓存书籍清单。
-
-### 3. LK 缓存查看蓝图 (`zLKCacheViewerServer.py`，前缀 `/lkvapi`)
-*   `GET /lkvapi/viewer`：查看本地已缓存书籍章节与插图的网页端。
-*   `GET /lkvapi/books/all`：拉取本地缓存统计概览。
-
-### 4. 轻小说服务端蓝图 (`zInovelServer.py`，前缀 `/inovelapi`)
-*   `GET /inovelapi/status`：轻小说抓取状态查询。
-*   `GET /inovelapi/books`：获取已下载轻小说书单。
-*   `POST /inovelapi/export`：触发轻小说导出为 EPUB/TXT 任务。
-
-### 5. 智能手表与状态同步蓝图 (`zWatchApi.py`，前缀挂载于 `/vela` 等)
-*   `POST/GET /vela/sync`：手表同步与数据交互。
-*   `GET /vela/api/stats`：手表应用统计状态返回。
-
-### ...可能有遗漏（？
-
-</details>
 
 ---
 
