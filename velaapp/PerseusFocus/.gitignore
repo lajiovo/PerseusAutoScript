@@ -17,3 +17,4 @@ commitlint.config.js
 .prettierrc.js
 .npmignore
 logo.png
+package-lock.json

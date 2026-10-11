@@ -19,16 +19,22 @@ LANG_EXT_MAP = {
     'Python': ['.py', '.pyw'],
     'JavaScript': ['.js', '.mjs', '.cjs'],
     'TypeScript': ['.ts', '.tsx'],
+    'UX': ['.ux'],
     'HTML': ['.html', '.htm'],
     'CSS': ['.css', '.scss', '.sass', '.less'],
     'Markdown': ['.md', '.markdown'],
     'JSON': ['.json'],
-    'YAML': ['.yaml', '.yml'],
     'C/C++': ['.c', '.cpp', '.h', '.hpp'],
     'Java': ['.java'],
     'Go': ['.go'],
     'Rust': ['.rs'],
     'Shell': ['.sh', '.bat', '.cmd', '.ps1'],
+}
+
+# 彻底排除的扩展名（图片及YAML等）
+EXCLUDED_EXTENSIONS = {
+    '.png', '.jpg', '.jpeg', '.gif', '.ico', '.svg', '.webp', '.bmp', '.tiff', '.avif',
+    '.yaml', '.yml'
 }
 
 def get_target_directory():
@@ -147,7 +153,18 @@ def get_code_stats():
             if file in DEFAULT_IGNORED_FILES:
                 continue
                 
+            # 彻底过滤并排除所有图片资源文件以及 YAML 文件
+            ext = os.path.splitext(file)[1].lower()
+            if ext in EXCLUDED_EXTENSIONS:
+                continue
+                
             rel_file_path = os.path.join(rel_root, file) if rel_root != '.' else file
+            
+            # 特殊规则：当文件路径位于 velaapp/ 目录下时，只保留 .ux 文件，其余所有非 .ux 文件统一不纳入统计
+            normalized_rel_path = rel_file_path.replace('\\', '/')
+            if normalized_rel_path.startswith('velaapp/') or normalized_rel_path == 'velaapp':
+                if not file.lower().endswith('.ux'):
+                    continue
             
             # 校验是否被忽略
             if spec.match_file(rel_file_path):

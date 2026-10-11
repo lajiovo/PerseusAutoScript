@@ -52,18 +52,25 @@
 
             <div class="panel">
                 <h2>📁 文件详情列表</h2>
-                <div class="search-box">
-                    <input type="text" id="search-input" placeholder="搜索文件名或路径...">
+                <div class="filter-controls" style="display: flex; gap: 10px; margin-bottom: 12px; flex-wrap: wrap;">
+                    <div class="search-box" style="flex: 1; min-width: 200px; margin-bottom: 0;">
+                        <input type="text" id="search-input" placeholder="搜索文件名或路径..." style="width: 100%; padding: 8px 12px; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-card); color: var(--text-main);">
+                    </div>
+                    <div class="filter-box" style="min-width: 150px;">
+                        <select id="lang-filter" style="width: 100%; padding: 8px 12px; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-card); color: var(--text-main);">
+                            <option value="">所有语言/类型</option>
+                        </select>
+                    </div>
                 </div>
                 <div class="table-container file-list-container">
                     <table id="file-table">
                         <thead>
                             <tr>
-                                <th>文件路径</th>
-                                <th>语言</th>
-                                <th>行数</th>
-                                <th>字符数</th>
-                                <th>大小</th>
+                                <th class="sortable" data-sort="path" style="cursor: pointer;">文件路径 ↕</th>
+                                <th class="sortable" data-sort="language" style="cursor: pointer;">语言 ↕</th>
+                                <th class="sortable" data-sort="lines" style="cursor: pointer;">行数 ↕</th>
+                                <th class="sortable" data-sort="chars" style="cursor: pointer;">字符数 ↕</th>
+                                <th class="sortable" data-sort="size" style="cursor: pointer;">大小 ↕</th>
                             </tr>
                         </thead>
                         <tbody>
