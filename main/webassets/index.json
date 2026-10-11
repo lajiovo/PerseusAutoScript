@@ -1,54 +1,54 @@
 [
     {
         "id": "proxy",
-        "name": "内网穿透",
+        "name": "直接连接",
         "icon": "fa-solid fa-network-wired",
         "type": "grid",
         "cards": [
             {
-                "title": "仪表盘",
+                "title": "Dashboard",
                 "tag": "Dash",
-                "description": "核心系统状态监控与可视化控制台。",
+                "description": "系统可视化控制台",
                 "url": "/main/dash.html",
                 "code": "/main/dash.html",
                 "icon": "fa-solid fa-gauge-high"
             },
             {
-                "title": "PerseusBot",
+                "title": "Bot",
                 "tag": "Bot",
-                "description": "Perseus 智能机器人终端与服务管理。",
+                "description": "Perseus机器人终端转发",
                 "url": "/bot/assets/index.html",
                 "code": "/bot/assets/index.html",
                 "icon": "fa-solid fa-robot"
             },
             {
-                "title": "Azurpilot",
-                "tag": "Root",
-                "description": "Azur 导航调度核心与基础主页根入口。",
+                "title": "AzurPilot",
+                "tag": "Azur",
+                "description": "AzurPilotWebui转发",
                 "url": "/",
                 "code": "/",
                 "icon": "fa-solid fa-paper-plane"
             },
             {
-                "title": "云端剪切板",
-                "tag": "Cache",
-                "description": "跨设备文本及图片缓存与同步中心。",
+                "title": "ClipBoard",
+                "tag": "Clip",
+                "description": "文本及图片缓存",
                 "url": "/main/clipboard.html",
                 "code": "/main/clipboard.html",
                 "icon": "fa-solid fa-clipboard"
             },
             {
-                "title": "日志",
+                "title": "Logger",
                 "tag": "LOG",
-                "description": "程序日志查看",
+                "description": "全程序日志查看",
                 "url": "/main/log.html",
                 "code": "/main/log.html",
                 "icon": "fa-solid fa-server"
             },
             {
-                "title": "状态页",
+                "title": "Status",
                 "tag": "Status",
-                "description": "查看详情",
+                "description": "统计信息与状态",
                 "url": "/main/status.html",
                 "code": "/main/status.html",
                 "icon": "fa-solid fa-server"
@@ -56,18 +56,26 @@
             {
                 "title": "iNovel",
                 "tag": "Novel",
-                "description": "查看书库",
+                "description": "iNovel书库",
                 "url": "/main/inovel.html",
                 "code": "/main/inovel.html",
                 "icon": "fa-solid fa-book"
             },
             {
-                "title": "LKCacheViewer",
-                "tag": "Cache",
-                "description": "查看插图",
+                "title": "LightK",
+                "tag": "Image",
+                "description": "本地缓存的LK插图查看",
                 "url": "/main/lkcacheviewer.html",
                 "code": "/main/lkcacheviewer.html",
                 "icon": "fa-solid fa-images"
+            },
+            {
+                "title": "BiliNP",
+                "tag": "bnp",
+                "description": "bili_novel_packer控制",
+                "url": "/main/bnp.html",
+                "code": "/main/bnp.html",
+                "icon": "fa-solid fa-book"
             },
             {
                 "title": "WatchApp",
@@ -81,7 +89,7 @@
     },
     {
         "id": "local",
-        "name": "局域网内",
+        "name": "局域网",
         "icon": "fa-solid fa-house-laptop",
         "type": "grid-local",
         "cards": [
