@@ -78,6 +78,14 @@
                 "icon": "fa-solid fa-book"
             },
             {
+                "title": "Codestatus",
+                "tag": "code",
+                "description": "仓库代码统计",
+                "url": "/main/codestatus.html",
+                "code": "/main/codestatus.html",
+                "icon": "fa-solid fa-server"
+            },
+            {
                 "title": "WatchApp",
                 "tag": "Watch",
                 "description": "手表数据同步",

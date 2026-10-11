@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>代码状态与统计 - CodeStatus</title>
+    <!-- 引入 Apache ECharts -->
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
     <link rel="stylesheet" href="codestatus.css">
 </head>
 <body>
@@ -49,6 +51,15 @@
                 </div>
                 <div class="card-glow"></div>
             </div>
+        </div>
+
+        <!-- ECharts 炫酷图表区 (位于指标卡下方、表格上方无缝嵌入) -->
+        <div class="chart-section glass-panel">
+            <div class="panel-header">
+                <h2>📊 语言代码行数与分布图表</h2>
+                <span class="badge-count" id="chart-badge">多维可视化</span>
+            </div>
+            <div id="echarts-container" class="echarts-container"></div>
         </div>
 
         <!-- 语言统计与文件列表区 -->

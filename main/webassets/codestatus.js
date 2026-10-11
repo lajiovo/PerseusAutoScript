@@ -2,6 +2,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let allFiles = [];
     let currentSortColumn = 'lines';
     let currentSortAscending = false;
+    let myChart = null;
 
     const targetDirEl = document.getElementById('target-dir');
     const statFilesEl = document.getElementById('stat-files');
@@ -14,6 +15,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const sortableHeaders = document.querySelectorAll('#file-table th.sortable');
     const langCountBadge = document.getElementById('lang-count-badge');
     const fileCountBadge = document.getElementById('file-count-badge');
+    const chartBadge = document.getElementById('chart-badge');
 
     function formatNumber(num) {
         return num.toLocaleString();
@@ -28,15 +30,160 @@ document.addEventListener('DOMContentLoaded', () => {
     // 辅助函数：从完整绝对路径或路径字符串中只提取文件夹名
     function extractFolderName(dirPath) {
         if (!dirPath) return '未知目录';
-        // 去除尾部斜杠
         const cleanPath = dirPath.replace(/[/\\]+$/, '');
-        // 查找最后一个斜杠或反斜杠
         const lastSlash = Math.max(cleanPath.lastIndexOf('/'), cleanPath.lastIndexOf('\\'));
         if (lastSlash !== -1) {
             return cleanPath.substring(lastSlash + 1);
         }
         return cleanPath;
     }
+
+    // 初始化并渲染 Apache ECharts 渐变柱状图
+    function initECharts(languagesData) {
+        const chartDom = document.getElementById('echarts-container');
+        if (!chartDom) return;
+
+        if (!myChart) {
+            myChart = echarts.init(chartDom, 'dark', { renderer: 'canvas' });
+        }
+
+        // 整理数据并按行数降序排序
+        const sortedLangs = Object.entries(languagesData)
+            .map(([lang, stats]) => ({ lang, ...stats }))
+            .sort((a, b) => b.lines - a.lines);
+
+        const categories = sortedLangs.map(item => item.lang);
+        const linesData = sortedLangs.map(item => item.lines);
+        const filesData = sortedLangs.map(item => item.files);
+
+        chartBadge.textContent = `${categories.length} 种编程语言`;
+
+        const option = {
+            backgroundColor: 'transparent',
+            tooltip: {
+                trigger: 'axis',
+                backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                borderColor: 'rgba(56, 189, 248, 0.4)',
+                borderWidth: 1,
+                textStyle: {
+                    color: '#f8fafc',
+                    fontSize: 13
+                },
+                axisPointer: {
+                    type: 'shadow',
+                    shadowStyle: {
+                        color: 'rgba(56, 189, 248, 0.08)'
+                    }
+                },
+                formatter: function (params) {
+                    let result = `<div style="font-weight:600; margin-bottom:6px; color:#38bdf8;">${params[0].name}</div>`;
+                    params.forEach(param => {
+                        let unit = param.seriesName === '代码行数' ? ' 行' : ' 个';
+                        result += `<div style="display:flex; justify-content:space-between; gap:16px;"><span>${param.marker} ${param.seriesName}:</span><span style="font-weight:bold; font-family:monospace;">${Number(param.value).toLocaleString()}${unit}</span></div>`;
+                    });
+                    return result;
+                }
+            },
+            legend: {
+                data: ['代码行数', '文件数'],
+                textStyle: {
+                    color: '#94a3b8',
+                    fontSize: 12
+                },
+                top: 5,
+                right: 10
+            },
+            grid: {
+                top: 40,
+                bottom: 30,
+                left: 50,
+                right: 30,
+                containLabel: true
+            },
+            xAxis: {
+                type: 'category',
+                data: categories,
+                axisLine: {
+                    lineStyle: { color: 'rgba(51, 65, 85, 0.8)' }
+                },
+                axisTick: { show: false },
+                axisLabel: {
+                    color: '#94a3b8',
+                    fontSize: 12,
+                    interval: 0,
+                    rotate: categories.length > 8 ? 25 : 0
+                }
+            },
+            yAxis: [
+                {
+                    type: 'value',
+                    name: '行数',
+                    position: 'left',
+                    splitLine: {
+                        lineStyle: { color: 'rgba(51, 65, 85, 0.25)', type: 'dashed' }
+                    },
+                    axisLine: { show: false },
+                    axisTick: { show: false },
+                    axisLabel: { color: '#94a3b8' }
+                },
+                {
+                    type: 'value',
+                    name: '文件数',
+                    position: 'right',
+                    splitLine: { show: false },
+                    axisLine: { show: false },
+                    axisTick: { show: false },
+                    axisLabel: { color: '#94a3b8' }
+                }
+            ],
+            series: [
+                {
+                    name: '代码行数',
+                    type: 'bar',
+                    data: linesData,
+                    barMaxWidth: 35,
+                    itemStyle: {
+                        borderRadius: [6, 6, 0, 0],
+                        color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                            { offset: 0, color: '#38bdf8' },
+                            { offset: 1, color: '#0284c7' }
+                        ]),
+                        shadowColor: 'rgba(56, 189, 248, 0.4)',
+                        shadowBlur: 12
+                    },
+                    animationDuration: 1500,
+                    animationEasing: 'cubicOut'
+                },
+                {
+                    name: '文件数',
+                    type: 'bar',
+                    yAxisIndex: 1,
+                    data: filesData,
+                    barMaxWidth: 20,
+                    itemStyle: {
+                        borderRadius: [4, 4, 0, 0],
+                        color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                            { offset: 0, color: '#4ade80' },
+                            { offset: 1, color: '#16a34a' }
+                        ]),
+                        shadowColor: 'rgba(74, 222, 128, 0.3)',
+                        shadowBlur: 10
+                    },
+                    animationDuration: 1800,
+                    animationEasing: 'cubicOut'
+                }
+            ]
+        };
+
+        myChart.setOption(option);
+    }
+
+    // 监听窗口自适应图表大小
+    window.addEventListener('resize', () => {
+        if (myChart) {
+            myChart.resize();
+        }
+    });
 
     function getFilteredAndSortedFiles() {
         const keyword = searchInput.value.toLowerCase().trim();
@@ -100,7 +247,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td class="path-cell" title="${file.path}">${file.path}</td>
-                <td><span style="display:inline-block; padding: 2px 8px; background: rgba(56,189,248,0.1); border-radius: 4px; color: var(--accent-blue); font-size: 12px;">${file.language}</span></td>
+                <td><span style="display:inline-block; padding: 3px 10px; background: rgba(56,189,248,0.1); border: 1px solid rgba(56,189,248,0.2); border-radius: 6px; color: var(--accent-blue); font-size: 12px; font-weight: 500;">${file.language}</span></td>
                 <td>${formatNumber(file.lines)}</td>
                 <td>${formatNumber(file.chars)}</td>
                 <td>${formatSize(file.size)}</td>
@@ -128,7 +275,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await response.json();
 
             if (data.status === 'success') {
-                // 需求2：#target-dir 终端胶囊标签样式，并且只显示文件夹名（不显示完整绝对路径）
                 const folderName = extractFolderName(data.target_directory);
                 targetDirEl.innerHTML = `
                     <span class="pulse-dot"></span>
@@ -158,6 +304,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 langTableBody.appendChild(langFragment);
 
                 populateLangFilter(data.languages);
+
+                // 初始化并渲染 ECharts 图表
+                initECharts(data.languages);
 
                 allFiles = data.files;
                 renderFiles();
