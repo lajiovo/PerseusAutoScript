@@ -7,33 +7,59 @@
     <link rel="stylesheet" href="codestatus.css">
 </head>
 <body>
+    <div class="ambient-glow"></div>
     <div class="container">
+        <!-- 现代炫酷 Header -->
         <header class="header">
-            <h1>📊 代码仓库状态与统计</h1>
-            <p id="target-dir" class="target-dir">正在加载目标目录...</p>
+            <div class="header-content">
+                <div class="title-wrapper">
+                    <div class="logo-icon">⚡</div>
+                    <h1>代码仓库状态与统计</h1>
+                </div>
+                <div id="target-dir" class="target-dir-badge" title="目标文件夹">
+                    <span class="pulse-dot"></span>
+                    <span class="dir-text">载入中...</span>
+                </div>
+            </div>
         </header>
 
-        <!-- 概览卡片区 -->
+        <!-- 概览卡片区 (Bento Grid) -->
         <div class="stats-cards">
-            <div class="card">
-                <h3>总文件数</h3>
-                <p id="stat-files" class="stat-value">-</p>
+            <div class="card bento-card">
+                <div class="card-icon files-icon">📂</div>
+                <div class="card-info">
+                    <h3>总文件数</h3>
+                    <p id="stat-files" class="stat-value">-</p>
+                </div>
+                <div class="card-glow"></div>
             </div>
-            <div class="card">
-                <h3>总代码行数</h3>
-                <p id="stat-lines" class="stat-value">-</p>
+            <div class="card bento-card">
+                <div class="card-icon lines-icon">📊</div>
+                <div class="card-info">
+                    <h3>总代码行数</h3>
+                    <p id="stat-lines" class="stat-value">-</p>
+                </div>
+                <div class="card-glow"></div>
             </div>
-            <div class="card">
-                <h3>总字符数</h3>
-                <p id="stat-chars" class="stat-value">-</p>
+            <div class="card bento-card">
+                <div class="card-icon chars-icon">📝</div>
+                <div class="card-info">
+                    <h3>总字符数</h3>
+                    <p id="stat-chars" class="stat-value">-</p>
+                </div>
+                <div class="card-glow"></div>
             </div>
         </div>
 
         <!-- 语言统计与文件列表区 -->
         <div class="content-grid">
-            <div class="panel">
-                <h2>📈 各语言统计</h2>
-                <div class="table-container">
+            <!-- 语言统计面板 -->
+            <div class="panel glass-panel">
+                <div class="panel-header">
+                    <h2>📈 各语言统计</h2>
+                    <span class="badge-count" id="lang-count-badge">0 种语言</span>
+                </div>
+                <div class="table-container custom-scrollbar">
                     <table id="lang-table">
                         <thead>
                             <tr>
@@ -50,27 +76,32 @@
                 </div>
             </div>
 
-            <div class="panel">
-                <h2>📁 文件详情列表</h2>
-                <div class="filter-controls" style="display: flex; gap: 10px; margin-bottom: 12px; flex-wrap: wrap;">
-                    <div class="search-box" style="flex: 1; min-width: 200px; margin-bottom: 0;">
-                        <input type="text" id="search-input" placeholder="搜索文件名或路径..." style="width: 100%; padding: 8px 12px; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-card); color: var(--text-main);">
+            <!-- 文件详情面板 -->
+            <div class="panel glass-panel">
+                <div class="panel-header">
+                    <h2>📁 文件详情列表</h2>
+                    <span class="badge-count" id="file-count-badge">0 个文件</span>
+                </div>
+                <div class="filter-controls">
+                    <div class="search-box">
+                        <span class="search-icon">🔍</span>
+                        <input type="text" id="search-input" placeholder="搜索文件名或路径...">
                     </div>
-                    <div class="filter-box" style="min-width: 150px;">
-                        <select id="lang-filter" style="width: 100%; padding: 8px 12px; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-card); color: var(--text-main);">
+                    <div class="filter-box">
+                        <select id="lang-filter">
                             <option value="">所有语言/类型</option>
                         </select>
                     </div>
                 </div>
-                <div class="table-container file-list-container">
+                <div class="table-container custom-scrollbar file-list-container">
                     <table id="file-table">
                         <thead>
                             <tr>
-                                <th class="sortable" data-sort="path" style="cursor: pointer;">文件路径 ↕</th>
-                                <th class="sortable" data-sort="language" style="cursor: pointer;">语言 ↕</th>
-                                <th class="sortable" data-sort="lines" style="cursor: pointer;">行数 ↕</th>
-                                <th class="sortable" data-sort="chars" style="cursor: pointer;">字符数 ↕</th>
-                                <th class="sortable" data-sort="size" style="cursor: pointer;">大小 ↕</th>
+                                <th class="sortable" data-sort="path">文件路径 ↕</th>
+                                <th class="sortable" data-sort="language">语言 ↕</th>
+                                <th class="sortable" data-sort="lines">行数 ↕</th>
+                                <th class="sortable" data-sort="chars">字符数 ↕</th>
+                                <th class="sortable" data-sort="size">大小 ↕</th>
                             </tr>
                         </thead>
                         <tbody>
