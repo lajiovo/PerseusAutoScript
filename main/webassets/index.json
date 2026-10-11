@@ -1,0 +1,123 @@
+[
+    {
+        "id": "proxy",
+        "name": "内网穿透",
+        "icon": "fa-solid fa-network-wired",
+        "type": "grid",
+        "cards": [
+            {
+                "title": "仪表盘",
+                "tag": "Dash",
+                "description": "核心系统状态监控与可视化控制台。",
+                "url": "/main/dash.html",
+                "code": "/main/dash.html",
+                "icon": "fa-solid fa-gauge-high"
+            },
+            {
+                "title": "PerseusBot",
+                "tag": "Bot",
+                "description": "Perseus 智能机器人终端与服务管理。",
+                "url": "/bot/assets/index.html",
+                "code": "/bot/assets/index.html",
+                "icon": "fa-solid fa-robot"
+            },
+            {
+                "title": "Azurpilot",
+                "tag": "Root",
+                "description": "Azur 导航调度核心与基础主页根入口。",
+                "url": "/",
+                "code": "/",
+                "icon": "fa-solid fa-paper-plane"
+            },
+            {
+                "title": "云端剪切板",
+                "tag": "Cache",
+                "description": "跨设备文本及图片缓存与同步中心。",
+                "url": "/main/clipboard.html",
+                "code": "/main/clipboard.html",
+                "icon": "fa-solid fa-clipboard"
+            },
+            {
+                "title": "日志",
+                "tag": "LOG",
+                "description": "程序日志查看",
+                "url": "/main/log.html",
+                "code": "/main/log.html",
+                "icon": "fa-solid fa-server"
+            },
+            {
+                "title": "状态页",
+                "tag": "Status",
+                "description": "查看详情",
+                "url": "/main/status.html",
+                "code": "/main/status.html",
+                "icon": "fa-solid fa-server"
+            },
+            {
+                "title": "iNovel",
+                "tag": "Novel",
+                "description": "查看书库",
+                "url": "/main/inovel.html",
+                "code": "/main/inovel.html",
+                "icon": "fa-solid fa-book"
+            },
+            {
+                "title": "LKCacheViewer",
+                "tag": "Cache",
+                "description": "查看插图",
+                "url": "/main/lkcacheviewer.html",
+                "code": "/main/lkcacheviewer.html",
+                "icon": "fa-solid fa-images"
+            },
+            {
+                "title": "WatchApp",
+                "tag": "Watch",
+                "description": "手表数据同步",
+                "url": "/main/watch.html",
+                "code": "/main/watch.html",
+                "icon": "fa-solid fa-clock"
+            }
+        ]
+    },
+    {
+        "id": "local",
+        "name": "局域网内",
+        "icon": "fa-solid fa-house-laptop",
+        "type": "grid-local",
+        "cards": [
+            {
+                "title": "PerseusBot",
+                "port": ":25567",
+                "ip": "192.168.10.4:25567",
+                "url": "http://192.168.10.4:25567/bot/assets/index.html",
+                "copyUrl": "http://192.168.10.4:25567/bot/index.html",
+                "icon": "fa-solid fa-headset",
+                "borderColor": "purple"
+            },
+            {
+                "title": "Azurpilot",
+                "port": ":22267",
+                "ip": "192.168.10.4:22267",
+                "url": "http://192.168.10.4:22267/",
+                "copyUrl": "http://192.168.10.4:22267/",
+                "icon": "fa-solid fa-compass",
+                "borderColor": "cyan"
+            },
+            {
+                "title": "MusicDL",
+                "port": ":37777",
+                "ip": "192.168.10.4:37777",
+                "url": "http://192.168.10.4:37777",
+                "copyUrl": "http://192.168.10.4:37777",
+                "icon": "fa-solid fa-compact-disc",
+                "borderColor": "rose"
+            }
+        ]
+    },
+    {
+        "id": "status",
+        "name": "状态区",
+        "icon": "fa-solid fa-chart-line",
+        "type": "status"
+    }
+]
