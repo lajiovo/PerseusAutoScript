@@ -1,10 +1,10 @@
-import zPerseusLogger
 import os
 import sys
 import time
 import subprocess
 import threading
 import queue
+import re
 import tkinter as tk
 from tkinter import ttk, scrolledtext, messagebox
 
@@ -14,6 +14,7 @@ try:
     EXE_DIR = get_config("bnp.exe_dir")
     EXE_PATH = os.path.join(EXE_DIR, get_config("bnp.exe_path"))
     LOG_PATH = os.path.join(EXE_DIR, get_config("bnp.log_path"))
+    get_config("bnp.output_floder")
 except ImportError:
     # 默认当前目录测试用
     EXE_DIR = os.getcwd()
@@ -24,14 +25,23 @@ class BNPController:
     """
     BNP 程序核心控制器：管理子进程、输入输出、日志监听，
     并通过线程安全队列将底层事件回调到 UI 界面。
+    同时内置了针对 bili_novel_packer 的智能状态解析器。
     """
-    def __init__(self, on_log_callback=None, on_stdout_callback=None, on_exit_callback=None):
+    def __init__(self, on_log_callback=None, on_stdout_callback=None, on_exit_callback=None, on_state_change=None):
         self.process = None
         self.stop_event = threading.Event()
         self.on_log_callback = on_log_callback
         self.on_stdout_callback = on_stdout_callback
         self.on_exit_callback = on_exit_callback
+        self.on_state_change = on_state_change
         self.is_running = False
+
+        # 进度与状态追踪属性
+        self.current_state = "IDLE"  # IDLE, WAITING_URL, WAITING_VOLUME, WAITING_TITLE_CONFIG, DOWNLOADING, FINISHED
+        self.book_title = ""
+        self.book_author = ""
+        self.volumes = []  # 存储解析出来的分卷列表: [{"id": "1", "name": "怪人的沙拉碗 1"}, ...]
+        self._accumulator = "" # 用于多行文本累积分析
 
     def start_process(self):
         """启动外部程序及其监听线程"""
@@ -42,6 +52,10 @@ class BNPController:
             return False, f"未找到程序文件: {EXE_PATH}"
 
         self.stop_event.clear()
+        self.current_state = "STARTING"
+        self.volumes.clear()
+        self._accumulator = ""
+        
         env = os.environ.copy()
         env["PYTHONUNBUFFERED"] = "1"
 
@@ -68,6 +82,7 @@ class BNPController:
             return True, "程序启动成功"
         except Exception as e:
             self.is_running = False
+            self.current_state = "IDLE"
             return False, f"启动失败: {str(e)}"
 
     def send_input(self, text):
@@ -85,6 +100,37 @@ class BNPController:
         except Exception as e:
             return False, f"发送输入异常: {str(e)}"
 
+    # ==================== 直接调用的高级控制函数 ====================
+    def download_novel(self, url: str):
+        """直接调用函数：开始下载指定链接的小说"""
+        if self.current_state != "WAITING_URL":
+            return False, f"当前状态 ({self.current_state}) 不允许直接输入链接"
+        return self.send_input(url)
+
+    def select_volume(self, volume_index: str):
+        """直接调用函数：指定分卷编号进行下载"""
+        if self.current_state != "WAITING_VOLUME":
+            return False, f"当前状态 ({self.current_state}) 不允许选择分卷"
+        return self.send_input(str(volume_index))
+
+    def choose_chapter_title_config(self, include_title: bool):
+        """直接调用函数：是否在每章开头添加章节标题 ('1' 代表是, '2' 代表否)"""
+        if self.current_state != "WAITING_TITLE_CONFIG":
+            return False, f"当前状态 ({self.current_state}) 不允许设置章节标题选项"
+        val = "1" if include_title else "2"
+        return self.send_input(val)
+
+    def get_progress_info(self):
+        """直接调用函数：获取目前的进展在哪一步及详细上下文"""
+        return {
+            "is_running": self.is_running,
+            "state": self.current_state,
+            "book_title": self.book_title,
+            "book_author": self.book_author,
+            "volumes": self.volumes
+        }
+    # ===============================================================
+
     def terminate_process(self):
         """终止子进程运行"""
         if not self.is_running or not self.process:
@@ -99,6 +145,61 @@ class BNPController:
             except Exception:
                 pass
         self.is_running = False
+        self.current_state = "IDLE"
+        if self.on_state_change:
+            self.on_state_change(self.current_state, "程序已手动终止")
+
+    def _analyze_line(self, line):
+        """
+        智能状态解析引擎：逐行扫描输出，分析当前程序阶段、小说元数据及分卷列表
+        """
+        clean_line = line.strip()
+        self._accumulator += line
+
+        # 1. 检查是否在请求输入链接
+        if "请输入链接(多个链接使用空格隔开):" in clean_line:
+            self.current_state = "WAITING_URL"
+            if self.on_state_change:
+                self.on_state_change(self.current_state, "等待用户输入小说链接...")
+
+        # 2. 检查是否正在加载数据或解析书名、作者
+        elif "作者:" in clean_line and not self.book_author:
+            # 尝试提取书名（上一行通常是书名）
+            pass
+
+        # 3. 解析分卷行格式如: [ 1] 怪人的沙拉碗 1
+        vol_match = re.search(r'\[\s*(\d+)\]\s+(.+)', clean_line)
+        if vol_match and self.current_state in ["WAITING_URL", "WAITING_VOLUME"]:
+            v_id = vol_match.group(1)
+            v_name = vol_match.group(2).strip()
+            # 排除非分卷选项（如选择全部 [ 0]）
+            if v_id != "0":
+                if not any(v['id'] == v_id for v in self.volumes):
+                    self.volumes.append({"id": v_id, "name": v_name})
+
+        # 4. 检查是否在请求选择分卷
+        if "请选择要下载的分卷:" in clean_line:
+            self.current_state = "WAITING_VOLUME"
+            if self.on_state_change:
+                self.on_state_change(self.current_state, f"已解析到 {len(self.volumes)} 个分卷，等待选择分卷...")
+
+        # 5. 检查是否在请求是否添加章节标题
+        if "是否在每章开头添加章节标题?" in clean_line:
+            self.current_state = "WAITING_TITLE_CONFIG"
+            if self.on_state_change:
+                self.on_state_change(self.current_state, "等待选择是否添加章节标题...")
+
+        # 6. 检查是否开始打包
+        if "开始打包" in clean_line:
+            self.current_state = "DOWNLOADING"
+            if self.on_state_change:
+                self.on_state_change(self.current_state, clean_line)
+
+        # 7. 检查是否打包完成
+        if "打包完成:" in clean_line:
+            self.current_state = "FINISHED"
+            if self.on_state_change:
+                self.on_state_change(self.current_state, clean_line)
 
     def _tail_log_worker(self):
         """后台线程：实时监听 log 文件"""
@@ -109,7 +210,7 @@ class BNPController:
             
         try:
             with open(LOG_PATH, 'r', encoding='utf-8', errors='ignore') as f:
-                f.seek(0, os.SEEK_END)  # 从文件末尾或头部开始，可改为 SEEK_SET
+                f.seek(0, os.SEEK_END)
                 while not self.stop_event.is_set():
                     line = f.readline()
                     if line:
@@ -126,6 +227,7 @@ class BNPController:
         try:
             for line in iter(self.process.stdout.readline, ''):
                 if line:
+                    self._analyze_line(line)
                     if self.on_stdout_callback:
                         self.on_stdout_callback(line)
                 if self.stop_event.is_set():
@@ -139,65 +241,86 @@ class BNPController:
             returncode = self.process.wait()
             self.is_running = False
             self.stop_event.set()
+            self.current_state = "IDLE"
             if self.on_exit_callback:
                 self.on_exit_callback(returncode)
 
 class BNPApp:
     """
-    Tkinter 图艺界面主窗口
+    Tkinter 图形界面主窗口：集成状态可视化监控与便捷控制面板
     """
     def __init__(self, root):
         self.root = root
-        self.root.title("BNP 自动化控制中心")
-        self.root.geometry("900x650")
+        self.root.title("BNP 自动化控制中心 (内置智能解析)")
+        self.root.geometry("1000x750")
         
-        # 设置基础样式主题
         self.style = ttk.Style()
         self.style.theme_use('clam')
 
-        # 消息队列用于线程安全的 UI 交互
         self.queue = queue.Queue()
 
-        # 初始化控制器
+        # 初始化控制器并绑定状态改变回调
         self.controller = BNPController(
             on_log_callback=lambda msg: self.queue.put(("LOG", msg)),
             on_stdout_callback=lambda msg: self.queue.put(("STDOUT", msg)),
-            on_exit_callback=lambda code: self.queue.put(("EXIT", code))
+            on_exit_callback=lambda code: self.queue.put(("EXIT", code)),
+            on_state_change=lambda state, desc: self.queue.put(("STATE", (state, desc)))
         )
 
         self.create_widgets()
-        
-        # 启动队列轮询定时器
         self.root.after(100, self.process_queue)
 
     def create_widgets(self):
-        """构建界面组件"""
-        # 顶部控制面板
-        control_frame = ttk.LabelFrame(self.root, text=" 运行控制 ", padding=10)
-        control_frame.pack(fill=tk.X, padx=10, pady=10)
+        """构建现代风格界面组件"""
+        # 1. 顶部：运行与状态监控面板
+        top_frame = ttk.LabelFrame(self.root, text=" 运行控制与状态追踪 ", padding=10)
+        top_frame.pack(fill=tk.X, padx=10, pady=10)
 
-        self.btn_start = ttk.Button(control_frame, text="启动程序", command=self.handle_start)
+        btn_row = ttk.Frame(top_frame)
+        btn_row.pack(fill=tk.X, pady=(0, 8))
+
+        self.btn_start = ttk.Button(btn_row, text="启动程序", command=self.handle_start)
         self.btn_start.pack(side=tk.LEFT, padx=5)
 
-        self.btn_stop = ttk.Button(control_frame, text="终止程序", command=self.handle_stop, state=tk.DISABLED)
+        self.btn_stop = ttk.Button(btn_row, text="终止程序", command=self.handle_stop, state=tk.DISABLED)
         self.btn_stop.pack(side=tk.LEFT, padx=5)
 
-        self.lbl_status = ttk.Label(control_frame, text="状态: 未运行", foreground="red")
+        self.lbl_status = ttk.Label(btn_row, text="状态: 未运行", font=("Arial", 10, "bold"), foreground="red")
         self.lbl_status.pack(side=tk.RIGHT, padx=5)
 
-        # 中部日志与输出展示区
+        # 状态机引导提示卡片
+        self.lbl_guide = ttk.Label(top_frame, text="当前无活动进程，请点击上方“启动程序”。", font=("Arial", 10), foreground="#0066cc")
+        self.lbl_guide.pack(fill=tk.X, padx=5)
+
+        # 2. 中部：分卷交互快捷面板（当解析到分卷时动态展示）
+        self.volume_frame = ttk.LabelFrame(self.root, text=" 快捷操作分卷面板（自动识别） ", padding=10)
+        self.volume_frame.pack(fill=tk.X, padx=10, pady=5)
+        
+        self.vol_combobox = ttk.Combobox(self.volume_frame, state="readonly", width=40, font=("Arial", 10))
+        self.vol_combobox.pack(side=tk.LEFT, padx=5)
+        
+        self.btn_dl_vol = ttk.Button(self.volume_frame, text="下载选中分卷", command=self.handle_quick_download_vol, state=tk.DISABLED)
+        self.btn_dl_vol.pack(side=tk.LEFT, padx=5)
+
+        self.btn_title_yes = ttk.Button(self.volume_frame, text="加章节标题(是)", command=lambda: self.handle_title_config(True), state=tk.DISABLED)
+        self.btn_title_yes.pack(side=tk.LEFT, padx=5)
+
+        self.btn_title_no = ttk.Button(self.volume_frame, text="不加章节标题(否)", command=lambda: self.handle_title_config(False), state=tk.DISABLED)
+        self.btn_title_no.pack(side=tk.LEFT, padx=5)
+
+        # 3. 中下部：日志与输出展示区
         log_frame = ttk.LabelFrame(self.root, text=" 实时控制台与日志 ", padding=10)
         log_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
 
         self.text_area = scrolledtext.ScrolledText(log_frame, wrap=tk.WORD, font=("Consolas", 10))
         self.text_area.pack(fill=tk.BOTH, expand=True)
-        # 配置标签颜色
         self.text_area.tag_config("LOG", foreground="#0066cc")
         self.text_area.tag_config("STDOUT", foreground="#333333")
         self.text_area.tag_config("SYSTEM", foreground="#cc0000")
+        self.text_area.tag_config("HIGHLIGHT", foreground="#008800", font=("Consolas", 10, "bold"))
 
-        # 底部指令输入区
-        input_frame = ttk.LabelFrame(self.root, text=" 命令下发 ", padding=10)
+        # 4. 底部：通用自由指令输入区
+        input_frame = ttk.LabelFrame(self.root, text=" 通用命令下发 (Stdin) ", padding=10)
         input_frame.pack(fill=tk.X, padx=10, pady=10)
 
         self.entry_input = ttk.Entry(input_frame, font=("Arial", 11))
@@ -213,7 +336,6 @@ class BNPApp:
         if success:
             self.btn_start.config(state=tk.DISABLED)
             self.btn_stop.config(state=tk.NORMAL)
-            self.lbl_status.config(text="状态: 运行中", foreground="green")
             self.append_log(f"[系统] {msg}\n", "SYSTEM")
         else:
             messagebox.showerror("错误", msg)
@@ -224,6 +346,7 @@ class BNPApp:
         self.btn_start.config(state=tk.NORMAL)
         self.btn_stop.config(state=tk.DISABLED)
         self.lbl_status.config(text="状态: 已停止", foreground="red")
+        self.lbl_guide.config(text="程序已终止。")
         self.append_log("[系统] 用户手动终止程序。\n", "SYSTEM")
 
     def handle_send_input(self):
@@ -232,11 +355,35 @@ class BNPApp:
         if not cmd.strip():
             return
         
-        # 调用可以直接调用的函数发送输入
         success, msg = self.controller.send_input(cmd)
         if success:
-            self.append_log(f"[INPUT ->] {cmd}\n", "SYSTEM")
+            self.append_log(f"[INPUT ->] {cmd}\n", "HIGHLIGHT")
             self.entry_input.delete(0, tk.END)
+        else:
+            messagebox.showwarning("提示", msg)
+
+    def handle_quick_download_vol(self):
+        """快捷面板：下载选中的分卷"""
+        selection = self.vol_combobox.get()
+        if not selection:
+            messagebox.showwarning("提示", "请先选择一个分卷！")
+            return
+        # 提取分卷编号，例如 "[10] 怪人的沙拉碗 10" -> "10"
+        match = re.search(r'\[(\d+)\]', selection)
+        if match:
+            v_id = match.group(1)
+            success, msg = self.controller.select_volume(v_id)
+            if success:
+                self.append_log(f"[INPUT ->] {v_id} (快捷选择分卷)\n", "HIGHLIGHT")
+            else:
+                messagebox.showwarning("提示", msg)
+
+    def handle_title_config(self, include_title):
+        """快捷面板：设置章节标题选项"""
+        success, msg = self.controller.choose_chapter_title_config(include_title)
+        if success:
+            val_str = "1 (是)" if include_title else "2 (否)"
+            self.append_log(f"[INPUT ->] {val_str} (快捷选择章节标题)\n", "HIGHLIGHT")
         else:
             messagebox.showwarning("提示", msg)
 
@@ -245,6 +392,32 @@ class BNPApp:
         print(text)
         self.text_area.insert(tk.END, text, tag)
         self.text_area.see(tk.END)
+
+    def update_state_ui(self, state, desc):
+        """根据解析出来的状态更新 UI 提示与按钮可用性"""
+        self.lbl_status.config(text=f"状态: {state}", foreground="green" if state != "IDLE" else "red")
+        self.lbl_guide.config(text=f"【智能解析进度】{desc}")
+
+        # 根据不同状态开启/禁用快捷控件
+        if state == "WAITING_URL":
+            self.btn_dl_vol.config(state=tk.DISABLED)
+            self.btn_title_yes.config(state=tk.DISABLED)
+            self.btn_title_no.config(state=tk.DISABLED)
+        elif state == "WAITING_VOLUME":
+            # 填充下拉框
+            vol_items = [f"[{v['id']}] {v['name']}" for v in self.controller.volumes]
+            self.vol_combobox['values'] = vol_items
+            if vol_items:
+                self.vol_combobox.current(0)
+            self.btn_dl_vol.config(state=tk.NORMAL)
+        elif state == "WAITING_TITLE_CONFIG":
+            self.btn_dl_vol.config(state=tk.DISABLED)
+            self.btn_title_yes.config(state=tk.NORMAL)
+            self.btn_title_no.config(state=tk.NORMAL)
+        elif state in ["DOWNLOADING", "FINISHED"]:
+            self.btn_dl_vol.config(state=tk.DISABLED)
+            self.btn_title_yes.config(state=tk.DISABLED)
+            self.btn_title_no.config(state=tk.DISABLED)
 
     def process_queue(self):
         """轮询后台线程放入队列的消息，安全更新 UI"""
@@ -255,10 +428,14 @@ class BNPApp:
                     self.append_log(content, "LOG")
                 elif msg_type == "STDOUT":
                     self.append_log(content, "STDOUT")
+                elif msg_type == "STATE":
+                    state, desc = content
+                    self.update_state_ui(state, desc)
                 elif msg_type == "EXIT":
                     self.btn_start.config(state=tk.NORMAL)
                     self.btn_stop.config(state=tk.DISABLED)
                     self.lbl_status.config(text=f"状态: 已退出 (返回码 {content})", foreground="red")
+                    self.lbl_guide.config(text=f"程序已退出，返回码: {content}")
                     self.append_log(f"\n[系统] 程序已退出，返回码: {content}\n", "SYSTEM")
         except queue.Empty:
             pass

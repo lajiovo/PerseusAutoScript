@@ -218,3 +218,5 @@ bnp:
   exe_path: "bili_novel_packer.exe"
   # 日志名称是固定的，不用管
   log_path: "bili_novel.log"
+  # 小说文件移动目标文件夹
+  output_floder: "D:\\???\\Perseus\\main\\Novels"
