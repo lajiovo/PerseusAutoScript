@@ -5,6 +5,7 @@ import subprocess
 import threading
 import queue
 import re
+import shutil
 import tkinter as tk
 from tkinter import ttk, scrolledtext, messagebox
 
@@ -14,7 +15,6 @@ try:
     EXE_DIR = get_config("bnp.exe_dir")
     EXE_PATH = os.path.join(EXE_DIR, get_config("bnp.exe_path"))
     LOG_PATH = os.path.join(EXE_DIR, get_config("bnp.log_path"))
-    get_config("bnp.output_floder")
 except ImportError:
     # 默认当前目录测试用
     EXE_DIR = os.getcwd()
@@ -129,6 +129,67 @@ class BNPController:
             "book_author": self.book_author,
             "volumes": self.volumes
         }
+
+    # ==================== 新增扩展函数 ① & ② ====================
+    def get_all_epub_files(self):
+        """
+        额外函数①：获取 EXE_DIR 文件夹（以及递归子目录，或直接平级目录）内的所有 epub 文件名。
+        返回包含文件绝对路径或文件名的列表。
+        """
+        epub_files = []
+        try:
+            if os.path.exists(EXE_DIR):
+                for root, dirs, files in os.walk(EXE_DIR):
+                    for file in files:
+                        if file.lower().endswith('.epub'):
+                            epub_files.append(os.path.join(root, file))
+        except Exception as e:
+            print(f"[系统] 扫描 epub 文件异常: {e}")
+        return epub_files
+
+    def move_epubs_to_output_folder(self):
+        """
+        额外函数②：将 EXE_DIR 内所有的 epub 文件移动到 get_config("bnp.output_floder") 
+        绝对路径对应的文件夹。如果目标文件夹不存在则自动创建。
+        返回 (成功数量, 错误信息/提示)
+        """
+        try:
+            # 获取配置的目标输出文件夹
+            output_dir = get_config("bnp.output_floder")
+            if not output_dir:
+                return 0, "未配置输出文件夹路径 (bnp.output_floder)"
+
+            # 确保目标文件夹绝对路径存在
+            if not os.path.isabs(output_dir):
+                # 如果是相对路径，基于 EXE_DIR 解析
+                output_dir = os.path.abspath(os.path.join(EXE_DIR, output_dir))
+
+            if not os.path.exists(output_dir):
+                os.makedirs(output_dir, exist_ok=True)
+
+            epub_list = self.get_all_epub_files()
+            if not epub_list:
+                return 0, "未在程序目录中找到任何 .epub 文件"
+
+            moved_count = 0
+            for src_path in epub_list:
+                if not os.path.exists(src_path):
+                    continue
+                file_name = os.path.basename(src_path)
+                dest_path = os.path.join(output_dir, file_name)
+
+                # 防止同名文件覆盖冲突，自动重命名或直接覆盖
+                if os.path.exists(dest_path):
+                    base, ext = os.path.splitext(file_name)
+                    timestamp = int(time.time())
+                    dest_path = os.path.join(output_dir, f"{base}_{timestamp}{ext}")
+
+                shutil.move(src_path, dest_path)
+                moved_count += 1
+
+            return moved_count, f"成功移动 {moved_count} 个 epub 文件到: {output_dir}"
+        except Exception as e:
+            return 0, f"移动 epub 文件失败: {str(e)}"
     # ===============================================================
 
     def terminate_process(self):
@@ -162,9 +223,8 @@ class BNPController:
             if self.on_state_change:
                 self.on_state_change(self.current_state, "等待用户输入小说链接...")
 
-        # 2. 检查是否正在加载数据或解析书名、作者
-        elif "作者:" in clean_line and not self.book_author:
-            # 尝试提取书名（上一行通常是书名）
+        # 2. 检查书籍作者
+        if "作者:" in clean_line and not self.book_author:
             pass
 
         # 3. 解析分卷行格式如: [ 1] 怪人的沙拉碗 1
@@ -251,8 +311,8 @@ class BNPApp:
     """
     def __init__(self, root):
         self.root = root
-        self.root.title("BNP 自动化控制中心 (内置智能解析)")
-        self.root.geometry("1000x750")
+        self.root.title("BNP 自动化控制中心 (内置智能解析与文件管理)")
+        self.root.geometry("1050x800")
         
         self.style = ttk.Style()
         self.style.theme_use('clam')
@@ -284,6 +344,13 @@ class BNPApp:
 
         self.btn_stop = ttk.Button(btn_row, text="终止程序", command=self.handle_stop, state=tk.DISABLED)
         self.btn_stop.pack(side=tk.LEFT, padx=5)
+
+        # 新增：文件管理快捷按钮
+        self.btn_scan_epub = ttk.Button(btn_row, text="扫描EPUB文件", command=self.handle_scan_epubs)
+        self.btn_scan_epub.pack(side=tk.LEFT, padx=5)
+
+        self.btn_move_epub = ttk.Button(btn_row, text="移动EPUB到输出目录", command=self.handle_move_epubs)
+        self.btn_move_epub.pack(side=tk.LEFT, padx=5)
 
         self.lbl_status = ttk.Label(btn_row, text="状态: 未运行", font=("Arial", 10, "bold"), foreground="red")
         self.lbl_status.pack(side=tk.RIGHT, padx=5)
@@ -349,6 +416,26 @@ class BNPApp:
         self.lbl_guide.config(text="程序已终止。")
         self.append_log("[系统] 用户手动终止程序。\n", "SYSTEM")
 
+    def handle_scan_epubs(self):
+        """点击扫描 epub 文件按钮"""
+        epubs = self.controller.get_all_epub_files()
+        if epubs:
+            file_names = [os.path.basename(p) for p in epubs]
+            msg = f"在目录中找到 {len(epubs)} 个 EPUB 文件:\n" + "\n".join(file_names)
+            messagebox.showinfo("扫描结果", msg)
+            self.append_log(f"[系统] 扫描到 {len(epubs)} 个 EPUB 文件\n", "SYSTEM")
+        else:
+            messagebox.showinfo("扫描结果", "未在工作目录中找到任何 EPUB 文件。")
+
+    def handle_move_epubs(self):
+        """点击移动 epub 到输出目录按钮"""
+        count, msg = self.controller.move_epubs_to_output_folder()
+        if count > 0:
+            messagebox.showinfo("成功", msg)
+            self.append_log(f"[系统] {msg}\n", "SYSTEM")
+        else:
+            messagebox.showwarning("提示", msg)
+
     def handle_send_input(self):
         """点击发送按钮或回车输入"""
         cmd = self.entry_input.get()
@@ -368,7 +455,6 @@ class BNPApp:
         if not selection:
             messagebox.showwarning("提示", "请先选择一个分卷！")
             return
-        # 提取分卷编号，例如 "[10] 怪人的沙拉碗 10" -> "10"
         match = re.search(r'\[(\d+)\]', selection)
         if match:
             v_id = match.group(1)
@@ -389,7 +475,6 @@ class BNPApp:
 
     def append_log(self, text, tag="STDOUT"):
         """向文本框安全追加内容"""
-        print(text)
         self.text_area.insert(tk.END, text, tag)
         self.text_area.see(tk.END)
 
@@ -398,13 +483,11 @@ class BNPApp:
         self.lbl_status.config(text=f"状态: {state}", foreground="green" if state != "IDLE" else "red")
         self.lbl_guide.config(text=f"【智能解析进度】{desc}")
 
-        # 根据不同状态开启/禁用快捷控件
         if state == "WAITING_URL":
             self.btn_dl_vol.config(state=tk.DISABLED)
             self.btn_title_yes.config(state=tk.DISABLED)
             self.btn_title_no.config(state=tk.DISABLED)
         elif state == "WAITING_VOLUME":
-            # 填充下拉框
             vol_items = [f"[{v['id']}] {v['name']}" for v in self.controller.volumes]
             self.vol_combobox['values'] = vol_items
             if vol_items:
@@ -418,6 +501,9 @@ class BNPApp:
             self.btn_dl_vol.config(state=tk.DISABLED)
             self.btn_title_yes.config(state=tk.DISABLED)
             self.btn_title_no.config(state=tk.DISABLED)
+            if state == "FINISHED":
+                # 打包完成后自动触发一次将文件移动到输出目录的静默或提醒
+                pass
 
     def process_queue(self):
         """轮询后台线程放入队列的消息，安全更新 UI"""
