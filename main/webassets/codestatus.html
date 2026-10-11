@@ -53,13 +53,40 @@
             </div>
         </div>
 
-        <!-- ECharts 炫酷图表区 (位于指标卡下方、表格上方无缝嵌入) -->
-        <div class="chart-section glass-panel">
+        <!-- 图表显隐控制面板 -->
+        <div class="chart-control-panel glass-panel">
+            <div class="panel-header" style="margin-bottom: 12px;">
+                <h2>🎛️ 图表显示控制面板</h2>
+                <span class="badge-count">多维切换</span>
+            </div>
+            <div class="checkbox-group">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="toggle-lang-chart" checked>
+                    <span>语言代码行数与分布图</span>
+                </label>
+                <label class="checkbox-label">
+                    <input type="checkbox" id="toggle-top-chart" checked>
+                    <span>单文件规模 Top 柱状图</span>
+                </label>
+            </div>
+        </div>
+
+        <!-- ECharts 炫酷图表区 1: 语言分布图 -->
+        <div class="chart-section glass-panel" id="section-lang-chart">
             <div class="panel-header">
                 <h2>📊 语言代码行数与分布图表</h2>
                 <span class="badge-count" id="chart-badge">多维可视化</span>
             </div>
             <div id="echarts-container" class="echarts-container"></div>
+        </div>
+
+        <!-- ECharts 炫酷图表区 2: 文件 Top 柱状图 -->
+        <div class="chart-section glass-panel" id="section-top-chart">
+            <div class="panel-header">
+                <h2>🚀 单文件规模 Top 柱状图 (行数 / 字符数)</h2>
+                <span class="badge-count" id="top-chart-badge">Top 15 文件</span>
+            </div>
+            <div id="echarts-top-container" class="echarts-container"></div>
         </div>
 
         <!-- 语言统计与文件列表区 -->
@@ -96,7 +123,7 @@
                 <div class="filter-controls">
                     <div class="search-box">
                         <span class="search-icon">🔍</span>
-                        <input type="text" id="search-input" placeholder="搜索文件名或路径...">
+                        <input type="text" id="search-input" placeholder="搜索文件名...">
                     </div>
                     <div class="filter-box">
                         <select id="lang-filter">
@@ -108,7 +135,7 @@
                     <table id="file-table">
                         <thead>
                             <tr>
-                                <th class="sortable" data-sort="path">文件路径 ↕</th>
+                                <th class="sortable" data-sort="name">文件名 ↕</th>
                                 <th class="sortable" data-sort="language">语言 ↕</th>
                                 <th class="sortable" data-sort="lines">行数 ↕</th>
                                 <th class="sortable" data-sort="chars">字符数 ↕</th>

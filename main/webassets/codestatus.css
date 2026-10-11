@@ -36,22 +36,23 @@ body {
     overflow-x: hidden;
 }
 
-/* 动态网格微光背景 (Ambient Glow) */
+/* 动态网格微光背景 (Animated Flowing Gradient Glassmorphism) */
 .ambient-glow {
     position: fixed;
     top: -50%;
     left: -50%;
     width: 200%;
     height: 200%;
-    background: radial-gradient(circle at center, rgba(56, 189, 248, 0.04) 0%, transparent 70%);
+    background: radial-gradient(circle at center, rgba(56, 189, 248, 0.06) 0%, rgba(192, 132, 252, 0.04) 40%, transparent 70%);
     pointer-events: none;
     z-index: -1;
-    animation: ambientShift 15s ease infinite alternate;
+    animation: ambientShift 18s ease infinite alternate;
 }
 
 @keyframes ambientShift {
-    0% { transform: translate(0, 0) scale(1); }
-    100% { transform: translate(3%, 3%) scale(1.05); }
+    0% { transform: translate(0, 0) scale(1) rotate(0deg); }
+    50% { transform: translate(2%, 4%) scale(1.08) rotate(3deg); }
+    100% { transform: translate(-3%, -2%) scale(1.03) rotate(-3deg); }
 }
 
 .container {
@@ -213,6 +214,62 @@ body {
     color: var(--accent-blue);
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
     text-shadow: 0 0 20px rgba(56, 189, 248, 0.4);
+}
+
+/* 图表显隐控制面板 */
+.chart-control-panel {
+    margin-bottom: 28px;
+    padding: 20px 28px;
+}
+
+.checkbox-group {
+    display: flex;
+    gap: 32px;
+    flex-wrap: wrap;
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    font-size: 14px;
+    color: var(--text-main);
+    user-select: none;
+    transition: color 0.2s ease;
+}
+
+.checkbox-label:hover {
+    color: var(--accent-blue);
+}
+
+.checkbox-label input[type="checkbox"] {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 18px;
+    height: 18px;
+    background-color: rgba(6, 9, 19, 0.8);
+    border: 1px solid var(--border-color);
+    border-radius: 5px;
+    outline: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+}
+
+.checkbox-label input[type="checkbox"]:checked {
+    background: linear-gradient(135deg, var(--accent-blue), #0284c7);
+    border-color: var(--accent-blue);
+    box-shadow: 0 0 10px rgba(56, 189, 248, 0.4);
+}
+
+.checkbox-label input[type="checkbox"]:checked::after {
+    content: '✓';
+    font-size: 12px;
+    color: #fff;
+    font-weight: bold;
 }
 
 /* ECharts 图表区样式 */
@@ -413,4 +470,13 @@ td.path-cell {
     font-size: 13px;
     color: #e2e8f0;
     word-break: break-all;
+}
+
+/* 文件详情列表文件名突出显示（加粗、亮色或渐变色） */
+.file-name-highlight {
+    font-weight: 700;
+    background: linear-gradient(135deg, #f8fafc 30%, var(--accent-blue) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    filter: drop-shadow(0 0 8px rgba(56, 189, 248, 0.2));
 }

@@ -3,6 +3,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentSortColumn = 'lines';
     let currentSortAscending = false;
     let myChart = null;
+    let topChart = null;
 
     const targetDirEl = document.getElementById('target-dir');
     const statFilesEl = document.getElementById('stat-files');
@@ -16,6 +17,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const langCountBadge = document.getElementById('lang-count-badge');
     const fileCountBadge = document.getElementById('file-count-badge');
     const chartBadge = document.getElementById('chart-badge');
+    const topChartBadge = document.getElementById('top-chart-badge');
+
+    const toggleLangChartCheckbox = document.getElementById('toggle-lang-chart');
+    const toggleTopChartCheckbox = document.getElementById('toggle-top-chart');
+    const sectionLangChart = document.getElementById('section-lang-chart');
+    const sectionTopChart = document.getElementById('section-top-chart');
 
     function formatNumber(num) {
         return num.toLocaleString();
@@ -25,6 +32,17 @@ document.addEventListener('DOMContentLoaded', () => {
         if (bytes < 1024) return bytes + ' B';
         if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
         return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    }
+
+    // 辅助函数：提取文件名（用于文件详情列表只显示文件名）
+    function extractFileName(filePath) {
+        if (!filePath) return '';
+        const cleanPath = filePath.replace(/\\/g, '/');
+        const lastSlash = cleanPath.lastIndexOf('/');
+        if (lastSlash !== -1) {
+            return cleanPath.substring(lastSlash + 1);
+        }
+        return cleanPath;
     }
 
     // 辅助函数：从完整绝对路径或路径字符串中只提取文件夹名
@@ -38,7 +56,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return cleanPath;
     }
 
-    // 初始化并渲染 Apache ECharts 渐变柱状图
+    // 初始化并渲染 Apache ECharts 语言分布图
     function initECharts(languagesData) {
         const chartDom = document.getElementById('echarts-container');
         if (!chartDom) return;
@@ -47,7 +65,6 @@ document.addEventListener('DOMContentLoaded', () => {
             myChart = echarts.init(chartDom, 'dark', { renderer: 'canvas' });
         }
 
-        // 整理数据并按行数降序排序
         const sortedLangs = Object.entries(languagesData)
             .map(([lang, stats]) => ({ lang, ...stats }))
             .sort((a, b) => b.lines - a.lines);
@@ -178,10 +195,153 @@ document.addEventListener('DOMContentLoaded', () => {
         myChart.setOption(option);
     }
 
+    // 初始化并渲染文件规模 Top 柱状图
+    function initTopChart(filesData) {
+        const chartDom = document.getElementById('echarts-top-container');
+        if (!chartDom) return;
+
+        if (!topChart) {
+            topChart = echarts.init(chartDom, 'dark', { renderer: 'canvas' });
+        }
+
+        // 按行数降序排序取前 15 个文件
+        const topFiles = [...filesData]
+            .sort((a, b) => b.lines - a.lines)
+            .slice(0, 15)
+            .reverse(); // reverse for horizontal bar chart (bottom to top)
+
+        const fileNames = topFiles.map(f => f.name);
+        const linesValues = topFiles.map(f => f.lines);
+        const charsValues = topFiles.map(f => f.chars);
+
+        topChartBadge.textContent = `Top ${topFiles.length} 文件`;
+
+        const option = {
+            backgroundColor: 'transparent',
+            tooltip: {
+                trigger: 'axis',
+                backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                borderColor: 'rgba(192, 132, 252, 0.4)',
+                borderWidth: 1,
+                textStyle: {
+                    color: '#f8fafc',
+                    fontSize: 13
+                },
+                axisPointer: {
+                    type: 'shadow',
+                    shadowStyle: {
+                        color: 'rgba(192, 132, 252, 0.08)'
+                    }
+                },
+                formatter: function (params) {
+                    const dataIndex = params[0].dataIndex;
+                    const fullFile = topFiles[dataIndex];
+                    let result = `<div style="font-weight:600; margin-bottom:4px; color:#c084fc;">${fullFile.path}</div>`;
+                    result += `<div style="font-size:12px; color:#94a3b8; margin-bottom:6px;">语言: ${fullFile.language} | 大小: ${formatSize(fullFile.size)}</div>`;
+                    params.forEach(param => {
+                        let unit = param.seriesName === '行数' ? ' 行' : ' 字符';
+                        result += `<div style="display:flex; justify-content:space-between; gap:16px;"><span>${param.marker} ${param.seriesName}:</span><span style="font-weight:bold; font-family:monospace;">${Number(param.value).toLocaleString()}${unit}</span></div>`;
+                    });
+                    return result;
+                }
+            },
+            legend: {
+                data: ['行数', '字符数'],
+                textStyle: {
+                    color: '#94a3b8',
+                    fontSize: 12
+                },
+                top: 5,
+                right: 10
+            },
+            grid: {
+                top: 40,
+                bottom: 20,
+                left: 110,
+                right: 30,
+                containLabel: true
+            },
+            xAxis: {
+                type: 'value',
+                splitLine: {
+                    lineStyle: { color: 'rgba(51, 65, 85, 0.25)', type: 'dashed' }
+                },
+                axisLine: { show: false },
+                axisTick: { show: false },
+                axisLabel: { color: '#94a3b8' }
+            },
+            yAxis: {
+                type: 'category',
+                data: fileNames,
+                axisLine: {
+                    lineStyle: { color: 'rgba(51, 65, 85, 0.8)' }
+                },
+                axisTick: { show: false },
+                axisLabel: {
+                    color: '#f8fafc',
+                    fontSize: 12,
+                    fontWeight: 500
+                }
+            },
+            series: [
+                {
+                    name: '行数',
+                    type: 'bar',
+                    data: linesValues,
+                    barMaxWidth: 16,
+                    itemStyle: {
+                        borderRadius: [0, 4, 4, 0],
+                        color: new echarts.graphic.LinearGradient(1, 0, 0, 0, [
+                            { offset: 0, color: '#c084fc' },
+                            { offset: 1, color: '#7c3aed' }
+                        ]),
+                        shadowColor: 'rgba(192, 132, 252, 0.4)',
+                        shadowBlur: 10
+                    },
+                    animationDuration: 1500,
+                    animationEasing: 'cubicOut'
+                },
+                {
+                    name: '字符数',
+                    type: 'bar',
+                    data: charsValues,
+                    barMaxWidth: 16,
+                    itemStyle: {
+                        borderRadius: [0, 4, 4, 0],
+                        color: new echarts.graphic.LinearGradient(1, 0, 0, 0, [
+                            { offset: 0, color: '#38bdf8' },
+                            { offset: 1, color: '#0284c7' }
+                        ]),
+                        shadowColor: 'rgba(56, 189, 248, 0.4)',
+                        shadowBlur: 10
+                    },
+                    animationDuration: 1800,
+                    animationEasing: 'cubicOut'
+                }
+            ]
+        };
+
+        topChart.setOption(option);
+    }
+
     // 监听窗口自适应图表大小
     window.addEventListener('resize', () => {
-        if (myChart) {
+        if (myChart) myChart.resize();
+        if (topChart) topChart.resize();
+    });
+
+    // 图表显隐控制面板交互
+    toggleLangChartCheckbox.addEventListener('change', (e) => {
+        sectionLangChart.style.display = e.target.checked ? 'block' : 'none';
+        if (e.target.checked && myChart) {
             myChart.resize();
+        }
+    });
+
+    toggleTopChartCheckbox.addEventListener('change', (e) => {
+        sectionTopChart.style.display = e.target.checked ? 'block' : 'none';
+        if (e.target.checked && topChart) {
+            topChart.resize();
         }
     });
 
@@ -194,20 +354,25 @@ document.addEventListener('DOMContentLoaded', () => {
                 return false;
             }
             if (keyword) {
-                return file.path.toLowerCase().includes(keyword) || 
-                       file.name.toLowerCase().includes(keyword) ||
+                const fileName = extractFileName(file.path).toLowerCase();
+                return fileName.includes(keyword) || 
+                       file.path.toLowerCase().includes(keyword) || 
                        file.language.toLowerCase().includes(keyword);
             }
             return true;
         });
 
         result.sort((a, b) => {
-            let valA = a[currentSortColumn];
-            let valB = b[currentSortColumn];
+            let valA, valB;
+            if (currentSortColumn === 'name') {
+                valA = extractFileName(a.path).toLowerCase();
+                valB = extractFileName(b.path).toLowerCase();
+            } else {
+                valA = a[currentSortColumn];
+                valB = b[currentSortColumn];
+            }
 
             if (typeof valA === 'string') {
-                valA = valA.toLowerCase();
-                valB = valB.toLowerCase();
                 if (valA < valB) return currentSortAscending ? -1 : 1;
                 if (valA > valB) return currentSortAscending ? 1 : -1;
                 return 0;
@@ -244,9 +409,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const fragment = document.createDocumentFragment();
         files.forEach(file => {
+            const fileName = extractFileName(file.path);
             const tr = document.createElement('tr');
             tr.innerHTML = `
-                <td class="path-cell" title="${file.path}">${file.path}</td>
+                <td class="path-cell" title="完整路径: ${file.path}">
+                    <span class="file-name-highlight">${fileName}</span>
+                </td>
                 <td><span style="display:inline-block; padding: 3px 10px; background: rgba(56,189,248,0.1); border: 1px solid rgba(56,189,248,0.2); border-radius: 6px; color: var(--accent-blue); font-size: 12px; font-weight: 500;">${file.language}</span></td>
                 <td>${formatNumber(file.lines)}</td>
                 <td>${formatNumber(file.chars)}</td>
@@ -305,10 +473,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 populateLangFilter(data.languages);
 
+                // 为每个 file 对象增加处理好的 name 属性
+                allFiles = data.files.map(f => ({
+                    ...f,
+                    name: extractFileName(f.path)
+                }));
+
                 // 初始化并渲染 ECharts 图表
                 initECharts(data.languages);
+                initTopChart(allFiles);
 
-                allFiles = data.files;
                 renderFiles();
             } else {
                 targetDirEl.innerHTML = '<span class="dir-text" style="color: #f43f5e;">获取统计数据失败</span>';
@@ -334,7 +508,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 currentSortAscending = !currentSortAscending;
             } else {
                 currentSortColumn = col;
-                currentSortAscending = (col === 'path' || col === 'language');
+                currentSortAscending = (col === 'name' || col === 'language');
             }
             renderFiles();
         });
