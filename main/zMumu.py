@@ -148,6 +148,20 @@ def send_hide_hotkey():
         keyboard.press(Key.right)
         keyboard.release(Key.right)
 
+def once_hidemumu():
+    try:
+        mumu_hwnds = get_real_mumu_hwnds()
+        if mumu_hwnds:
+            print(f"存在 {len(mumu_hwnds)} 个 MuMu 实体窗口")
+            for hwnd in mumu_hwnds:
+                force_hide_window(hwnd)
+                print(f"成功隐藏窗口{hwnd}")
+        return True
+    except Exception as e:
+        err_msg = f"窗口检测/隐藏阶段发生错误: {e}"
+        print(f"❌ {err_msg}")
+        return False
+
 def hidemumu_attempt():
     """单次启动与隐藏操作，成功返回 True，超时失败返回 False"""
     global HIDE_MUMU

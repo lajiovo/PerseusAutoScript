@@ -52,6 +52,7 @@ QBOT_IDENTIFIER = get_config("pushserver.qbot.identifier")
 HANDLEPUSH = True
 timer_thread = None
 timer_event = threading.Event()  # 用于优雅控制和停止定时器线程
+timer_counter = 0
 
 # 2. 新增 MusicDL 相关配置与全局变量
 # MusicDL 配置
@@ -575,52 +576,64 @@ def stop_timer():
     timer_event.set()
 
 def start_alas_mumu_check_timer():
-    """启动/重启后台定时任务线程：每半小时自动执行一次 alas_mumu_check"""
+    """启动/重启后台定时任务线程：自动执行alas_mumu_check"""
     global timer_thread, timer_event
     stop_timer()
     
     timer_event = threading.Event()
     
     def timer_loop():
+        global timer_counter
         while not timer_event.is_set():
-            if timer_event.wait(1800):
+            if timer_event.wait(120):
                 break
             try:
                 print("⏰ 触发定时任务: 正在运行 alas_mumu_check...")
-                run_alas_mumu_check()
-                with stats_lock:
-                    stats = _load_stats()
-                    stats["auto_check_count"] += 1
-                    _save_stats(stats)
-                print("⏱️ [统计模块] autocheck处理次数+1")
-                # 1. 运行前检查签到记录文件
-                current_dir = os.path.dirname(os.path.abspath(__file__))
-                log_path = str(os.path.join(current_dir, 'last_checkin.txt'))
-                today_str = datetime.date.today().isoformat()  # YYYY-MM-DD
-
-                # 如果文件不存在，新建空文件
-                if not os.path.exists(log_path):
-                    with open(log_path, 'w', encoding='utf-8') as f:
-                        pass
-                    last_date = ''
+                if timer_counter == 0 :
+                    zMumu.once_hidemumu()
+                    zAlas.once_hidealas()
+                    timer_counter += 1
+                    print("已完成常规隐藏任务")
                 else:
-                    with open(log_path, 'r', encoding='utf-8') as f:
-                        last_date = f.read().strip()
+                    run_alas_mumu_check()
+                    print("已完成完整检查任务")
+                    if timer_counter >= 15:
+                        timer_counter = 0
+                    else:
+                        timer_counter += 1
+                    with stats_lock:
+                        stats = _load_stats()
+                        stats["auto_check_count"] += 1
+                        _save_stats(stats)
+                    print("⏱️ [统计模块] autocheck处理次数+1")
+                    # 1. 运行前检查签到记录文件
+                    current_dir = os.path.dirname(os.path.abspath(__file__))
+                    log_path = str(os.path.join(current_dir, 'last_checkin.txt'))
+                    today_str = datetime.date.today().isoformat()  # YYYY-MM-DD
 
-                # 如果记录的时间是今天，直接跳过任务并返回 True
-                if last_date == today_str:
-                    print("今日已重启过qbot")
-                else:
-                    try:
-                        print("今日尚未重启过qbot")
-                        start_qbot_process()
-                    except Exception as e :
-                        print(e)
-                    
-                zPGRJZ.run(headless=True)
-                with open(log_path, 'w', encoding='utf-8') as f:
-                    f.write(today_str)
-                print("已更新今日签到记录文件。")
+                    # 如果文件不存在，新建空文件
+                    if not os.path.exists(log_path):
+                        with open(log_path, 'w', encoding='utf-8') as f:
+                            pass
+                        last_date = ''
+                    else:
+                        with open(log_path, 'r', encoding='utf-8') as f:
+                            last_date = f.read().strip()
+
+                    # 如果记录的时间是今天，直接跳过任务并返回 True
+                    if last_date == today_str:
+                        print("今日已重启过qbot")
+                    else:
+                        try:
+                            print("今日尚未重启过qbot")
+                            start_qbot_process()
+                            print("今日也没有签到pgrjz")
+                            zPGRJZ.run(headless=True)
+                        except Exception as e :
+                            print(e)
+                        with open(log_path, 'w', encoding='utf-8') as f:
+                            f.write(today_str)
+                        print("已更新今日签到记录文件。")
             except Exception as e:
                 print(f"⚠️ 定时运行 alas_mumu_check 出现异常: {e}")
                 PerseusErrorMsg("定时运行 alas_mumu_check 出现异常",str(e))
@@ -645,6 +658,12 @@ def enter_standby():
         zMumu.mumu_kill()
     except Exception as e:
         print(f"⚠️ zMumu.mumu_kill() 执行失败: {e}")
+    try:
+        zAlas.once_hidealas()
+        zMumu.once_hidemumu()
+        print(f"兜底窗口隐藏成功")
+    except Exception as e:
+        print(f"兜底窗口隐藏失败")
         
     print("⏸️ 已切换至待机状态。")
 

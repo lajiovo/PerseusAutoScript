@@ -104,6 +104,18 @@ def force_hide_window(hwnd):
         print(f"❌ {err_msg}")
         raise RuntimeError(err_msg)
 
+def once_hidealas():
+    try:
+        visible_hwnds = get_azurpilot_hwnds()
+        for hwnd in visible_hwnds:
+            force_hide_window(hwnd)
+            print(f"🎉 成功隐藏窗口 (HWND: {hwnd})")
+        return True
+    except Exception as e:
+        err_msg = f"窗口检测/隐藏阶段发生错误: {e}"
+        print(f"❌ {err_msg}")
+        return False
+
 
 # ---------------------------------------------------------------------------
 # 1. Cleanup 清理逻辑 (包含黑白名单检查与端口清理)
