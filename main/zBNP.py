@@ -475,6 +475,7 @@ class BNPApp:
 
     def append_log(self, text, tag="STDOUT"):
         """向文本框安全追加内容"""
+        print(text)
         self.text_area.insert(tk.END, text, tag)
         self.text_area.see(tk.END)
 

@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BNP 自动化小说下载与打包控制中心</title>
+    <link rel="stylesheet" href="bnp.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>BNP 自动化小说下载控制中心</h1>
+            <p class="subtitle">集成智能状态解析、分卷选择、30分钟无输入自动超时机制与 EPUB 文件管理</p>
+        </header>
+
+        <!-- 状态与控制栏 -->
+        <section class="card control-card">
+            <div class="control-actions">
+                <button id="btnStart" class="btn btn-primary" onclick="startProcess()">启动程序</button>
+                <button id="btnStop" class="btn btn-danger" onclick="stopProcess()" disabled>终止程序</button>
+                <button class="btn btn-secondary" onclick="scanEpubs()">扫描 EPUB</button>
+                <button class="btn btn-success" onclick="moveEpubs()">移动 EPUB 到输出目录</button>
+            </div>
+            <div class="status-display">
+                <span id="lblStatus" class="status-badge stopped">状态: 未运行</span>
+            </div>
+            <div id="lblGuide" class="guide-text">当前无活动进程，请点击上方“启动程序”。</div>
+        </section>
+
+        <!-- 交互面板 (动态根据状态显示) -->
+        <div id="interactionArea" class="card interaction-card hidden">
+            <h3>交互引导面板</h3>
+            
+            <!-- 1. 输入链接区域 -->
+            <div id="panelUrl" class="sub-panel hidden">
+                <label for="inputUrl">输入小说链接 (多个链接空格隔开):</label>
+                <div class="input-group">
+                    <input type="text" id="inputUrl" placeholder="https://...">
+                    <button class="btn btn-primary" onclick="sendDownloadUrl()">开始下载</button>
+                </div>
+            </div>
+
+            <!-- 2. 选择分卷区域 -->
+            <div id="panelVolume" class="sub-panel hidden">
+                <label for="selectVolume">选择要下载的分卷:</label>
+                <div class="input-group">
+                    <select id="selectVolume" class="form-select"></select>
+                    <button class="btn btn-primary" onclick="sendVolumeSelection()">下载选中分卷</button>
+                </div>
+            </div>
+
+            <!-- 3. 章节标题配置区域 -->
+            <div id="panelTitle" class="sub-panel hidden">
+                <label>是否在每章开头添加章节标题?</label>
+                <div class="button-group">
+                    <button class="btn btn-success" onclick="sendTitleConfig(true)">是 (1)</button>
+                    <button class="btn btn-secondary" onclick="sendTitleConfig(false)">否 (2)</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 自由指令下发区 -->
+        <section class="card input-card">
+            <h3>自由指令下发 (Stdin)</h3>
+            <div class="input-group">
+                <input type="text" id="freeInput" placeholder="输入任意指令并回车..." onkeypress="handleKeypress(event)">
+                <button class="btn btn-primary" onclick="sendFreeInput()">发送指令</button>
+            </div>
+        </section>
+
+        <!-- EPUB 文件列表展示区 -->
+        <section class="card epub-card">
+            <h3>已生成的 EPUB 文件</h3>
+            <div id="epubListContainer" class="epub-list">
+                <p class="text-muted">点击“扫描 EPUB”加载文件列表...</p>
+            </div>
+        </section>
+    </div>
+
+    <script src="bnp.js"></script>
+</body>
+</html>
