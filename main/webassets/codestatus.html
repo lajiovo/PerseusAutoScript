@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>代码状态与统计 - CodeStatus</title>
+    <link rel="stylesheet" href="codestatus.css">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>📊 代码仓库状态与统计</h1>
+            <p id="target-dir" class="target-dir">正在加载目标目录...</p>
+        </header>
+
+        <!-- 概览卡片区 -->
+        <div class="stats-cards">
+            <div class="card">
+                <h3>总文件数</h3>
+                <p id="stat-files" class="stat-value">-</p>
+            </div>
+            <div class="card">
+                <h3>总代码行数</h3>
+                <p id="stat-lines" class="stat-value">-</p>
+            </div>
+            <div class="card">
+                <h3>总字符数</h3>
+                <p id="stat-chars" class="stat-value">-</p>
+            </div>
+        </div>
+
+        <!-- 语言统计与文件列表区 -->
+        <div class="content-grid">
+            <div class="panel">
+                <h2>📈 各语言统计</h2>
+                <div class="table-container">
+                    <table id="lang-table">
+                        <thead>
+                            <tr>
+                                <th>语言</th>
+                                <th>文件数</th>
+                                <th>行数</th>
+                                <th>字符数</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- 动态填充 -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="panel">
+                <h2>📁 文件详情列表</h2>
+                <div class="search-box">
+                    <input type="text" id="search-input" placeholder="搜索文件名或路径...">
+                </div>
+                <div class="table-container file-list-container">
+                    <table id="file-table">
+                        <thead>
+                            <tr>
+                                <th>文件路径</th>
+                                <th>语言</th>
+                                <th>行数</th>
+                                <th>字符数</th>
+                                <th>大小</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- 动态填充 -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="codestatus.js"></script>
+</body>
+</html>

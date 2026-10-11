@@ -31,6 +31,7 @@ from zWatchApi import watch_bp
 from zWatchServer import zWatchServer_bp
 from zBNPApi import bnp_bp
 from zLogApi import log_bp
+from zCodeStatusApi import codestatus_bp
 app = Flask(__name__)
 app.register_blueprint(lk_bp)
 app.register_blueprint(inovel_bp)
@@ -39,6 +40,7 @@ app.register_blueprint(watch_bp)
 app.register_blueprint(zWatchServer_bp)
 app.register_blueprint(log_bp)
 app.register_blueprint(bnp_bp)
+app.register_blueprint(codestatus_bp)
 
 # 监听端口
 LISTEN_PORT = get_config("pushserver.listen_port", default=25566)
@@ -588,19 +590,18 @@ def start_alas_mumu_check_timer():
             if timer_event.wait(120):
                 break
             try:
-                print("⏰ 触发定时任务: 正在运行 alas_mumu_check...")
-                if timer_counter == 0 :
+                print(f"⏰ 触发定时任务:{timer_counter}")
+                if timer_counter < 0 :
+                    timer_counter = 0
+                elif timer_counter < 15 :
                     zMumu.once_hidemumu()
                     zAlas.once_hidealas()
                     timer_counter += 1
-                    print("已完成常规隐藏任务")
+                    print(f"已完成常规隐藏任务{timer_counter}")
                 else:
                     run_alas_mumu_check()
-                    print("已完成完整检查任务")
-                    if timer_counter >= 15:
-                        timer_counter = 0
-                    else:
-                        timer_counter += 1
+                    timer_counter = 0
+                    print(f"已完成完整检查任务{{timer_counter}}")
                     with stats_lock:
                         stats = _load_stats()
                         stats["auto_check_count"] += 1
