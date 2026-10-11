@@ -477,7 +477,7 @@ def parse_task_list(arg):
     """
     将传入的 arg 解析并强转为包含字符串的 list
     """
-    default_list = ["check", "start", "wait", "check", "update"]
+    default_list = ["home", "instance", "start", "get_resources", "get_tasks"]
 
     if not arg:
         return default_list
@@ -535,6 +535,9 @@ def handlerun(data: dict):
                 res_cleanup = zAlas.cleanup()
                 res_start = zAlas.start()
                 return [True, f"zAlas.cleanup() -> {res_cleanup}, zAlas.start() -> {res_start}"]
+            elif "hidenow" in task:
+                res = zAlas.once_hidealas()
+                return [True, f"zAlas.once_hidealas() -> {res}"]
             elif "hide" in task:
                 res = zAlas.hide()
                 return [True, f"zAlas.hide() -> {res}"]
@@ -550,6 +553,9 @@ def handlerun(data: dict):
             if "kill" in task:
                 res = zMumu.mumu_kill()
                 return [True, f"zMumu.mumu_kill() -> {res}"]
+            elif "hidenow" in task:
+                res = zMumu.once_hidemumu()
+                return [True, f"zAlas.once_hidemumu() -> {res}"]
             elif "start" in task or "hide" in task:
                 res = zMumu.hidemumu()
                 return [True, f"zMumu.hidemumu() -> {res}"]
