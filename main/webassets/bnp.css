@@ -157,6 +157,19 @@ input[type="text"]:focus, .form-select:focus {
     gap: 10px;
 }
 
+.log-console {
+    background-color: #1e1e1e;
+    color: #dcdcdc;
+    font-family: Consolas, Monaco, monospace;
+    font-size: 13px;
+    padding: 12px;
+    border-radius: 4px;
+    height: 250px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
 .epub-list {
     max-height: 200px;
     overflow-y: auto;

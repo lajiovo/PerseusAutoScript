@@ -1,6 +1,8 @@
 document.addEventListener("DOMContentLoaded", () => {
     pollStatus();
+    pollLogs();
     setInterval(pollStatus, 2000);
+    setInterval(pollLogs, 1500);
 });
 
 function pollStatus() {
@@ -12,6 +14,23 @@ function pollStatus() {
             }
         })
         .catch(err => console.error("轮询状态失败:", err));
+}
+
+function pollLogs() {
+    fetch("/bnp/logs")
+        .then(res => res.json())
+        .then(data => {
+            if (data.code === 200) {
+                const consoleDiv = document.getElementById("logConsole");
+                const logs = data.logs || [];
+                const fullText = logs.join("");
+                if (consoleDiv.textContent !== fullText) {
+                    consoleDiv.textContent = fullText;
+                    consoleDiv.scrollTop = consoleDiv.scrollHeight;
+                }
+            }
+        })
+        .catch(err => console.error("获取日志失败:", err));
 }
 
 function updateUI(info) {
@@ -80,6 +99,7 @@ function startProcess() {
         .then(data => {
             if (data.code === 200) {
                 pollStatus();
+                pollLogs();
             } else {
                 alert("启动失败: " + data.message);
             }
@@ -92,6 +112,7 @@ function stopProcess() {
         .then(res => res.json())
         .then(data => {
             pollStatus();
+            pollLogs();
         })
         .catch(err => alert("请求异常: " + err));
 }
@@ -115,6 +136,7 @@ function sendDownloadUrl() {
             document.getElementById("inputUrl").value = "";
         }
         pollStatus();
+        pollLogs();
     })
     .catch(err => alert("发送失败: " + err));
 }
@@ -137,6 +159,7 @@ function sendVolumeSelection() {
             alert(data.message);
         }
         pollStatus();
+        pollLogs();
     })
     .catch(err => alert("发送失败: " + err));
 }
@@ -153,6 +176,7 @@ function sendTitleConfig(includeTitle) {
             alert(data.message);
         }
         pollStatus();
+        pollLogs();
     })
     .catch(err => alert("发送失败: " + err));
 }
@@ -175,6 +199,7 @@ function sendFreeInput() {
             alert(data.message);
         }
         pollStatus();
+        pollLogs();
     })
     .catch(err => alert("发送失败: " + err));
 }
@@ -213,6 +238,7 @@ function moveEpubs() {
             if (data.code === 200) {
                 alert(data.message);
                 scanEpubs();
+                pollLogs();
             } else {
                 alert(data.message);
             }

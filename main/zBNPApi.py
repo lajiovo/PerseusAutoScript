@@ -10,6 +10,14 @@ bnp_bp = Blueprint("bnp_bp", __name__)
 _bnp_controller = None
 _controller_lock = threading.Lock()
 _waiting_timer = None
+_recent_logs = []  # 内存日志缓冲区，用于前端实时查看
+_logs_lock = threading.Lock()
+
+def _add_log(msg):
+    with _logs_lock:
+        _recent_logs.append(msg)
+        if len(_recent_logs) > 500:
+            _recent_logs.pop(0)
 
 def _auto_terminate_timeout():
     """如果处于 WAITING_URL 状态且无输入超过 30 分钟，自动结束实例"""
@@ -17,7 +25,9 @@ def _auto_terminate_timeout():
     with _controller_lock:
         if _bnp_controller and _bnp_controller.is_running:
             if _bnp_controller.current_state == "WAITING_URL":
-                print("[BNP Api] 处于 WAITING_URL 状态无输入超过 30 分钟，自动终止实例。")
+                log_msg = "[BNP Api] 处于 WAITING_URL 状态无输入超过 30 分钟，自动终止实例。\n"
+                print(log_msg.strip())
+                _add_log(log_msg)
                 _bnp_controller.terminate_process()
         _waiting_timer = None
 
@@ -44,6 +54,8 @@ def get_bnp_controller() -> BNPController:
     with _controller_lock:
         if _bnp_controller is None:
             def on_state_change(state, desc):
+                log_msg = f"[状态改变] {state}: {desc}\n"
+                _add_log(log_msg)
                 # 如果进入 WAITING_URL，启动 30 分钟无输入超时计时
                 if state == "WAITING_URL":
                     _reset_waiting_timer()
@@ -51,7 +63,17 @@ def get_bnp_controller() -> BNPController:
                     # 离开 WAITING_URL 则取消定时器
                     _cancel_waiting_timer()
 
-            _bnp_controller = BNPController(on_state_change=on_state_change)
+            def on_stdout(msg):
+                _add_log(msg)
+
+            def on_log(msg):
+                _add_log(msg)
+
+            _bnp_controller = BNPController(
+                on_log_callback=on_log,
+                on_stdout_callback=on_stdout,
+                on_state_change=on_state_change
+            )
     return _bnp_controller
 
 @bnp_bp.route("/bnp/status", methods=["GET"])
@@ -60,11 +82,18 @@ def api_bnp_status():
     info = ctrl.get_progress_info()
     return jsonify({"code": 200, "data": info})
 
+@bnp_bp.route("/bnp/logs", methods=["GET"])
+def api_bnp_logs():
+    with _logs_lock:
+        logs_copy = list(_recent_logs)
+    return jsonify({"code": 200, "logs": logs_copy})
+
 @bnp_bp.route("/bnp/start", methods=["POST", "GET"])
 def api_bnp_start():
     ctrl = get_bnp_controller()
     success, msg = ctrl.start_process()
     if success:
+        _add_log(f"[系统] {msg}\n")
         return jsonify({"code": 200, "message": msg})
     else:
         return jsonify({"code": 400, "message": msg}), 400
@@ -74,6 +103,7 @@ def api_bnp_stop():
     ctrl = get_bnp_controller()
     _cancel_waiting_timer()
     ctrl.terminate_process()
+    _add_log("[系统] 用户手动终止程序。\n")
     return jsonify({"code": 200, "message": "程序已停止"})
 
 @bnp_bp.route("/bnp/input", methods=["POST"])
@@ -89,6 +119,7 @@ def api_bnp_input():
     
     success, msg = ctrl.send_input(text)
     if success:
+        _add_log(f"[INPUT ->] {text}\n")
         return jsonify({"code": 200, "message": msg})
     else:
         return jsonify({"code": 400, "message": msg}), 400
@@ -105,6 +136,7 @@ def api_bnp_download():
     
     success, msg = ctrl.download_novel(url)
     if success:
+        _add_log(f"[INPUT ->] {url} (下载小说)\n")
         return jsonify({"code": 200, "message": msg})
     else:
         return jsonify({"code": 400, "message": msg}), 400
@@ -119,6 +151,7 @@ def api_bnp_volume():
     ctrl = get_bnp_controller()
     success, msg = ctrl.select_volume(str(volume_id))
     if success:
+        _add_log(f"[INPUT ->] {volume_id} (选择分卷)\n")
         return jsonify({"code": 200, "message": msg})
     else:
         return jsonify({"code": 400, "message": msg}), 400
@@ -133,6 +166,8 @@ def api_bnp_title_config():
     ctrl = get_bnp_controller()
     success, msg = ctrl.choose_chapter_title_config(include_title)
     if success:
+        val_str = "1 (是)" if include_title else "2 (否)"
+        _add_log(f"[INPUT ->] {val_str} (章节标题配置)\n")
         return jsonify({"code": 200, "message": msg})
     else:
         return jsonify({"code": 400, "message": msg}), 400
@@ -148,4 +183,5 @@ def api_bnp_epubs():
 def api_bnp_move_epubs():
     ctrl = get_bnp_controller()
     count, msg = ctrl.move_epubs_to_output_folder()
+    _add_log(f"[系统] {msg}\n")
     return jsonify({"code": 200, "count": count, "message": msg})

@@ -60,6 +60,11 @@ class BNPController:
         env["PYTHONUNBUFFERED"] = "1"
 
         try:
+            # 配置 CREATE_NO_WINDOW 以无窗口形式运行 EXE
+            creationflags = 0
+            if os.name == 'nt':
+                creationflags = subprocess.CREATE_NO_WINDOW
+
             self.process = subprocess.Popen(
                 [EXE_PATH],
                 cwd=EXE_DIR,
@@ -70,7 +75,8 @@ class BNPController:
                 encoding='utf-8',
                 errors='ignore',
                 bufsize=1,
-                env=env
+                env=env,
+                creationflags=creationflags
             )
             self.is_running = True
 
@@ -287,6 +293,7 @@ class BNPController:
         try:
             for line in iter(self.process.stdout.readline, ''):
                 if line:
+                    print(line, end='')  # BNPController 直接 print 日志
                     self._analyze_line(line)
                     if self.on_stdout_callback:
                         self.on_stdout_callback(line)
@@ -475,7 +482,6 @@ class BNPApp:
 
     def append_log(self, text, tag="STDOUT"):
         """向文本框安全追加内容"""
-        print(text)
         self.text_area.insert(tk.END, text, tag)
         self.text_area.see(tk.END)
 
