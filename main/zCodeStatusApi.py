@@ -1,5 +1,5 @@
 import os
-import pathspec
+import fnmatch
 from flask import Blueprint, jsonify, request, send_from_directory
 from zConfig import get_config
 
@@ -49,32 +49,66 @@ def get_target_directory():
             
     return root_dir
 
+class SimpleGitIgnoreMatcher:
+    """
+    使用内置的 fnmatch 和简单规则模拟 gitignore 匹配，避免对 pathspec 强依赖。
+    """
+    def __init__(self, target_dir):
+        self.patterns = []
+        
+        # 默认忽略目录和文件模式
+        for d in DEFAULT_IGNORED_DIRS:
+            self.patterns.append(d)
+            self.patterns.append(f"*/{d}")
+            self.patterns.append(f"*/{d}/*")
+            self.patterns.append(f"{d}/*")
+            
+        for f in DEFAULT_IGNORED_FILES:
+            self.patterns.append(f)
+            self.patterns.append(f"*/{f}")
+
+        gitignore_path = os.path.join(target_dir, ".gitignore")
+        if os.path.exists(gitignore_path) and os.path.isfile(gitignore_path):
+            try:
+                with open(gitignore_path, "r", encoding="utf-8", errors="ignore") as file_obj:
+                    for line in file_obj:
+                        line = line.strip()
+                        if line and not line.startswith("#"):
+                            # 清理结尾的 /
+                            if line.endswith("/"):
+                                line = line[:-1]
+                            self.patterns.append(line)
+                            # 如果没有路径分隔符，也匹配任意层级的子目录/文件名
+                            if "/" not in line:
+                                self.patterns.append(f"*/{line}")
+                                self.patterns.append(f"**/{line}")
+            except Exception:
+                pass
+
+    def match_file(self, rel_path):
+        # 统一使用正斜杠
+        rel_path = rel_path.replace("\\", "/")
+        parts = rel_path.split("/")
+        
+        # 检查每一级路径分量或整体是否匹配模式
+        for pattern in self.patterns:
+            pattern = pattern.replace("\\", "/")
+            # 直接使用 fnmatch 匹配相对路径、文件名或各级分量
+            if fnmatch.fnmatch(rel_path, pattern) or fnmatch.fnmatch(os.path.basename(rel_path), pattern):
+                return True
+            for part in parts:
+                if fnmatch.fnmatch(part, pattern):
+                    return True
+            # 如果 pattern 包含 /，尝试前后匹配
+            if fnmatch.fnmatch(rel_path, f"*/{pattern}") or fnmatch.fnmatch(rel_path, f"*/{pattern}/*"):
+                return True
+        return False
+
 def load_gitignore_spec(target_dir):
     """
-    自动读取目标目录下的 .gitignore 文件，结合默认忽略项构建 pathspec 匹配规则
+    加载自定义的 GitIgnore 匹配器（保持原函数名以兼容调用）
     """
-    patterns = []
-    
-    # 加入默认忽略目录和文件
-    for d in DEFAULT_IGNORED_DIRS:
-        patterns.append(f"/{d}/")
-        patterns.append(f"{d}/")
-        patterns.append(d)
-    for f in DEFAULT_IGNORED_FILES:
-        patterns.append(f)
-        
-    gitignore_path = os.path.join(target_dir, ".gitignore")
-    if os.path.exists(gitignore_path) and os.path.isfile(gitignore_path):
-        try:
-            with open(gitignore_path, "r", encoding="utf-8", errors="ignore") as f:
-                for line in f:
-                    line = line.strip()
-                    if line and not line.startswith("#"):
-                        patterns.append(line)
-        except Exception:
-            pass
-            
-    return pathspec.PathSpec.from_lines('gitwildmatch', patterns)
+    return SimpleGitIgnoreMatcher(target_dir)
 
 def detect_language(filename):
     ext = os.path.splitext(filename)[1].lower()
@@ -100,7 +134,6 @@ def get_code_stats():
     root_abs = os.path.abspath(target_dir)
     
     for root, dirs, files in os.walk(root_abs):
-        # 计算相对于 target_dir 的路径，用于 gitignore 匹配
         rel_root = os.path.relpath(root, root_abs)
         
         # 过滤目录
@@ -116,15 +149,13 @@ def get_code_stats():
                 
             rel_file_path = os.path.join(rel_root, file) if rel_root != '.' else file
             
-            # 使用 pathspec 校验是否被忽略
+            # 校验是否被忽略
             if spec.match_file(rel_file_path):
                 continue
                 
             abs_file_path = os.path.join(root, file)
             
-            # 尝试读取文件统计行数、字符数
             try:
-                # 忽略过大的文件（例如 > 5MB）
                 if os.path.getsize(abs_file_path) > 5 * 1024 * 1024:
                     continue
                     
@@ -141,7 +172,6 @@ def get_code_stats():
             total_chars += chars
             total_lines += lines
             
-            # 统计各语言
             if lang not in lang_stats:
                 lang_stats[lang] = {'files': 0, 'lines': 0, 'chars': 0}
             lang_stats[lang]['files'] += 1
@@ -157,7 +187,6 @@ def get_code_stats():
                 'size': os.path.getsize(abs_file_path)
             })
             
-    # 按行数降序对文件列表排序
     file_details.sort(key=lambda x: x['lines'], reverse=True)
     
     return jsonify({
@@ -174,7 +203,7 @@ def get_code_stats():
 @codestatus_bp.route('/<path:filename>', methods=['GET'])
 def serve_ui(filename):
     """
-    提供静态页面访问路由（如 /codestatus/ 或 /codestatus/ui 等渲染 codestatus.html）
+    提供静态页面访问路由
     """
     webassets_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "webassets"))
     if not filename:
