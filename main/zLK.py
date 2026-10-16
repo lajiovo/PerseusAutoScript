@@ -77,9 +77,12 @@ HTTP_HEADERS = {
 # 基础配置
 VIEWPORT = get_config("lk.site.viewport")
 DOMAIN = get_config("lk.site.domain")
+from pathlib import Path
+BASE_DIR = Path(__file__).parent
 AUTH_FILE = get_config("lk.site.auth_file")
-CACHE_DIR = get_config("lk.site.cache_dir")
-NOVEL_DIR = get_config("lk.novel_dir")
+CACHE_DIR = BASE_DIR / get_config("lk.site.cache_dir")
+NOVEL_DIR = BASE_DIR / get_config("lk.novel_dir")
+# NOVEL_DIR = get_config("lk.novel_dir")
 
 # 代理配置
 PROXY_SERVER = get_config("proxy.http")
@@ -1179,7 +1182,8 @@ def launch_gui():
     btn_refresh.pack(side=tk.LEFT, padx=5)
 
     def open_novel_dir():
-        out_p = os.path.abspath(NOVEL_DIR or ".")
+        #out_p = os.path.abspath(NOVEL_DIR or ".")
+        out_p = NOVEL_DIR
         os.makedirs(out_p, exist_ok=True)
         if sys.platform == "win32":
             os.startfile(out_p)

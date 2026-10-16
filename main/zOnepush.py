@@ -1248,8 +1248,8 @@ def handle_main_stats_get():
     return format_response({
         "status": "ok",
         "handlepush": HANDLEPUSH,
-        "mumu_running": True,
-        "alas_running": True,
+        "mumu_running": zMumu.is_mumu_running(),
+        "alas_running": zAlas.is_process_running(),
         "zOnepush": {
             "auto_check_count": stats["auto_check_count"],
             "push_handle_count": stats["push_handle_count"],
@@ -1721,8 +1721,11 @@ def handle_pushlog_get(level, span):
 
 
 @app.route("/ping", methods=["GET", "POST"])
+@app.route("/main/ping", methods=["GET", "POST"])
 def handle_ping():
-    return format_response({"handlepush": HANDLEPUSH}, 200)
+    return format_response({"handlepush": HANDLEPUSH,
+        "mumu_running": zMumu.is_mumu_running(),
+        "alas_running": zAlas.is_process_running()}, 200)
 
 @app.route("/run", methods=["GET", "POST"])
 def handle_run():

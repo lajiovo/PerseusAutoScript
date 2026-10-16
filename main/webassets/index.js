@@ -477,25 +477,30 @@ async function loadIndexSystemStatusAndDashboard() {
         }
 
         try {
-            const svRes = await fetch('/ping');
+            // 1. 获取 /main/stats/get 状态
+            const svRes = await fetch('/main/stats/get');
             if (svRes.ok) {
                 const svData = await svRes.json();
+                const data = svData.data || svData;
+                
                 const hpEl = document.getElementById('indexSvHandlepush');
                 const mumuEl = document.getElementById('indexSvMumu');
                 const alasEl = document.getElementById('indexSvAlas');
 
                 if (hpEl) {
-                    const active = svData.handlepush !== undefined ? svData.handlepush : true;
-                    hpEl.textContent = active ? '🟢 运行中' : '🔴 已暂停';
-                    hpEl.className = active ? 'text-xs font-bold px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300' : 'text-xs font-bold px-2 py-0.5 rounded bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300';
+                const active = data.handlepush !== undefined ? data.handlepush : true;
+                hpEl.textContent = active ? '🟢 运行中' : '🔴 已暂停';
+                hpEl.className = active ? 'text-xs font-bold px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300' : 'text-xs font-bold px-2 py-0.5 rounded bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300';
                 }
                 if (mumuEl) {
-                    mumuEl.textContent = '🟢 运行中';
-                    mumuEl.className = 'text-xs font-bold px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300';
+                const active = data.mumu_running !== undefined ? data.mumu_running : true;
+                mumuEl.textContent = active ? '🟢 运行中' : '⚪ 未运行';
+                mumuEl.className = active ? 'text-xs font-bold px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300' : 'text-xs font-bold px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400';
                 }
                 if (alasEl) {
-                    alasEl.textContent = '🟢 运行中';
-                    alasEl.className = 'text-xs font-bold px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300';
+                const active = data.alas_running !== undefined ? data.alas_running : true;
+                alasEl.textContent = active ? '🟢 运行中' : '⚪ 未运行';
+                alasEl.className = active ? 'text-xs font-bold px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300' : 'text-xs font-bold px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400';
                 }
             }
         } catch (eSv) {

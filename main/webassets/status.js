@@ -33,19 +33,30 @@ async function loadAllStatusData() {
     }
 
     try {
-        const pingRes = await fetch('/ping');
+        const pingRes = await fetch('/main/stats/get');
         if (pingRes.ok) {
             const pingData = await pingRes.json();
+            const data = pingData.data || pingData;
+
             const hpEl = document.getElementById('svHandlepush') || document.querySelector('#section-status #svHandlepush');
             const mumuEl = document.getElementById('svMumu') || document.querySelector('#section-status #svMumu');
             const alasEl = document.getElementById('svAlas') || document.querySelector('#section-status #svAlas');
+
             if (hpEl) {
-                const active = pingData.handlepush !== undefined ? pingData.handlepush : true;
+                const active = data.handlepush !== undefined ? data.handlepush : true;
                 hpEl.textContent = active ? '🟢 运行中' : '🔴 已暂停';
                 hpEl.className = active ? 'text-xs font-bold px-2.5 py-1 rounded bg-emerald-950/60 text-emerald-300' : 'text-xs font-bold px-2.5 py-1 rounded bg-rose-950/60 text-rose-300';
             }
-            if (mumuEl) { mumuEl.textContent = '🟢 运行中'; mumuEl.className = 'text-xs font-bold px-2.5 py-1 rounded bg-emerald-950/60 text-emerald-300'; }
-            if (alasEl) { alasEl.textContent = '🟢 运行中'; alasEl.className = 'text-xs font-bold px-2.5 py-1 rounded bg-emerald-950/60 text-emerald-300'; }
+            if (mumuEl) {
+                const active = data.mumu_running !== undefined ? data.mumu_running : (data.mumu !== undefined ? data.mumu : true);
+                mumuEl.textContent = active ? '🟢 运行中' : '⚪ 未运行';
+                mumuEl.className = active ? 'text-xs font-bold px-2.5 py-1 rounded bg-emerald-950/60 text-emerald-300' : 'text-xs font-bold px-2.5 py-1 rounded bg-slate-800 text-slate-400';
+            }
+            if (alasEl) {
+                const active = data.alas_running !== undefined ? data.alas_running : (data.alas !== undefined ? data.alas : true);
+                alasEl.textContent = active ? '🟢 运行中' : '⚪ 未运行';
+                alasEl.className = active ? 'text-xs font-bold px-2.5 py-1 rounded bg-emerald-950/60 text-emerald-300' : 'text-xs font-bold px-2.5 py-1 rounded bg-slate-800 text-slate-400';
+            }
         }
     } catch (e) {
         const hpEl = document.getElementById('svHandlepush') || document.querySelector('#section-status #svHandlepush');
