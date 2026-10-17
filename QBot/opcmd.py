@@ -923,6 +923,82 @@ async def handle_op_command(
         DataMgrAdapter.set_system_active(data_mgr, True)
         return _format_msg_type_2("🚀 已恢复机器人功能")
 
+    # ------------------- 13. AI 额度与白名单管理 (#geai) -------------------
+    elif sub_cmd == "geai":
+        geai_args = args[1:]
+        if not geai_args:
+            content = (
+                "🤖 **【GEAI 额度与白名单管理】**\n"
+                "-----------------------------------\n"
+                "• `#geai set <user_id> <count>` - 设置用户 ask 额度\n"
+                "• `#geai add <user_id> <count>` - 增加用户 ask 额度\n"
+                "• `#geai clear <user_id>` - 清零用户 ask 额度\n"
+                "• `#geai whitelist <user_id>` (或 `+whitelist`) - 追加不限额白名单"
+            )
+            return _format_msg_type_2(content)
+
+        action = geai_args[0].lower()
+        
+        # 处理别名或直接追加白名单
+        if action in ["whitelist", "+whitelist"]:
+            target_id = geai_args[1].strip() if len(geai_args) > 1 else None
+            if not target_id:
+                mentions = getattr(raw_message, "mentions", [])
+                target_id = (
+                    getattr(mentions[0], "member_openid", None) or getattr(mentions[0], "id", None)
+                    if mentions else None
+                )
+            if not target_id:
+                return _format_msg_type_2("⚠️ 请指定用户 OpenID 或 @某人")
+            
+            opsetting = DataMgrAdapter.get_opsetting(data_mgr)
+            whitelist = opsetting.setdefault("ask_whitelist", [])
+            target_upper = str(target_id).upper()
+            if target_upper not in [str(w).upper() for w in whitelist]:
+                whitelist.append(target_id)
+                DataMgrAdapter.set_opsetting(data_mgr, opsetting)
+            return _format_msg_type_2(f"✅ 已将用户 `{target_id}` 追加至 ask 不限额白名单。")
+
+        elif action in ["set", "add", "clear"]:
+            target_id = geai_args[1].strip() if len(geai_args) > 1 else None
+            if not target_id:
+                mentions = getattr(raw_message, "mentions", [])
+                target_id = (
+                    getattr(mentions[0], "member_openid", None) or getattr(mentions[0], "id", None)
+                    if mentions else None
+                )
+            if not target_id:
+                return _format_msg_type_2("⚠️ 请指定用户 OpenID 或 @某人")
+
+            target_upper = str(target_id).upper()
+            opsetting = DataMgrAdapter.get_opsetting(data_mgr)
+            user_quotas = opsetting.setdefault("ask_quotas", {})
+            
+            default_quota = opsetting.get("default_ask_quota", 1)
+            current_count = int(user_quotas.get(target_upper, default_quota))
+
+            if action == "clear":
+                user_quotas[target_upper] = 0
+                DataMgrAdapter.set_opsetting(data_mgr, opsetting)
+                return _format_msg_type_2(f"🗑️ 已清零用户 `{target_id}` 的 ask 额度 (当前: `0`)")
+
+            count_str = geai_args[2].strip() if len(geai_args) > 2 else "0"
+            if not count_str.lstrip("-").isdigit():
+                return _format_msg_type_2("⚠️ 额度参数必须为有效的整数数字")
+            val = int(count_str)
+
+            if action == "set":
+                user_quotas[target_upper] = val
+                DataMgrAdapter.set_opsetting(data_mgr, opsetting)
+                return _format_msg_type_2(f"✅ 已设置用户 `{target_id}` 的 ask 额度为 `{val}`")
+            elif action == "add":
+                new_val = current_count + val
+                user_quotas[target_upper] = new_val
+                DataMgrAdapter.set_opsetting(data_mgr, opsetting)
+                return _format_msg_type_2(f"✅ 已为用户 `{target_id}` 增加 `{val}` 点额度（当前总计：`{new_val}`）")
+
+        return _format_msg_type_2("⚠️ 未知的 `#geai` 操作指令，请使用 set / add / clear / whitelist")
+
     elif sub_cmd == "add":
         if sender_openid_upper != BotDataManager.DEFAULT_OP:
             return _format_msg_type_2("❌ 只有超级管理员才有权限提权！")

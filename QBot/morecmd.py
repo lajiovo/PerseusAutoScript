@@ -15,7 +15,7 @@ class MoreCommandSystem:
 
     def handle_command(self, cmd: str, parts: list, sender_openid: str):
         """
-        前置指令分发。如果匹配到相关指令（如 ap、ziyuan、task、tasks、监控、状态等），
+        前置指令分发。如果匹配到相关指令（如 ap、ziyuan、task、tasks、监控、状态、ask 等），
         则处理并返回结果（支持字符串或返回带 msg_type 的 dict）。
         如果未匹配到相关指令，则返回 None，由 QBot 继续按原样分发给 game.py。
         """
@@ -40,7 +40,7 @@ class MoreCommandSystem:
         # AI 问答指令：ask
         if lower_cmd == "ask":
             query = " ".join(parts[1:]) if len(parts) > 1 else ""
-            return self._handle_ask(query)
+            return self._handle_ask(query, sender_openid)
             
         # 未匹配到相关指令
         return None
@@ -173,17 +173,67 @@ class MoreCommandSystem:
         except Exception as e:
             return f"❌ 获取任务状态异常: {str(e)}"
 
-    def _handle_ask(self, query: str):
-        """处理 #ask 指令，调用 zGemini 模块进行问答交互并返回结果"""
+    def _handle_ask(self, query: str, sender_openid: str):
+        """处理 #ask 指令，检查用户额度、扣减额度，调用 zGemini 模块，并将返回文本转为标准 Markdown 格式输出"""
         if not query.strip():
             return "💡 请在 #ask 后面输入您想要询问的问题或内容，例如：`#ask 你好`"
         
+        # 1. 额度与白名单检查
+        opsetting = {}
+        if self.data_mgr and hasattr(self.data_mgr, "get_opsetting"):
+            opsetting = self.data_mgr.get_opsetting() or {}
+        
+        op_list = [str(op).upper() for op in opsetting.get("op_list", [])]
+        whitelist = [str(w).upper() for w in opsetting.get("ask_whitelist", [])]
+        
+        sender_upper = str(sender_openid).upper() if sender_openid else ""
+        
+        # 判断是否为 OP 或在白名单中
+        is_privileged = (sender_upper in op_list) or (sender_upper in whitelist)
+        
+        # 获取用户额度字典
+        user_quotas = opsetting.setdefault("ask_quotas", {})
+        default_quota = opsetting.get("default_ask_quota", 1)
+        
+        if not is_privileged:
+            # 检查剩余额度，若未记录则初始化为默认额度 (默认每人 1 次)
+            if sender_upper not in user_quotas:
+                user_quotas[sender_upper] = default_quota
+            
+            current_quota = user_quotas.get(sender_upper, 0)
+            if current_quota <= 0:
+                return f"❌ 提问额度已用尽"
+            
+            # 扣减 1 次剩余额度
+            user_quotas[sender_upper] = current_quota - 1
+            if self.data_mgr and hasattr(self.data_mgr, "set_opsetting"):
+                self.data_mgr.set_opsetting(opsetting)
+
         try:
             response_text = zGemini.call_gemini(prompt=query)
             if response_text:
-                return f"🤖 【回复】\n{response_text}"
+                # 2. 自动处理/转换为标准的 Markdown 格式输出（或根据平台需要进行适当包装/转义）
+                # 规范化换行并使用标准 markdown 块包装或引用
+                cleaned_text = response_text.strip()
+                formatted_md = f"**【Response】**\n\n{cleaned_text}"
+                
+                # 如果有非 OP 用户成功调用，可以附带显示剩余额度提示
+                if not is_privileged:
+                    rem_quota = user_quotas.get(sender_upper, 0)
+                    formatted_md += f"\n\n> 💡 *(剩余可用次数：`{rem_quota}`)*"
+                
+                # 返回标准 Markdown 消息结构（部分平台或客户端支持 msg_type=2 或直接作为 Markdown 文本返回）
+                # 根据项目惯例，MoreCommandSystem 的返回可以是字符串，也可以是带 msg_type 的 dict。
+                # 在 main.py 中：
+                # more_res = self.more_cmd_sys.handle_command(cmd, parts, sender_openid)
+                # if more_res is not None: if isinstance(more_res, dict): ... else send_c2c/group_markdown_by_content
+                # 让我们返回 dict 格式以明确指定 msg_type=2 (Markdown 类型) 或者返回标准 Markdown 字符串。
+                # 检查 main.py 怎么处理字符串返回值：
+                # main.py 中：await self.send_group_markdown_by_content(group_openid=group_id, content=reply_text)
+                # 因此直接返回 Markdown 字符串即可完美触发 send_group_markdown_by_content / send_c2c_markdown_by_content！
+                return formatted_md
             else:
-                return "❌  无有效回复"
+                return "❌ 无有效回复"
         except Exception as e:
             return f"❌ 调用异常"
 
