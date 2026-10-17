@@ -10,20 +10,24 @@ import subprocess
 import threading
 import multiprocessing
 from flask import Flask, request, send_from_directory,abort
+from pathlib import Path
+import urllib.request
+import win32gui
+import win32con
+import win32clipboard
+import asyncio
+
 from zBarkCustom import PerseusNotifyMsg, PerseusErrorMsg,PerseusWarningMsg
 from zMainHandler import run_alas_mumu_check, handlerun, Handlepush
 import zAlas
 import zMumu
 import zPGRJZ
 import zMusicDL
-import win32gui
-import win32con
-import win32clipboard
 from zFfmpeg import process_audio as ffmrun
-import asyncio
 import zCpolar
 from zLK import crawl_lightnovel_to_epub
 from zConfig import get_config
+
 from zLKserver import lk_bp
 from zInovelServer import inovel_bp
 from zLKCacheViewerServer import lk_cache_viewer_bp
@@ -32,6 +36,7 @@ from zWatchServer import zWatchServer_bp
 from zBNPApi import bnp_bp
 from zLogApi import log_bp
 from zCodeStatusApi import codestatus_bp
+
 app = Flask(__name__)
 app.register_blueprint(lk_bp)
 app.register_blueprint(inovel_bp)
@@ -887,7 +892,7 @@ def parse_dashboard_html(html_content):
                 if basename:
                     res_item["icon"] = f"/ap/file/{basename}"
                     try:
-                        import urllib.request
+                        
                         icon_url = f"http://127.0.0.1:22267/{basename}" if src.startswith("./") or not src.startswith("http") else src
                         req = urllib.request.Request(icon_url, headers={"User-Agent": "Mozilla/5.0"})
                         with urllib.request.urlopen(req, timeout=2) as resp:
@@ -1224,7 +1229,7 @@ def handle_main_stats_get():
     
     bot_stats = None
     try:
-        import urllib.request
+        
         req = urllib.request.Request("http://127.0.0.1:25567/bot/status/get", method="GET")
         with urllib.request.urlopen(req, timeout=1.5) as resp:
             if resp.status == 200:
@@ -1234,7 +1239,7 @@ def handle_main_stats_get():
                     bot_stats = bot_data
     except Exception:
         try:
-            import urllib.request
+            
             req = urllib.request.Request("http://127.0.0.1:25567/bot/api/stats", method="GET")
             with urllib.request.urlopen(req, timeout=1.5) as resp:
                 if resp.status == 200:
@@ -1263,7 +1268,7 @@ def handle_main_stats_get():
 def handle_main_bot_get():
     """请求本地 http://127.0.0.1:25567/bot/status/get 获取 QBot 统计并返回给前端"""
     try:
-        import urllib.request
+        
         req = urllib.request.Request("http://127.0.0.1:25567/bot/status/get", method="GET")
         with urllib.request.urlopen(req, timeout=2.0) as resp:
             body = resp.read().decode("utf-8")
@@ -2087,11 +2092,60 @@ def handle_lk_stop():
             {"status": "error", "message": f"停止任务操作异常: {e}"}, 500
         )
 
+def ensure_sakana_js():
+    """把sakanawidget资源缓存到本地"""
+    dir_path = Path(WEBASSETS_DIR)
+    dir_path.mkdir(parents=True, exist_ok=True)
+    file_path = dir_path / "sakana.js"
+    
+    if file_path.exists():
+        print(f"[OK] sakana.js 已存在: {file_path}")
+        return
+    
+    urls = [
+        "https://cdn.jsdelivr.net/npm/sakana-widget@4.0.0/lib/index.umd.min.js",
+        "https://gcore.jsdelivr.net/npm/sakana-widget@4.0.0/lib/index.umd.min.js",
+        "https://unpkg.com/sakana-widget@4.0.0/lib/index.umd.min.js"
+    ]
+    
+    # 获取代理配置
+    proxy_server = get_config("proxy.http")
+    
+    # 构造带代理的 opener
+    handlers = []
+    if proxy_server:
+        print(f"[Info] 使用代理服务器: {proxy_server}")
+        proxy_handler = urllib.request.ProxyHandler({
+            'http': proxy_server,
+            'https': proxy_server
+        })
+        handlers.append(proxy_handler)
+    
+    opener = urllib.request.build_opener(*handlers)
+    urllib.request.install_opener(opener)
+    
+    success = False
+    for url in urls:
+        print(f"[Info] 正在尝试下载: {url}")
+        try:
+            # 使用 urllib 下载，设置 10 秒超时
+            urllib.request.urlretrieve(url, file_path)
+            print(f"[Success] 下载成功！已保存至: {file_path}")
+            success = True
+            break
+        except Exception as e:
+            # 捕获异常并打印具体类型和原因，方便排查
+            err_msg = str(e) if str(e) else "连接超时或被拒绝"
+            print(f"[Warn] 下载失败: {type(e).__name__} - {err_msg}")
+            
+    if not success:
+        print("[Error] 所有 CDN 地址下载均失败，请检查代理连接或手动下载。")
 
 def main():
     request_admin_privileges(max_retries=5)
     kill_port_process(LISTEN_PORT)
     start_alas_mumu_check_timer()
+    ensure_sakana_js()
 
     print(f"OnePush接收服务已启动（已获取管理员权限），监听端口：{LISTEN_PORT}")
     PerseusNotifyMsg(
