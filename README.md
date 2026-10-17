@@ -182,6 +182,25 @@ Perseus 提供了优雅的多级防闪退、静默挂载启动链：
 
 支持列表如下：
 1. [`main/zLK.py`](main/zLK.py) - 稳定入口,tkinter
+<details>
+<summary>⭐ 食用方法：</summary>
+
+1. 在`config.yaml`填好proxy地址
+2. 用 python 直接运行[`main/zLK.py`](main/zLK.py)
+3. 输入`Book ID`，即书籍页链接`https://www.lightnovel.fun/cn/book/{book_id}`中的book_id部分
+4. `仅纯缓存提取`开启后将不再联网爬取，一般是爬了一半想提前导出时才用
+5. `仅补齐/重载图片`开启后跳过章节内容爬取，仅读取缓存中的插图链接并下载补齐
+6. `不下载图片`千万不要打开，会导致缓存损坏⚠
+7. `繁体转简体`字面意思
+8. `无头模式`是否弹出浏览器窗口
+9. 点击`开始处理/下载`开始任务
+10. 在`main/Novels`文件夹收获你的小说
+11. （可选）清空`main/lkcache`文件夹中的缓存
+12. 支持断点衔接，可以随时关闭进程喵
+
+
+</details>
+
 2. [`main/ziNovel.py`](main/ziNovel.py) - 备选入口,tkinter
 3. [`main/zBrowser.py`](main/zBrowser.py) - 唯一入口,playwright
 4. [`main/zBNP.py`](main/zBNP.py) - 稳定方法,tkinter
