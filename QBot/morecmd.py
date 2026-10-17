@@ -174,7 +174,7 @@ class MoreCommandSystem:
             return f"❌ 获取任务状态异常: {str(e)}"
 
     def _handle_ask(self, query: str, sender_openid: str):
-        """处理 #ask 指令，检查用户额度、扣减额度，调用 zGemini 模块，并将返回文本转为标准 Markdown 格式输出"""
+        """处理 #ask 指令，检查用户额度、扣减额度，调用 zGemini 模块，并将返回文本转为参照优质样例的高级、清晰 Markdown 格式输出"""
         if not query.strip():
             return "💡 请在 #ask 后面输入您想要询问的问题或内容，例如：`#ask 你好`"
         
@@ -202,7 +202,7 @@ class MoreCommandSystem:
             
             current_quota = user_quotas.get(sender_upper, 0)
             if current_quota <= 0:
-                return f"❌ 提问额度已用尽"
+                return "❌ 提问额度已用尽"
             
             # 扣减 1 次剩余额度
             user_quotas[sender_upper] = current_quota - 1
@@ -212,28 +212,46 @@ class MoreCommandSystem:
         try:
             response_text = zGemini.call_gemini(prompt=query)
             if response_text:
-                # 2. 自动处理/转换为标准的 Markdown 格式输出（或根据平台需要进行适当包装/转义）
-                # 规范化换行并使用标准 markdown 块包装或引用
                 cleaned_text = response_text.strip()
-                formatted_md = f"**【Response】**\n\n{cleaned_text}"
+                
+                # 参照用户给出的优质样例进行 Markdown 润色和排版格式化：
+                # 包含结构化的标题、分点、粗体和分割线等样式
+                formatted_md = f"### 💡 **[Response]**\n"
+                formatted_md += f"---\n\n"
+                formatted_md += f"**💬 Question**: `{query.strip()}`\n\n"
+                formatted_md += f"---\n\n"
+                formatted_md += f"#### **📋 Answer**\n\n"
+                
+                # 如果返回内容本身未包含清晰的 Markdown 结构，进行段落与分点优化
+                # 确保每一段落和要点清晰呈现
+                paragraphs = cleaned_text.split("\n")
+                processed_lines = []
+                for p in paragraphs:
+                    p_str = p.strip()
+                    if not p_str:
+                        continue
+                    # 如果是以序号或常见列表开头的行，转换为标准的 Markdown 列表
+                    if p_str.startswith(("- ", "* ", "• ")) or (len(p_str) > 2 and p_str[0].isdigit() and p_str[1] in (".", "、", ")")):
+                        processed_lines.append(f"• {p_str.lstrip('-*• 0123456789.)、')} ")
+                    else:
+                        processed_lines.append(p_str)
+                
+                if processed_lines:
+                    formatted_md += "\n\n".join([f"> {line}" if not line.startswith("•") else line for line in processed_lines])
+                else:
+                    formatted_md += f"> {cleaned_text}"
+                
+                #formatted_md += f"\n\n---\n"
+                #formatted_md += f"✨ *由 QBot & Gemini 联合驱动*"
                 
                 # 如果有非 OP 用户成功调用，可以附带显示剩余额度提示
                 if not is_privileged:
                     rem_quota = user_quotas.get(sender_upper, 0)
-                    formatted_md += f"\n\n> 💡 *(剩余可用次数：`{rem_quota}`)*"
+                    formatted_md += f" | 💡 *(剩余可用次数：`{rem_quota}`)*"
                 
-                # 返回标准 Markdown 消息结构（部分平台或客户端支持 msg_type=2 或直接作为 Markdown 文本返回）
-                # 根据项目惯例，MoreCommandSystem 的返回可以是字符串，也可以是带 msg_type 的 dict。
-                # 在 main.py 中：
-                # more_res = self.more_cmd_sys.handle_command(cmd, parts, sender_openid)
-                # if more_res is not None: if isinstance(more_res, dict): ... else send_c2c/group_markdown_by_content
-                # 让我们返回 dict 格式以明确指定 msg_type=2 (Markdown 类型) 或者返回标准 Markdown 字符串。
-                # 检查 main.py 怎么处理字符串返回值：
-                # main.py 中：await self.send_group_markdown_by_content(group_openid=group_id, content=reply_text)
-                # 因此直接返回 Markdown 字符串即可完美触发 send_group_markdown_by_content / send_c2c_markdown_by_content！
                 return formatted_md
             else:
                 return "❌ 无有效回复"
         except Exception as e:
-            return f"❌ 调用异常"
+            return f"❌ 调用异常: {str(e)}"
 
