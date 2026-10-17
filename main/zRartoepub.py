@@ -4,6 +4,7 @@ import tempfile
 import logging
 from ebooklib import epub
 import patoolib
+import docx  # 用于处理 .docx 文件
 
 # 抑制 patool 的冗余提示
 logging.getLogger('patool').setLevel(logging.ERROR)
@@ -22,7 +23,7 @@ def print_directory_tree(startpath):
         sub_indent = '│   ' * (level + 1)
         for f in sorted(files):
             ext = os.path.splitext(f)[1].lower()
-            if ext == '.txt':
+            if ext in ('.txt', '.docx'):
                 icon = "📄"
             elif ext in ('.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp'):
                 icon = "🖼️ "
@@ -47,7 +48,23 @@ def read_txt_content(txt_path):
         return f.read()
 
 
-def parse_txt_to_chapters(content, default_title="正文"):
+def read_docx_content(docx_path):
+    """
+    读取 DOCX 文件并将其内容转化为纯文本
+    """
+    try:
+        doc = docx.Document(docx_path)
+        full_text = []
+        for para in doc.paragraphs:
+            if para.text.strip():
+                full_text.append(para.text.strip())
+        return '\n\n'.join(full_text)
+    except Exception as e:
+        print(f"[WARNING] 读取 DOCX 文件失败 {os.path.basename(docx_path)}: {e}")
+        return ""
+
+
+def parse_text_to_chapters(content, default_title="正文"):
     """
     解析文本内容，按“第XX章”等关键字分割章节
     """
@@ -83,7 +100,7 @@ def parse_txt_to_chapters(content, default_title="正文"):
 
 def rar_to_epub(rar_path, output_epub_path):
     """
-    深度递归解压 RAR 并处理所有子文件夹中的图片和 TXT 文件
+    深度递归解压 RAR 并处理所有子文件夹中的图片、TXT 和 DOCX 文件
     """
     with tempfile.TemporaryDirectory() as temp_dir:
         print(f"[INFO] 正在处理: {os.path.basename(rar_path)}...")
@@ -97,26 +114,28 @@ def rar_to_epub(rar_path, output_epub_path):
         # 打印文件结构树
         print_directory_tree(temp_dir)
 
-        txt_files = []
+        text_files = []  # 存 txt 和 docx 文件
         image_files = []
         image_extensions = ('.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp')
 
-        # 遍历所有子文件夹，深度搜寻所有 txt 与图片
+        # 遍历所有子文件夹，搜寻文本和图片
         for root, _, files in os.walk(temp_dir):
             for file in files:
                 full_path = os.path.join(root, file)
                 ext = os.path.splitext(file)[1].lower()
-                if ext == '.txt':
-                    txt_files.append(full_path)
+                if ext in ('.txt', '.docx'):
+                    # 过滤 Word 临时文件（以 ~$ 开头的文件）
+                    if not file.startswith('~$'):
+                        text_files.append(full_path)
                 elif ext in image_extensions:
                     image_files.append(full_path)
 
-        if not txt_files:
-            print(f"[WARNING] 跳过 {os.path.basename(rar_path)}：压缩包内部未找到任何 TXT 文件。\n")
+        if not text_files:
+            print(f"[WARNING] 跳过 {os.path.basename(rar_path)}：压缩包内部未找到 TXT 或 DOCX 文本文件。\n")
             return
 
-        # 按路径和文件名进行自然排序
-        txt_files.sort()
+        # 按路径和文件名自然排序
+        text_files.sort()
         image_files.sort()
 
         # 创建 EPUB 书籍对象
@@ -165,14 +184,19 @@ def rar_to_epub(rar_path, output_epub_path):
             spine.append(illus_chapter)
             toc.append(illus_chapter)
 
-        # ==================== 2. 处理所有子文件夹内的 TXT 文本 ====================
+        # ==================== 2. 处理所有 TXT / DOCX 文本 ====================
         global_chapter_idx = 1
 
-        for txt_file in txt_files:
-            file_base_name = os.path.splitext(os.path.basename(txt_file))[0]
-            content = read_txt_content(txt_file)
+        for doc_path in text_files:
+            file_base_name = os.path.splitext(os.path.basename(doc_path))[0]
+            ext = os.path.splitext(doc_path)[1].lower()
 
-            parsed_chapters = parse_txt_to_chapters(content, default_title=file_base_name)
+            if ext == '.docx':
+                content = read_docx_content(doc_path)
+            else:
+                content = read_txt_content(doc_path)
+
+            parsed_chapters = parse_text_to_chapters(content, default_title=file_base_name)
 
             for title, body in parsed_chapters:
                 ch_item = epub.EpubHtml(
