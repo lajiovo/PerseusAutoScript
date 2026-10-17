@@ -109,7 +109,7 @@ Perseus/
 本项目基于 Python 3.10+ 开发，核心依赖包括 `Flask`, `playwright`, `botpy` (腾讯频道机器人 SDK) 等。
 ```bash
 # 安装 Python 依赖包
-pip install aiohttp botpy beautifulsoup4 ebooklib flask opencc playwright psutil pynput requests ruamel.yaml urllib3 pywin32
+pip install aiohttp botpy beautifulsoup4 ebooklib flask opencc playwright psutil pynput requests ruamel.yaml urllib3 pywin32 patool pillow
 
 # 安装 Playwright 浏览器内核
 playwright install chromium

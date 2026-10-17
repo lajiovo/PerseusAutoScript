@@ -14,6 +14,7 @@ log/
 temp_images/
 servercache/
 bnp/
+rawrar/
 
 # 2. 忽略特定扩展名的文件
 *.log
