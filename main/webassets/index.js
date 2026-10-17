@@ -279,33 +279,48 @@ async function initNavigation() {
                         let displayCopyUrl = card.copyUrl || card.url;
 
                         if (serverIp) {
-                            if (displayIp && displayIp !== '127.0.0.1' && displayIp !== 'localhost' && !displayIp.startsWith('http')) {
-                                displayIp = serverIp;
-                            } else if (!displayIp && displayUrl) {
-                                // 尝试从 url 中解析并替换 IP
+                            let targetPort = card.port ? card.port.replace(':', '') : '';
+                            if (!targetPort && displayUrl) {
                                 try {
                                     const parsed = new URL(displayUrl, window.location.origin);
-                                    if (parsed.hostname && parsed.hostname !== '127.0.0.1' && parsed.hostname !== 'localhost') {
-                                        parsed.hostname = serverIp;
-                                        displayUrl = parsed.toString();
+                                    if (parsed.port) {
+                                        targetPort = parsed.port;
                                     }
                                 } catch (e) {}
                             }
+                            if (!targetPort) {
+                                targetPort = window.location.port || '80';
+                            }
 
-                            // 替换 URL 和 copyUrl 中的 IP
+                            let pathPart = '/';
                             if (displayUrl) {
-                                displayUrl = displayUrl.replace(/\/\/(?:[0-9]{1,3}\.){3}[0-9]{1,3}(?::[0-9]+)?/, `//${serverIp}:${card.port || window.location.port || '80'}`)
-                                                       .replace(/\/\/localhost(?::[0-9]+)?/, `//${serverIp}:${card.port || window.location.port || '80'}`)
-                                                       .replace(/\/\/127\.0\.0\.1(?::[0-9]+)?/, `//${serverIp}:${card.port || window.location.port || '80'}`);
+                                try {
+                                    const parsed = new URL(displayUrl, window.location.origin);
+                                    pathPart = parsed.pathname + parsed.search + parsed.hash;
+                                } catch (e) {
+                                    pathPart = displayUrl;
+                                    if (!pathPart.startsWith('/')) {
+                                        pathPart = '/' + pathPart;
+                                    }
+                                }
                             }
+                            displayUrl = `http://${serverIp}:${targetPort}${pathPart}`;
+
+                            let copyPathPart = pathPart;
                             if (displayCopyUrl) {
-                                displayCopyUrl = displayCopyUrl.replace(/\/\/(?:[0-9]{1,3}\.){3}[0-9]{1,3}(?::[0-9]+)?/, `//${serverIp}:${card.port || window.location.port || '80'}`)
-                                                             .replace(/\/\/localhost(?::[0-9]+)?/, `//${serverIp}:${card.port || window.location.port || '80'}`)
-                                                             .replace(/\/\/127\.0\.0\.1(?::[0-9]+)?/, `//${serverIp}:${card.port || window.location.port || '80'}`);
+                                try {
+                                    const parsedCopy = new URL(displayCopyUrl, window.location.origin);
+                                    copyPathPart = parsedCopy.pathname + parsedCopy.search + parsedCopy.hash;
+                                } catch (e) {
+                                    copyPathPart = displayCopyUrl;
+                                    if (!copyPathPart.startsWith('/')) {
+                                        copyPathPart = '/' + copyPathPart;
+                                    }
+                                }
                             }
-                            if (card.ip && (card.ip.includes('.') || card.ip.includes('localhost') || card.ip.includes('127.0.0.1'))) {
-                                displayIp = serverIp;
-                            }
+                            displayCopyUrl = `http://${serverIp}:${targetPort}${copyPathPart}`;
+
+                            displayIp = `${serverIp}:${targetPort}`;
                         }
 
                         const borderClass = card.borderColor ? `border-l-2 border-l-${card.borderColor}-500` : theme.borderClass;
