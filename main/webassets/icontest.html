@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Font Awesome 图标检索与复制工具</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+        }
+    </script>
+    <!-- Font Awesome Pro / Free -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(226, 232, 240, 0.8);
+        }
+        .dark .glass-panel {
+            background: rgba(15, 23, 42, 0.85);
+            border: 1px solid rgba(51, 65, 85, 0.8);
+        }
+    </style>
+</head>
+<body class="bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 min-h-screen transition-colors duration-300">
+    <!-- Header -->
+    <header class="sticky top-0 z-30 glass-panel border-b border-slate-200 dark:border-slate-800 px-4 py-3 shadow-sm">
+        <div class="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div class="flex items-center gap-2.5">
+                <div class="w-9 h-9 rounded-xl bg-indigo-500/10 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-lg">
+                    <i class="fa-solid fa-icons"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-base sm:text-lg">Font Awesome 图标检索与复制</h1>
+                    <p class="text-xs text-slate-500 dark:text-slate-400">快速检索常用图标，点击即可一键复制类名</p>
+                </div>
+            </div>
+            
+            <div class="flex items-center gap-3 w-full sm:w-auto">
+                <div class="relative flex-1 sm:w-72">
+                    <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                        <i class="fa-solid fa-search text-xs"></i>
+                    </span>
+                    <input type="text" id="searchInput" placeholder="搜索图标名称或类名 (例: server, robot)..." class="w-full pl-9 pr-4 py-1.5 text-xs bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800 dark:text-slate-100">
+                </div>
+                <a href="./index.html" class="inline-flex items-center gap-1.5 text-xs font-medium text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/80 px-3 py-1.5 rounded-lg transition-colors shadow-sm whitespace-nowrap">
+                    <i class="fa-solid fa-house"></i> 返回导航
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto px-4 py-6 space-y-6">
+        <!-- 常用分类快速筛选 -->
+        <div class="flex flex-wrap items-center gap-2" id="categoryFilter">
+            <button class="cat-btn active px-3 py-1 text-xs font-medium rounded-lg bg-indigo-600 text-white shadow-sm transition-all" data-category="all">全部图标</button>
+            <button class="cat-btn px-3 py-1 text-xs font-medium rounded-lg bg-slate-200/70 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-700 transition-all" data-category="server">服务端与运维</button>
+            <button class="cat-btn px-3 py-1 text-xs font-medium rounded-lg bg-slate-200/70 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-700 transition-all" data-category="device">硬件与设备</button>
+            <button class="cat-btn px-3 py-1 text-xs font-medium rounded-lg bg-slate-200/70 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-700 transition-all" data-category="bot">机器人与AI</button>
+            <button class="cat-btn px-3 py-1 text-xs font-medium rounded-lg bg-slate-200/70 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-700 transition-all" data-category="system">系统与工具</button>
+            <button class="cat-btn px-3 py-1 text-xs font-medium rounded-lg bg-slate-200/70 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-700 transition-all" data-category="network">网络与通讯</button>
+        </div>
+
+        <!-- 图标展示网格 -->
+        <div id="iconGrid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3.5">
+            <!-- 动态渲染 -->
+        </div>
+    </main>
+
+    <!-- Toast 提示框 -->
+    <div id="toast" class="fixed bottom-6 right-6 transform translate-y-20 opacity-0 transition-all duration-300 z-50 bg-slate-900 dark:bg-slate-800 text-white text-xs px-4 py-2.5 rounded-xl shadow-xl border border-slate-700 flex items-center gap-2">
+        <i class="fa-solid fa-circle-check text-emerald-400"></i>
+        <span id="toastMsg">已复制图标类名</span>
+    </div>
+
+    <script>
+        const ICONS_DATA = [
+            // 服务端与运维
+            { name: 'fa-solid fa-server', label: '服务器', category: 'server' },
+            { name: 'fa-solid fa-database', label: '数据库', category: 'server' },
+            { name: 'fa-solid fa-network-wired', label: '有线网络', category: 'network' },
+            { name: 'fa-solid fa-wifi', label: '无线Wi-Fi', category: 'network' },
+            { name: 'fa-solid fa-globe', label: '互联网/全球', category: 'network' },
+            { name: 'fa-solid fa-shield-halved', label: '安全防护', category: 'system' },
+            { name: 'fa-solid fa-lock', label: '锁定', category: 'system' },
+            { name: 'fa-solid fa-key', label: '密钥', category: 'system' },
+            { name: 'fa-solid fa-terminal', label: '终端/命令行', category: 'server' },
+            { name: 'fa-solid fa-code', label: '代码', category: 'server' },
+            { name: 'fa-solid fa-laptop-code', label: '编程开发', category: 'server' },
+            { name: 'fa-solid fa-microchip', label: '芯片/处理器', category: 'device' },
+            { name: 'fa-solid fa-memory', label: '内存', category: 'device' },
+            { name: 'fa-solid fa-hard-drive', label: '硬盘存储', category: 'device' },
+
+            // 机器人与AI
+            { name: 'fa-solid fa-robot', label: '机器人/Bot', category: 'bot' },
+            { name: 'fa-solid fa-brain', label: 'AI大脑', category: 'bot' },
+            { name: 'fa-solid fa-comments', label: '消息群聊', category: 'bot' },
+            { name: 'fa-solid fa-comment-dots', label: '对话', category: 'bot' },
+            { name: 'fa-solid fa-message', label: '通知消息', category: 'bot' },
+            { name: 'fa-solid fa-paper-plane', label: '推送/发送', category: 'bot' },
+            { name: 'fa-solid fa-bell', label: '提醒通知', category: 'bot' },
+
+            // 硬件与设备
+            { name: 'fa-solid fa-mobile-screen', label: '手机', category: 'device' },
+            { name: 'fa-solid fa-tablet-screen-button', label: '平板', category: 'device' },
+            { name: 'fa-solid fa-desktop', label: '台式电脑', category: 'device' },
+            { name: 'fa-solid fa-laptop', label: '笔记本', category: 'device' },
+            { name: 'fa-solid fa-gamepad', label: '游戏手柄', category: 'device' },
+            { name: 'fa-solid fa-tv', label: '电视/显示器', category: 'device' },
+            { name: 'fa-solid fa-headphones', label: '耳机', category: 'device' },
+            { name: 'fa-solid fa-camera', label: '相机', category: 'device' },
+
+            // 系统与工具
+            { name: 'fa-solid fa-house', label: '首页/主页', category: 'system' },
+            { name: 'fa-solid fa-gauge-high', label: '仪表盘/仪表', category: 'system' },
+            { name: 'fa-solid fa-chart-pie', label: '饼图统计', category: 'system' },
+            { name: 'fa-solid fa-chart-line', label: '折线统计', category: 'system' },
+            { name: 'fa-solid fa-gear', label: '设置', category: 'system' },
+            { name: 'fa-solid fa-wrench', label: '工具/维修', category: 'system' },
+            { name: 'fa-solid fa-toolbox', label: '工具箱', category: 'system' },
+            { name: 'fa-solid fa-sliders', label: '滑块/调节', category: 'system' },
+            { name: 'fa-solid fa-rotate', label: '刷新', category: 'system' },
+            { name: 'fa-solid fa-power-off', label: '电源/开关', category: 'system' },
+            { name: 'fa-solid fa-trash', label: '删除', category: 'system' },
+            { name: 'fa-solid fa-folder', label: '文件夹', category: 'system' },
+            { name: 'fa-solid fa-file', label: '文件', category: 'system' },
+            { name: 'fa-solid fa-link', label: '链接', category: 'network' },
+            { name: 'fa-solid fa-compass', label: '指南针', category: 'system' },
+            { name: 'fa-solid fa-star', label: '星标/常用', category: 'system' },
+            { name: 'fa-solid fa-heart', label: '喜欢/爱心', category: 'system' },
+            { name: 'fa-solid fa-fire', label: '热门/火爆', category: 'system' }
+        ];
+
+        function renderIcons(filter = 'all', keyword = '') {
+            const grid = document.getElementById('iconGrid');
+            const filtered = ICONS_DATA.filter(item => {
+                const matchCat = (filter === 'all' || item.category === filter);
+                const matchKey = (item.name.toLowerCase().includes(keyword.toLowerCase()) || item.label.toLowerCase().includes(keyword.toLowerCase()));
+                return matchCat && matchKey;
+            });
+
+            if (filtered.length === 0) {
+                grid.innerHTML = '<div class="col-span-full py-16 text-center text-slate-400 text-xs">未找到匹配的图标，请尝试其他关键词。</div>';
+                return;
+            }
+
+            let html = '';
+            filtered.forEach(item => {
+                html += `
+                    <div onclick="copyIconClass('${item.name}')" class="glass-panel rounded-xl p-3.5 flex flex-col items-center justify-center gap-2 cursor-pointer hover:border-indigo-500 hover:shadow-md transition-all group">
+                        <div class="w-10 h-10 rounded-lg bg-indigo-500/10 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-lg group-hover:scale-110 transition-transform">
+                            <i class="${item.name}"></i>
+                        </div>
+                        <div class="text-center w-full">
+                            <div class="font-medium text-xs text-slate-800 dark:text-slate-200 truncate">${item.label}</div>
+                            <code class="text-[10px] text-slate-400 font-mono truncate block mt-0.5">${item.name}</code>
+                        </div>
+                    </div>
+                `;
+            });
+            grid.innerHTML = html;
+        }
+
+        function copyIconClass(text) {
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            textarea.style.position = 'fixed';
+            textarea.style.opacity = '0';
+            document.body.appendChild(textarea);
+            textarea.select();
+            
+            try {
+                document.execCommand('copy');
+                showToast('已复制图标类名: ' + text);
+            } catch (err) {
+                showToast('复制失败');
+            } finally {
+                document.body.removeChild(textarea);
+            }
+        }
+
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            const toastMsg = document.getElementById('toastMsg');
+            if (toast && toastMsg) {
+                toastMsg.textContent = message;
+                toast.classList.remove('translate-y-20', 'opacity-0');
+                setTimeout(() => {
+                    toast.classList.add('translate-y-20', 'opacity-0');
+                }, 2000);
+            }
+        }
+
+        // 事件绑定
+        document.getElementById('searchInput').addEventListener('input', (e) => {
+            const activeCat = document.querySelector('.cat-btn.active').dataset.category;
+            renderIcons(activeCat, e.target.value);
+        });
+
+        const catBtns = document.querySelectorAll('.cat-btn');
+        catBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                catBtns.forEach(b => {
+                    b.classList.remove('active', 'bg-indigo-600', 'text-white');
+                    b.classList.add('bg-slate-200/70', 'dark:bg-slate-800', 'text-slate-600', 'dark:text-slate-300');
+                });
+                btn.classList.add('active', 'bg-indigo-600', 'text-white');
+                btn.classList.remove('bg-slate-200/70', 'dark:bg-slate-800', 'text-slate-600', 'dark:text-slate-300');
+
+                const keyword = document.getElementById('searchInput').value;
+                renderIcons(btn.dataset.category, keyword);
+            });
+        });
+
+        // 初始化渲染
+        renderIcons();
+    </script>
+</body>
+</html>

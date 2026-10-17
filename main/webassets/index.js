@@ -104,54 +104,90 @@ function showToast(message) {
 // --- 5. Fetch and Render Navigation from index.json with Fixed Color Cycle ---
 const CARD_COLOR_THEMES = [
     {
+        name: 'indigo',
         bg: 'bg-indigo-500/10 dark:bg-indigo-500/20',
         text: 'text-indigo-600 dark:text-indigo-400',
         badgeBg: 'bg-indigo-100 dark:bg-indigo-900/50',
         badgeText: 'text-indigo-600 dark:text-indigo-400',
         btnBg: 'bg-indigo-600 hover:bg-indigo-700 text-white',
-        border: ''
+        borderClass: 'border-l-2 border-l-indigo-500'
     },
     {
+        name: 'purple',
         bg: 'bg-purple-500/10 dark:bg-purple-500/20',
         text: 'text-purple-600 dark:text-purple-400',
         badgeBg: 'bg-purple-100 dark:bg-purple-900/50',
         badgeText: 'text-purple-600 dark:text-purple-400',
         btnBg: 'bg-purple-600 hover:bg-purple-700 text-white',
-        border: ''
+        borderClass: 'border-l-2 border-l-purple-500'
     },
     {
+        name: 'cyan',
         bg: 'bg-cyan-500/10 dark:bg-cyan-500/20',
         text: 'text-cyan-600 dark:text-cyan-400',
         badgeBg: 'bg-cyan-100 dark:bg-cyan-900/50',
         badgeText: 'text-cyan-600 dark:text-cyan-400',
         btnBg: 'bg-cyan-600 hover:bg-cyan-700 text-white',
-        border: ''
+        borderClass: 'border-l-2 border-l-cyan-500'
     },
     {
+        name: 'emerald',
         bg: 'bg-emerald-500/10 dark:bg-emerald-500/20',
         text: 'text-emerald-600 dark:text-emerald-400',
         badgeBg: 'bg-emerald-100 dark:bg-emerald-900/50',
         badgeText: 'text-emerald-600 dark:text-emerald-400',
         btnBg: 'bg-emerald-600 hover:bg-emerald-700 text-white',
-        border: ''
+        borderClass: 'border-l-2 border-l-emerald-500'
     },
     {
+        name: 'amber',
         bg: 'bg-amber-500/10 dark:bg-amber-500/20',
         text: 'text-amber-600 dark:text-amber-400',
         badgeBg: 'bg-amber-100 dark:bg-amber-900/50',
         badgeText: 'text-amber-600 dark:text-amber-400',
         btnBg: 'bg-amber-600 hover:bg-amber-700 text-white',
-        border: ''
+        borderClass: 'border-l-2 border-l-amber-500'
     },
     {
+        name: 'rose',
         bg: 'bg-rose-500/10 dark:bg-rose-500/20',
         text: 'text-rose-600 dark:text-rose-400',
         badgeBg: 'bg-rose-100 dark:bg-rose-900/50',
         badgeText: 'text-rose-600 dark:text-rose-400',
         btnBg: 'bg-rose-600 hover:bg-rose-700 text-white',
-        border: ''
+        borderClass: 'border-l-2 border-l-rose-500'
     }
 ];
+
+let serverIpCache = null;
+
+async function fetchServerIp() {
+    if (serverIpCache) return serverIpCache;
+    try {
+        const res = await fetch('/getip');
+        if (res.ok) {
+            const data = await res.json();
+            if (data.ip) {
+                serverIpCache = data.ip;
+                return serverIpCache;
+            }
+        }
+    } catch (e) {
+        try {
+            const res2 = await fetch('/main/getip');
+            if (res2.ok) {
+                const data2 = await res2.json();
+                if (data2.ip) {
+                    serverIpCache = data2.ip;
+                    return serverIpCache;
+                }
+            }
+        } catch (e2) {
+            console.error('获取服务端 IP 失败:', e2);
+        }
+    }
+    return null;
+}
 
 let statusLoaded = false;
 
@@ -192,7 +228,10 @@ async function initNavigation() {
     const dynamicContainer = document.getElementById('dynamicSectionsContainer');
 
     try {
-        const response = await fetch('./index.json');
+        const [response, serverIp] = await Promise.all([
+            fetch('./index.json'),
+            fetchServerIp()
+        ]);
         if (!response.ok) throw new Error('Failed to load index.json');
         const sections = await response.json();
 
@@ -234,7 +273,42 @@ async function initNavigation() {
                 if (sec.cards && sec.cards.length > 0) {
                     sec.cards.forEach((card, index) => {
                         const theme = CARD_COLOR_THEMES[index % CARD_COLOR_THEMES.length];
-                        const borderClass = card.borderColor ? `border-l-2 border-l-${card.borderColor}-500` : `border-l-2 border-l-indigo-500`;
+                        
+                        let displayIp = card.ip;
+                        let displayUrl = card.url;
+                        let displayCopyUrl = card.copyUrl || card.url;
+
+                        if (serverIp) {
+                            if (displayIp && displayIp !== '127.0.0.1' && displayIp !== 'localhost' && !displayIp.startsWith('http')) {
+                                displayIp = serverIp;
+                            } else if (!displayIp && displayUrl) {
+                                // 尝试从 url 中解析并替换 IP
+                                try {
+                                    const parsed = new URL(displayUrl, window.location.origin);
+                                    if (parsed.hostname && parsed.hostname !== '127.0.0.1' && parsed.hostname !== 'localhost') {
+                                        parsed.hostname = serverIp;
+                                        displayUrl = parsed.toString();
+                                    }
+                                } catch (e) {}
+                            }
+
+                            // 替换 URL 和 copyUrl 中的 IP
+                            if (displayUrl) {
+                                displayUrl = displayUrl.replace(/\/\/(?:[0-9]{1,3}\.){3}[0-9]{1,3}(?::[0-9]+)?/, `//${serverIp}:${card.port || window.location.port || '80'}`)
+                                                       .replace(/\/\/localhost(?::[0-9]+)?/, `//${serverIp}:${card.port || window.location.port || '80'}`)
+                                                       .replace(/\/\/127\.0\.0\.1(?::[0-9]+)?/, `//${serverIp}:${card.port || window.location.port || '80'}`);
+                            }
+                            if (displayCopyUrl) {
+                                displayCopyUrl = displayCopyUrl.replace(/\/\/(?:[0-9]{1,3}\.){3}[0-9]{1,3}(?::[0-9]+)?/, `//${serverIp}:${card.port || window.location.port || '80'}`)
+                                                             .replace(/\/\/localhost(?::[0-9]+)?/, `//${serverIp}:${card.port || window.location.port || '80'}`)
+                                                             .replace(/\/\/127\.0\.0\.1(?::[0-9]+)?/, `//${serverIp}:${card.port || window.location.port || '80'}`);
+                            }
+                            if (card.ip && (card.ip.includes('.') || card.ip.includes('localhost') || card.ip.includes('127.0.0.1'))) {
+                                displayIp = serverIp;
+                            }
+                        }
+
+                        const borderClass = card.borderColor ? `border-l-2 border-l-${card.borderColor}-500` : theme.borderClass;
                         sectionsHtml += `
                             <div class="service-card glass-panel rounded-xl p-4 card-hover relative group flex flex-col justify-between ${borderClass}">
                                 <div>
@@ -245,13 +319,13 @@ async function initNavigation() {
                                         <span class="text-xs font-mono font-bold text-slate-500 dark:text-slate-400">${card.port}</span>
                                     </div>
                                     <h3 class="font-bold text-slate-900 dark:text-white text-sm mb-0.5">${card.title}</h3>
-                                    <p class="text-[11px] text-slate-500 dark:text-slate-400 mb-2">${card.ip}</p>
+                                    <p class="text-[11px] text-slate-500 dark:text-slate-400 mb-2">${displayIp || card.ip}</p>
                                 </div>
                                 <div class="pt-2 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between">
-                                    <button onclick="copyToClipboard('${card.copyUrl || card.url}')" class="text-[10px] text-slate-400 hover:text-indigo-500 transition-colors flex items-center gap-1">
+                                    <button onclick="copyToClipboard('${displayCopyUrl}')" class="text-[10px] text-slate-400 hover:text-indigo-500 transition-colors flex items-center gap-1">
                                         <i class="fa-regular fa-copy"></i> 复制
                                     </button>
-                                    <a href="${card.url}" target="_self" class="service-link inline-flex items-center gap-1 text-[11px] font-medium ${theme.text} bg-slate-100 dark:bg-slate-900 hover:bg-slate-200 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700/50 px-2 py-0.5 rounded-md transition-colors">
+                                    <a href="${displayUrl}" target="_self" class="service-link inline-flex items-center gap-1 text-[11px] font-medium ${theme.text} bg-slate-100 dark:bg-slate-900 hover:bg-slate-200 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700/50 px-2 py-0.5 rounded-md transition-colors">
                                         直连 <i class="fa-solid fa-chevron-right text-[8px]"></i>
                                     </a>
                                 </div>
@@ -351,8 +425,9 @@ async function initNavigation() {
                 if (sec.cards && sec.cards.length > 0) {
                     sec.cards.forEach((card, index) => {
                         const theme = CARD_COLOR_THEMES[index % CARD_COLOR_THEMES.length];
+                        const borderClass = card.borderColor ? `border-l-2 border-l-${card.borderColor}-500` : theme.borderClass;
                         sectionsHtml += `
-                            <div class="service-card glass-panel rounded-xl p-4 card-hover relative group flex flex-col justify-between">
+                            <div class="service-card glass-panel rounded-xl p-4 card-hover relative group flex flex-col justify-between ${borderClass}">
                                 <div>
                                     <div class="flex items-center justify-between mb-2.5">
                                         <div class="w-9 h-9 rounded-lg ${theme.bg} ${theme.text} flex items-center justify-center text-base">

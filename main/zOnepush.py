@@ -1727,6 +1727,24 @@ def handle_ping():
         "mumu_running": zMumu.is_mumu_running(),
         "alas_running": zAlas.is_process_running()}, 200)
 
+@app.route("/getip", methods=["GET"])
+@app.route("/main/getip", methods=["GET"])
+def handle_get_ip():
+    """动态获取并返回服务端局域网 IP 地址"""
+    import socket
+    ip = "127.0.0.1"
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("10.255.255.255", 1))
+        ip = s.getsockname()[0]
+        s.close()
+    except Exception:
+        try:
+            ip = socket.gethostbyname(socket.gethostname())
+        except Exception:
+            pass
+    return format_response({"ip": ip}, 200)
+
 @app.route("/run", methods=["GET", "POST"])
 def handle_run():
     req_data = {}

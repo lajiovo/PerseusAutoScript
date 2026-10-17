@@ -86,6 +86,14 @@
                 "icon": "fa-solid fa-server"
             },
             {
+                "title": "Icontest",
+                "tag": "icon",
+                "description": "Font Awesome 图标检索与复制",
+                "url": "/main/icontest.html",
+                "code": "/main/icontest.html",
+                "icon": "fa-solid fa-server"
+            },
+            {
                 "title": "WatchApp",
                 "tag": "Watch",
                 "description": "手表数据同步",
@@ -127,6 +135,22 @@
                 "copyUrl": "http://192.168.10.4:37777",
                 "icon": "fa-solid fa-compact-disc",
                 "borderColor": "rose"
+            }
+        ]
+    },
+    {
+        "id": "common",
+        "name": "常用网站",
+        "icon": "fa-solid fa-star",
+        "type": "grid",
+        "cards": [
+            {
+                "title": "GitHub",
+                "tag": "Git",
+                "description": "全球代码托管与开源社区",
+                "url": "https://github.com",
+                "code": "https://github.com",
+                "icon": "fa-brands fa-github"
             }
         ]
     },
