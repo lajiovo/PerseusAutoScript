@@ -395,6 +395,7 @@ def load_module_from_parent(module_name: str):
 
 # 自动按依赖顺序加载上级目录的模块
 zConfig = load_module_from_parent("zConfig")
+zGemini = load_module_from_parent("zGemini")
 
 # 修复：Python 内置 logging 模块正确方法为 getLogger()，而非 get_logger()
 _log = logging.getLogger(__name__)

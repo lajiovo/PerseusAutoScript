@@ -2,6 +2,8 @@ import requests
 import json
 import os
 
+from config import zGemini
+
 class MoreCommandSystem:
     """
     实现对刚才新解析的资源及任务状态内容的数据读取和指令处理（例如通过命令或API查询资源监控与任务状态）。
@@ -34,6 +36,11 @@ class MoreCommandSystem:
         # 截图查看相关指令：截图, screenshot, shot, pic
         if lower_cmd in ("截图", "screenshot", "shot", "pic"):
             return self._get_screenshot()
+
+        # AI 问答指令：ask
+        if lower_cmd == "ask":
+            query = " ".join(parts[1:]) if len(parts) > 1 else ""
+            return self._handle_ask(query)
             
         # 未匹配到相关指令
         return None
@@ -165,3 +172,18 @@ class MoreCommandSystem:
                 return f"❌ 获取任务状态失败 (HTTP {resp.status_code})"
         except Exception as e:
             return f"❌ 获取任务状态异常: {str(e)}"
+
+    def _handle_ask(self, query: str):
+        """处理 #ask 指令，调用 zGemini 模块进行问答交互并返回结果"""
+        if not query.strip():
+            return "💡 请在 #ask 后面输入您想要询问的问题或内容，例如：`#ask 你好`"
+        
+        try:
+            response_text = zGemini.call_gemini(prompt=query)
+            if response_text:
+                return f"🤖 【回复】\n{response_text}"
+            else:
+                return "❌  无有效回复"
+        except Exception as e:
+            return f"❌ 调用异常"
+
