@@ -121,49 +121,6 @@
     <!-- Include index.js for main page logic -->
     <script src="index.js"></script>
 
-    <!-- 1. 创建一个固定在屏幕右下角的容器 -->
-    <div id="sakana-widget" style="
-    position: fixed; 
-    bottom: 20px; 
-    right: 20px; 
-    z-index: 9999;
-    "></div>
-
-    <div id="sakana-widget"></div>
-
-    <!-- 1. 引入 4.0.0 的 UMD 脚本 -->
-    <script
-      async
-      onload="initSakanaWidget()"
-      src="/main/sakana.js"
-    ></script>
-    
-    <style>
-        #sakana-widget .sakana-widget-rod {
-            width: 4px !important; /* 调整这里的数值来改变粗细 */
-            background-color: rgba(0, 0, 0, 0.2) !important; 
-        }
-      </style>
-    
-    <script>
-      function initSakanaWidget() {
-        // 获取内置的千束角色数据作为模板
-        const myCharacter = SakanaWidget.getcenter ? SakanaWidget.getCharacter('chisato') : SakanaWidget.getCharacter('chisato');
-        
-        // 如果获取到了，修改它的图片链接
-        if (myCharacter) {
-          myCharacter.image = '/main/sakana.png'; // 换成你的透明 PNG 图片链接
-        }
-    
-        // 注册一个名为 'my-char' 的新角色
-        SakanaWidget.registerCharacter('my-char', myCharacter);
-    
-        // 实例化并挂载，指定默认显示这个新角色
-        new SakanaWidget({
-          character: 'my-char',
-          imageFit: 'contain', // 如果图片不是标准正方形，建议加上这句让图片完整显示
-        }).mount('#sakana-widget');
-      }
-    </script>
+    <script src="/main/sakana-loader.js"></script>
 </body>
 </html>
