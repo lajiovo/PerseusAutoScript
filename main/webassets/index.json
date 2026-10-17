@@ -2,7 +2,7 @@
     {
         "id": "proxy",
         "name": "直接连接",
-        "icon": "fa-solid fa-network-wired",
+        "icon": "fa-solid fa-shield-halved",
         "type": "grid",
         "cards": [
             {
@@ -11,7 +11,7 @@
                 "description": "系统可视化控制台",
                 "url": "/main/dash.html",
                 "code": "/main/dash.html",
-                "icon": "fa-solid fa-gauge-high"
+                "icon": "fa-solid fa-sliders"
             },
             {
                 "title": "Bot",
@@ -19,7 +19,7 @@
                 "description": "Perseus机器人终端转发",
                 "url": "/bot/assets/index.html",
                 "code": "/bot/assets/index.html",
-                "icon": "fa-solid fa-robot"
+                "icon": "fa-solid fa-comments"
             },
             {
                 "title": "AzurPilot",
@@ -27,7 +27,7 @@
                 "description": "AzurPilotWebui转发",
                 "url": "/",
                 "code": "/",
-                "icon": "fa-solid fa-paper-plane"
+                "icon": "fa-solid fa-gamepad"
             },
             {
                 "title": "ClipBoard",
@@ -43,7 +43,7 @@
                 "description": "全程序日志查看",
                 "url": "/main/log.html",
                 "code": "/main/log.html",
-                "icon": "fa-solid fa-server"
+                "icon": "fa-solid fa-terminal"
             },
             {
                 "title": "Status",
@@ -51,7 +51,7 @@
                 "description": "统计信息与状态",
                 "url": "/main/status.html",
                 "code": "/main/status.html",
-                "icon": "fa-solid fa-server"
+                "icon": "fa-solid fa-gauge-high"
             },
             {
                 "title": "iNovel",
@@ -75,7 +75,7 @@
                 "description": "bili_novel_packer控制",
                 "url": "/main/bnp.html",
                 "code": "/main/bnp.html",
-                "icon": "fa-solid fa-book"
+                "icon": "fa-solid fa-memory"
             },
             {
                 "title": "Codestatus",
@@ -83,7 +83,7 @@
                 "description": "仓库代码统计",
                 "url": "/main/codestatus.html",
                 "code": "/main/codestatus.html",
-                "icon": "fa-solid fa-server"
+                "icon": "fa-solid fa-code"
             },
             {
                 "title": "Icontest",
@@ -91,7 +91,7 @@
                 "description": "Font Awesome 图标检索与复制",
                 "url": "/main/icontest.html",
                 "code": "/main/icontest.html",
-                "icon": "fa-solid fa-server"
+                "icon": "fa-solid fa-fire"
             },
             {
                 "title": "WatchApp",
@@ -99,14 +99,14 @@
                 "description": "手表数据同步",
                 "url": "/main/watch.html",
                 "code": "/main/watch.html",
-                "icon": "fa-solid fa-clock"
+                "icon": "fa-solid fa-rotate"
             }
         ]
     },
     {
         "id": "local",
         "name": "局域网",
-        "icon": "fa-solid fa-house-laptop",
+        "icon": "fa-solid fa-network-wired",
         "type": "grid-local",
         "cards": [
             {
@@ -115,7 +115,7 @@
                 "ip": "192.168.10.4:25567",
                 "url": "http://192.168.10.4:25567/bot/assets/index.html",
                 "copyUrl": "http://192.168.10.4:25567/bot/index.html",
-                "icon": "fa-solid fa-headset",
+                "icon": "fa-solid fa-comment-dots",
                 "borderColor": "purple"
             },
             {
@@ -124,7 +124,7 @@
                 "ip": "192.168.10.4:22267",
                 "url": "http://192.168.10.4:22267/",
                 "copyUrl": "http://192.168.10.4:22267/",
-                "icon": "fa-solid fa-compass",
+                "icon": "fa-solid fa-wrench",
                 "borderColor": "cyan"
             },
             {
@@ -133,7 +133,7 @@
                 "ip": "192.168.10.4:37777",
                 "url": "http://192.168.10.4:37777",
                 "copyUrl": "http://192.168.10.4:37777",
-                "icon": "fa-solid fa-compact-disc",
+                "icon": "fa-solid fa-database",
                 "borderColor": "rose"
             }
         ]
@@ -141,7 +141,7 @@
     {
         "id": "common",
         "name": "常用网站",
-        "icon": "fa-solid fa-star",
+        "icon": "fa-solid fa-fire",
         "type": "grid",
         "cards": [
             {
