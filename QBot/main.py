@@ -832,20 +832,27 @@ class MyClient(botpy.Client):
 
         if content.startswith("#"):
             self.stats_processed_count += 1
-            reply_text = await self.process_command(
+            reply_result = await self.process_command(
                 content, sender_openid, message, group_id, is_c2c=False
             )
-            if reply_text:  # 仅在有返回文字时才进行普通消息发送
+            if reply_result is not None:
                 try:
-                    await self.api.post_group_message(
-                        group_openid=group_id, msg_type=0, msg_id=msg_id, content=reply_text
-                    )
-                    # self.stats_reply_count += 1
-                    self.stats_total_messages += 1
-                    # 自动记录机器人的文本回复
-                    self.data_mgr.append_group_message(
-                        group_id=group_id, user_id="BOT", content=reply_text, role="assistant"
-                    )
+                    # 如果 process_command 返回的是字符串或者字典，统一正确发送 (如果是字符串，自动以 Markdown 格式 msg_type=2 发送以支持 ###、** 等元素)
+                    if isinstance(reply_result, dict):
+                        await self.send_reply(reply_result, group_id, msg_id, is_c2c=False)
+                    else:
+                        reply_text = str(reply_result)
+                        if reply_text:
+                            # 默认以 Markdown (msg_type=2) 发送，避免诸如 ###、---、** 等 Markdown 元素被过滤成纯文本或截断
+                            await self.send_group_markdown_by_content(
+                                group_openid=group_id,
+                                content=reply_text,
+                                msg_id=msg_id
+                            )
+                            # 自动记录机器人的文本回复
+                            self.data_mgr.append_group_message(
+                                group_id=group_id, user_id="BOT", content=reply_text, role="assistant"
+                            )
                 except Exception as e:
                     logging.error(f"指令回复失败: {e}")
         self.save_bot_stats()
@@ -880,20 +887,26 @@ class MyClient(botpy.Client):
 
         if content.startswith("#"):
             self.stats_processed_count += 1
-            reply_text = await self.process_command(
+            reply_result = await self.process_command(
                 content, sender_openid, message, "", is_c2c=True
             )
-            if reply_text:
+            if reply_result is not None:
                 try:
-                    await self.send_c2c_text(
-                        user_openid=sender_openid, content=reply_text, msg_id=msg_id
-                    )
-                    # self.stats_reply_count += 1
-                    self.stats_total_messages += 1
-                    # 自动记录机器人的文本回复
-                    self.data_mgr.append_c2c_message(
-                        user_id=sender_openid, content=reply_text, role="assistant"
-                    )
+                    if isinstance(reply_result, dict):
+                        await self.send_reply(reply_result, sender_openid, msg_id, is_c2c=True)
+                    else:
+                        reply_text = str(reply_result)
+                        if reply_text:
+                            # 默认以 Markdown (msg_type=2) 发送单聊消息，避免诸如 ###、---、** 等 Markdown 元素被过滤成纯文本或截断
+                            await self.send_c2c_markdown_by_content(
+                                user_openid=sender_openid,
+                                content=reply_text,
+                                msg_id=msg_id
+                            )
+                            # 自动记录机器人的文本回复
+                            self.data_mgr.append_c2c_message(
+                                user_id=sender_openid, content=reply_text, role="assistant"
+                            )
                 except Exception as e:
                     logging.error(f"单聊指令回复失败: {e}")
         self.save_bot_stats()
