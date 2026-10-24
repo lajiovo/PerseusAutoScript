@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>Redmi Watch 6 (Vela OS) 解析管理与手表模拟器</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background: #121212;
+            color: #e0e0e0;
+            margin: 0;
+            padding: 20px;
+        }
+        header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        h1 {
+            color: #4CAF50;
+            margin-bottom: 5px;
+        }
+        .container {
+            display: flex;
+            gap: 20px;
+            max-width: 1400px;
+            margin: 0 auto;
+            flex-wrap: wrap;
+        }
+        .panel {
+            background: #1e1e1e;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 20px;
+            flex: 1;
+            min-width: 350px;
+            box-sizing: border-box;
+        }
+        h2 {
+            font-size: 1.2rem;
+            color: #81C784;
+            border-bottom: 1px solid #333;
+            padding-bottom: 8px;
+            margin-top: 0;
+        }
+        textarea, input, select {
+            width: 100%;
+            background: #2d2d2d;
+            border: 1px solid #444;
+            color: #fff;
+            padding: 10px;
+            border-radius: 4px;
+            box-sizing: border-box;
+            margin-bottom: 12px;
+            font-family: monospace;
+        }
+        textarea {
+            height: 150px;
+            resize: vertical;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            margin-right: 8px;
+            margin-bottom: 8px;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        button.danger {
+            background: #f44336;
+        }
+        button.danger:hover {
+            background: #da190b;
+        }
+        button.secondary {
+            background: #2196F3;
+        }
+        button.secondary:hover {
+            background: #0b7dda;
+        }
+        
+        /* 手表模拟器样式 */
+        .watch-frame {
+            width: 390px;
+            height: 450px;
+            background: #000;
+            border: 12px solid #333;
+            border-radius: 40px;
+            margin: 0 auto;
+            position: relative;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .watch-status-bar {
+            background: #111;
+            color: #888;
+            font-size: 11px;
+            padding: 6px 12px;
+            display: flex;
+            justify-content: space-between;
+            border-bottom: 1px solid #222;
+        }
+        .watch-screen {
+            flex: 1;
+            padding: 15px;
+            overflow-y: auto;
+            position: relative;
+            background: #0a0a0a;
+        }
+        .watch-footer {
+            background: #111;
+            padding: 8px 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-top: 1px solid #222;
+            font-size: 12px;
+        }
+        .watch-footer button {
+            padding: 4px 8px;
+            font-size: 11px;
+            margin: 0;
+        }
+
+        /* 公式与 AST 渲染模拟 */
+        .ast-fraction {
+            display: inline-flex;
+            flex-direction: column;
+            vertical-align: middle;
+            text-align: center;
+            margin: 0 4px;
+        }
+        .ast-num {
+            border-bottom: 1px solid #fff;
+            padding-bottom: 1px;
+            font-size: 0.9em;
+        }
+        .ast-den {
+            padding-top: 1px;
+            font-size: 0.9em;
+        }
+        .ast-sqrt {
+            display: inline-flex;
+            align-items: center;
+            vertical-align: middle;
+            margin: 0 4px;
+        }
+        .ast-sqrt-symbol {
+            font-size: 1.2em;
+            margin-right: 1px;
+        }
+        .ast-sqrt-content {
+            border-top: 1px solid #fff;
+            padding-top: 1px;
+            padding-left: 2px;
+            padding-right: 2px;
+        }
+        .ast-sup {
+            vertical-align: super;
+            font-size: 0.75em;
+        }
+        .ast-sub {
+            vertical-align: sub;
+            font-size: 0.75em;
+        }
+        .ast-abs {
+            display: inline-flex;
+            align-items: center;
+            border-left: 1px solid #fff;
+            border-right: 1px solid #fff;
+            padding: 0 3px;
+            margin: 0 2px;
+        }
+        .markdown-h1 { font-size: 1.2rem; font-weight: bold; color: #FF9800; margin: 8px 0; }
+        .markdown-h2 { font-size: 1.1rem; font-weight: bold; color: #FFB74D; margin: 6px 0; }
+        .markdown-h3 { font-size: 1.0rem; font-weight: bold; color: #FFE082; margin: 4px 0; }
+        .markdown-bold { font-weight: bold; color: #fff; }
+
+        .list-item, .task-item {
+            background: #262626;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .list-item span, .task-item span {
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>Redmi Watch 6 (Vela OS) 解析管理后台与模拟器</h1>
+    <p>服务端缓存与 zAns 核心引擎集成端</p>
+</header>
+
+<div class="container">
+    <!-- 面板 1：题目上传与解析 -->
+    <div class="panel">
+        <h2>1. 题目解析上传与引擎处理</h2>
+        <label>题目名称：</label>
+        <input type="text" id="inputTitle" value="二次方程求根与代数化简示例">
+        
+        <label>科目分类：</label>
+        <select id="inputCategory">
+            <option value="数学">数学</option>
+            <option value="物理">物理</option>
+            <option value="化学">化学</option>
+            <option value="语文">语文</option>
+            <option value="英语">英语</option>
+        </select>
+
+        <label>原始 Markdown / LaTeX 文本：</label>
+        <textarea id="inputRawText"># 二次方程求根公式推导
+已知一元二次方程 $$ax^2 + bx + c = 0$$ (其中 $$a \neq 0$$)。
+配方可得：
+$$\frac{-b \pm \sqrt{b^2 - 4ac}}{2a}$$
+根的判别式为：$$\Delta = b^2 - 4ac$$。
+若 $$\Delta > 0$$，方程有两个不等实根。
+若 $$\Delta = 0$$，方程有两个相等实根。
+若 $$\Delta < 0$$，方程无实数根。</textarea>
+        <button onclick="uploadAns()">转换并上传至服务端缓存</button>
+    </div>
+
+    <!-- 面板 2：手表端 UI 模拟器 -->
+    <div class="panel">
+        <h2>2. 手表端 UI 模拟器 (Redmi Watch 6)</h2>
+        <div class="watch-frame">
+            <div class="watch-status-bar">
+                <span id="watchTitleBar">阅读器</span>
+                <span id="watchPageIndicator">1/1</span>
+            </div>
+            <div class="watch-screen" id="watchScreenContent">
+                <p style="color: #666; text-align: center; margin-top: 150px;">请在右侧选择缓存题目进行预览</p>
+            </div>
+            <div class="watch-footer">
+                <button onclick="prevPage()" class="secondary">◀ 上一页</button>
+                <span id="watchCategoryTag" style="font-size: 10px; color: #888;">分类: 数学</span>
+                <button onclick="nextPage()" class="secondary">下一页 ▶</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 面板 3：已缓存题目解析查看 -->
+    <div class="panel">
+        <h2>3. 已缓存题目解析列表 (servercache/watchans)</h2>
+        <button onclick="loadCacheList()" class="secondary">刷新缓存列表</button>
+        <div id="cacheListContainer" style="max-height: 300px; overflow-y: auto; margin-top: 10px;">
+            <!-- 动态填充 -->
+        </div>
+    </div>
+
+    <!-- 面板 4：任务队列管理后台 -->
+    <div class="panel">
+        <h2>4. 增量同步任务队列管理后台</h2>
+        <div style="display: flex; gap: 8px; margin-bottom: 10px;">
+            <input type="text" id="manualTaskTitle" placeholder="手动任务标题" style="margin-bottom:0;">
+            <button onclick="addManualTask()">新增任务</button>
+            <button onclick="clearAllTasks()" class="danger">清空队列</button>
+        </div>
+        <button onclick="loadTasks()" class="secondary">刷新任务队列</button>
+        <div id="taskListContainer" style="max-height: 250px; overflow-y: auto; margin-top: 10px;">
+            <!-- 动态填充 -->
+        </div>
+    </div>
+</div>
+
+<script>
+let currentAnsData = null;
+let currentPageIndex = 0;
+
+// 上传解析
+async function uploadAns() {
+    const title = document.getElementById('inputTitle').value;
+    const category = document.getElementById('inputCategory').value;
+    const raw_text = document.getElementById('inputRawText').value;
+
+    try {
+        const res = await fetch('/watch/ans/upload', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ title, category, raw_text })
+        });
+        const data = await res.json();
+        if (data.status === 'success') {
+            alert('解析成功上传并缓存！ID: ' + data.ans_id);
+            loadCacheList();
+            loadTasks();
+            loadAndPreview(data.ans_id);
+        } else {
+            alert('上传失败: ' + data.message);
+        }
+    } catch(e) {
+        alert('网络错误: ' + e);
+    }
+}
+
+// 加载缓存列表
+async function loadCacheList() {
+    try {
+        const res = await fetch('/watch/ans/list');
+        const data = await res.json();
+        const container = document.getElementById('cacheListContainer');
+        container.innerHTML = '';
+        if (data.items && data.items.length > 0) {
+            data.items.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'list-item';
+                div.innerHTML = `
+                    <span><b>[${item.category}]</b> ${item.title} (${item.total_pages}页)</span>
+                    <div>
+                        <button onclick="loadAndPreview('${item.ans_id}')" class="secondary">预览</button>
+                        <button onclick="deleteCache('${item.ans_id}')" class="danger">删除</button>
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+        } else {
+            container.innerHTML = '<p style="color:#888;">暂无缓存题目解析</p>';
+        }
+    } catch(e) {
+        console.error(e);
+    }
+}
+
+// 加载并预览题目
+async function loadAndPreview(ans_id) {
+    try {
+        const res = await fetch(`/watch/ans/get/${ans_id}`);
+        const data = await res.json();
+        if (data.status === 'success') {
+            currentAnsData = data.data;
+            currentPageIndex = 0;
+            renderWatchPage();
+        }
+    } catch(e) {
+        console.error(e);
+    }
+}
+
+// 删除缓存
+async function deleteCache(ans_id) {
+    if (!confirm('确定删除该缓存解析吗？')) return;
+    try {
+        await fetch(`/watch/ans/manage/delete/${ans_id}`, { method: 'DELETE' });
+        loadCacheList();
+        loadTasks();
+        if (currentAnsData && currentAnsData.ans_id === ans_id) {
+            currentAnsData = null;
+            document.getElementById('watchScreenContent').innerHTML = '<p style="color: #666; text-align: center; margin-top: 150px;">缓存已删除</p>';
+        }
+    } catch(e) {
+        console.error(e);
+    }
+}
+
+// 渲染手表端页面
+function renderWatchPage() {
+    if (!currentAnsData) return;
+    const screen = document.getElementById('watchScreenContent');
+    const titleBar = document.getElementById('watchTitleBar');
+    const pageIndicator = document.getElementById('watchPageIndicator');
+    const categoryTag = document.getElementById('watchCategoryTag');
+
+    titleBar.innerText = currentAnsData.title;
+    categoryTag.innerText = `分类: ${currentAnsData.category}`;
+    pageIndicator.innerText = `${currentPageIndex + 1}/${currentAnsData.total_pages}`;
+
+    screen.innerHTML = '';
+    const page = currentAnsData.pages[currentPageIndex];
+    if (!page || !page.blocks) return;
+
+    page.blocks.forEach(block => {
+        const blockEl = document.createElement('div');
+        if (block.block_type === 'h1') blockEl.className = 'markdown-h1';
+        else if (block.block_type === 'h2') blockEl.className = 'markdown-h2';
+        else if (block.block_type === 'h3') blockEl.className = 'markdown-h3';
+        else blockEl.style.margin = '6px 0';
+
+        if (block.block_type === 'block_math') {
+            blockEl.style.textAlign = 'center';
+            blockEl.style.margin = '10px 0';
+            blockEl.appendChild(renderAST(block.content));
+        } else {
+            // 渲染 tokens
+            if (Array.isArray(block.content)) {
+                block.content.forEach(token => {
+                    if (token.type === 'text') {
+                        const span = document.createElement('span');
+                        span.innerText = token.value;
+                        blockEl.appendChild(span);
+                    } else if (token.type === 'bold') {
+                        const span = document.createElement('span');
+                        span.className = 'markdown-bold';
+                        span.innerText = token.value;
+                        blockEl.appendChild(span);
+                    } else if (token.type === 'inline_math') {
+                        const mathSpan = document.createElement('span');
+                        mathSpan.style.margin = '0 2px';
+                        mathSpan.appendChild(renderAST(token.ast));
+                        blockEl.appendChild(mathSpan);
+                    }
+                });
+            } else {
+                blockEl.innerText = block.raw;
+            }
+        }
+        screen.appendChild(blockEl);
+    });
+}
+
+// 递归渲染 AST 节点
+function renderAST(node) {
+    if (!node) return document.createTextNode('');
+    if (node.type === 'text') {
+        return document.createTextNode(node.value);
+    }
+    if (node.type === 'fraction') {
+        const wrap = document.createElement('span');
+        wrap.className = 'ast-fraction';
+        const num = document.createElement('span');
+        num.className = 'ast-num';
+        num.appendChild(renderAST(node.numerator));
+        const den = document.createElement('span');
+        den.className = 'ast-den';
+        den.appendChild(renderAST(node.denominator));
+        wrap.appendChild(num);
+        wrap.appendChild(den);
+        return wrap;
+    }
+    if (node.type === 'sqrt') {
+        const wrap = document.createElement('span');
+        wrap.className = 'ast-sqrt';
+        const sym = document.createElement('span');
+        sym.className = 'ast-sqrt-symbol';
+        sym.innerText = '√';
+        const content = document.createElement('span');
+        content.className = 'ast-sqrt-content';
+        content.appendChild(renderAST(node.content));
+        wrap.appendChild(sym);
+        wrap.appendChild(content);
+        return wrap;
+    }
+    if (node.type === 'sup' || node.type === 'sub') {
+        const wrap = document.createElement('span');
+        const base = renderAST(node.base);
+        const val = renderAST(node.value);
+        const subSup = document.createElement('span');
+        subSup.className = node.type === 'sup' ? 'ast-sup' : 'ast-sub';
+        subSup.appendChild(val);
+        wrap.appendChild(base);
+        wrap.appendChild(subSup);
+        return wrap;
+    }
+    if (node.type === 'abs') {
+        const wrap = document.createElement('span');
+        wrap.className = 'ast-abs';
+        wrap.appendChild(renderAST(node.content));
+        return wrap;
+    }
+    if (node.type === 'equation_chain') {
+        const wrap = document.createElement('span');
+        node.parts.forEach((part, idx) => {
+            wrap.appendChild(renderAST(part));
+            if (idx < node.parts.length - 1) {
+                const eq = document.createElement('span');
+                eq.innerText = ' = ';
+                wrap.appendChild(eq);
+            }
+        });
+        return wrap;
+    }
+    return document.createTextNode(node.value || '');
+}
+
+function prevPage() {
+    if (!currentAnsData) return;
+    if (currentPageIndex > 0) {
+        currentPageIndex--;
+        renderWatchPage();
+    }
+}
+
+function nextPage() {
+    if (!currentAnsData) return;
+    if (currentPageIndex < currentAnsData.total_pages - 1) {
+        currentPageIndex++;
+        renderWatchPage();
+    }
+}
+
+// 任务队列管理
+async function loadTasks() {
+    try {
+        const res = await fetch('/watch/ans/tasks');
+        const data = await res.json();
+        const container = document.getElementById('taskListContainer');
+        container.innerHTML = '';
+        if (data.tasks && data.tasks.length > 0) {
+            data.tasks.forEach(task => {
+                const div = document.createElement('div');
+                div.className = 'task-item';
+                div.innerHTML = `
+                    <span><b>[${task.action}]</b> ${task.title || task.ans_id} (ID: ${task.id})</span>
+                    <button onclick="deleteTaskItem('${task.id}')" class="danger">删除</button>
+                `;
+                container.appendChild(div);
+            });
+        } else {
+            container.innerHTML = '<p style="color:#888;">当前任务队列为空</p>';
+        }
+    } catch(e) {
+        console.error(e);
+    }
+}
+
+async function addManualTask() {
+    const title = document.getElementById('manualTaskTitle').value || '手动同步任务';
+    try {
+        await fetch('/watch/ans/manage/tasks/add', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ action: 'download', title, category: '综合' })
+        });
+        document.getElementById('manualTaskTitle').value = '';
+        loadTasks();
+    } catch(e) {
+        alert('添加失败');
+    }
+}
+
+async function deleteTaskItem(taskId) {
+    try {
+        await fetch(`/watch/ans/manage/tasks/delete/${taskId}`, { method: 'DELETE' });
+        loadTasks();
+    } catch(e) {
+        console.error(e);
+    }
+}
+
+async function clearAllTasks() {
+    if (!confirm('确定清空所有任务队列吗？')) return;
+    try {
+        await fetch('/watch/ans/manage/tasks/clear', { method: 'DELETE' });
+        loadTasks();
+    } catch(e) {
+        console.error(e);
+    }
+}
+
+// 初始化加载
+window.onload = () => {
+    loadCacheList();
+    loadTasks();
+};
+</script>
+
+</body>
+</html>
