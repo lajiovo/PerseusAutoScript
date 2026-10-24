@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>Vela OS 数理化解析管理与手表模拟器</title>
+    <style>
+        body { font-family: sans-serif; margin: 0; padding: 20px; background: #f0f2f5; display: flex; gap: 20px; }
+        .panel { background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); flex: 1; }
+        h2 { margin-top: 0; font-size: 18px; color: #333; }
+        label { display: block; margin-top: 10px; font-weight: bold; font-size: 14px; }
+        input[type="text"], select, textarea { width: 100%; padding: 8px; margin-top: 5px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; }
+        textarea { height: 150px; resize: vertical; font-family: monospace; }
+        button { margin-top: 15px; background: #007bff; color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        
+        /* Watch Simulator 1:1 Redmi Watch 6 */
+        .watch-frame {
+            width: 336px;
+            height: 480px;
+            background: #111;
+            border-radius: 40px;
+            padding: 20px;
+            box-sizing: border-box;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+            margin: auto;
+            display: flex;
+            flex-direction: column;
+            color: #fff;
+            position: relative;
+        }
+        .watch-screen {
+            flex: 1;
+            background: #000;
+            border-radius: 20px;
+            padding: 15px;
+            overflow-y: auto;
+            font-size: 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .watch-header { font-size: 12px; color: #aaa; border-bottom: 1px solid #333; padding-bottom: 5px; display: flex; justify-content: space-between; }
+        .watch-footer { font-size: 12px; color: #aaa; border-top: 1px solid #333; padding-top: 5px; text-align: center; }
+        
+        /* AST formula simulation rendering */
+        .ast-fraction { display: inline-flex; flex-direction: column; align-items: center; vertical-align: middle; margin: 0 4px; }
+        .ast-num { border-bottom: 1px solid #fff; padding-bottom: 1px; font-size: 12px; }
+        .ast-den { padding-top: 1px; font-size: 12px; }
+        .ast-sqrt { display: inline-flex; align-items: center; vertical-align: middle; }
+        .ast-sqrt-symbol { font-size: 16px; margin-right: 2px; }
+        .ast-sqrt-content { border-top: 1px solid #fff; padding-top: 1px; }
+        .ast-sup { vertical-align: super; font-size: 10px; }
+        .ast-sub { vertical-align: sub; font-size: 10px; }
+        
+        .list-item { padding: 8px; border-bottom: 1px solid #eee; cursor: pointer; display: flex; justify-content: space-between; }
+        .list-item:hover { background: #f8f9fa; }
+    </style>
+</head>
+<body>
+
+<div class="panel">
+    <h2>题目上传与编辑器</h2>
+    <label>题目名称</label>
+    <input type="text" id="titleInput" placeholder="例如：二次函数最值求解导引">
+    
+    <label>科目分类</label>
+    <select id="categorySelect">
+        <option value="数学">数学</option>
+        <option value="物理">物理</option>
+        <option value="化学">化学</option>
+        <option value="语文">语文</option>
+        <option value="英语">英语</option>
+        <option value="生物">生物</option>
+        <option value="历史">历史</option>
+        <option value="地理">地理</option>
+        <option value="政治">政治</option>
+    </select>
+    
+    <label>Markdown & LaTeX 解析正文</label>
+    <textarea id="markdownInput" placeholder="# 题目导引&#10;已知 $\frac{-b+\sqrt{b^2-4ac}}{2a}$ 为求根公式..."></textarea>
+    
+    <button onclick="uploadAns()">上传并生成 AST 解析</button>
+    
+    <h2 style="margin-top: 30px;">已同步题目列表</h2>
+    <div id="ansList" style="max-height: 250px; overflow-y: auto;"></div>
+</div>
+
+<div class="panel" style="flex: 0 0 400px; text-align: center;">
+    <h2>Redmi Watch 6 模拟器</h2>
+    <div class="watch-frame">
+        <div class="watch-header">
+            <span id="simTitle">加载中...</span>
+            <span id="simPage">1/1</span>
+        </div>
+        <div class="watch-screen" id="watchScreen">
+            <div style="color: #666; text-align: center; margin-top: 100px;">请在左侧选择或上传题目</div>
+        </div>
+        <div class="watch-footer">
+            <button onclick="prevPage()" style="margin:0 5px; padding:2px 8px; font-size:10px;">上一页</button>
+            <button onclick="nextPage()" style="margin:0 5px; padding:2px 8px; font-size:10px;">下一页</button>
+        </div>
+    </div>
+</div>
+
+<script>
+let currentAnsData = null;
+let currentPageIdx = 0;
+
+async function loadList() {
+    try {
+        let res = await fetch('/watch/ans/list');
+        let json = await res.json();
+        if (json.status === 'success') {
+            let container = document.getElementById('ansList');
+            container.innerHTML = '';
+            json.list.forEach(item => {
+                let div = document.createElement('div');
+                div.className = 'list-item';
+                div.innerHTML = `<span><b>[${item.category}]</b> ${item.title}</span> <button onclick="loadDetail(${item.id})">查看</button>`;
+                container.appendChild(div);
+            });
+        }
+    } catch(e) { console.error(e); }
+}
+
+async function uploadAns() {
+    let title = document.getElementById('titleInput').value;
+    let category = document.getElementById('categorySelect').value;
+    let markdown = document.getElementById('markdownInput').value;
+    
+    if (!title || !markdown) {
+        alert('标题和正文不能为空！');
+        return;
+    }
+    
+    try {
+        let res = await fetch('/watch/ans/upload', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({title, category, markdown})
+        });
+        let json = await res.json();
+        if (json.status === 'success') {
+            alert('上传成功！');
+            loadList();
+            loadDetail(json.id);
+        } else {
+            alert('上传失败');
+        }
+    } catch(e) {
+        alert('请求错误: ' + e);
+    }
+}
+
+async function loadDetail(id) {
+    try {
+        let res = await fetch(`/watch/ans/get/${id}`);
+        let json = await res.json();
+        if (json.status === 'success') {
+            currentAnsData = json.data;
+            currentPageIdx = 0;
+            renderWatchPage();
+        }
+    } catch(e) { console.error(e); }
+}
+
+function renderAST(ast) {
+    if (!ast) return '';
+    if (ast.type === 'text') {
+        return `<span>${ast.value}</span>`;
+    }
+    if (ast.type === 'fraction') {
+        return `<span class="ast-fraction"><span class="ast-num">${renderAST(ast.numerator)}</span><span class="ast-den">${renderAST(ast.denominator)}</span></span>`;
+    }
+    if (ast.type === 'sqrt') {
+        return `<span class="ast-sqrt"><span class="ast-sqrt-symbol">√</span><span class="ast-sqrt-content">${renderAST(ast.content)}</span></span>`;
+    }
+    if (ast.type === 'sup') {
+        return `<span>${renderAST(ast.base)}<span class="ast-sup">${renderAST(ast.sup)}</span></span>`;
+    }
+    if (ast.type === 'sub') {
+        return `<span>${renderAST(ast.base)}<span class="ast-sub">${renderAST(ast.sub)}</span></span>`;
+    }
+    return '';
+}
+
+function renderNode(node) {
+    if (node.type === 'h1') return `<div style="font-size:16px; font-weight:bold; margin:6px 0;">${node.value}</div>`;
+    if (node.type === 'h2') return `<div style="font-size:15px; font-weight:bold; margin:5px 0;">${node.value}</div>`;
+    if (node.type === 'h3') return `<div style="font-size:14px; font-weight:bold; margin:4px 0;">${node.value}</div>`;
+    if (node.type === 'paragraph') {
+        let html = '<div style="margin:4px 0; line-height:1.4;">';
+        (node.children || []).forEach(child => {
+            if (child.type === 'text') {
+                html += `<span>${child.value}</span>`;
+            } else if (child.type === 'formula_inline' || child.type === 'formula_block') {
+                html += renderAST(child.ast);
+            }
+        });
+        html += '</div>';
+        return html;
+    }
+    return '';
+}
+
+function renderWatchPage() {
+    if (!currentAnsData) return;
+    document.getElementById('simTitle').innerText = currentAnsData.title;
+    document.getElementById('simPage').innerText = `${currentPageIdx + 1}/${currentAnsData.total_pages}`;
+    
+    let screen = document.getElementById('watchScreen');
+    screen.innerHTML = '';
+    
+    let pageNodes = currentAnsData.pages[currentPageIdx] || [];
+    pageNodes.forEach(node => {
+        screen.innerHTML += renderNode(node);
+    });
+}
+
+function prevPage() {
+    if (!currentAnsData) return;
+    if (currentPageIdx > 0) {
+        currentPageIdx--;
+        renderWatchPage();
+    }
+}
+
+function nextPage() {
+    if (!currentAnsData) return;
+    if (currentPageIdx < currentAnsData.total_pages - 1) {
+        currentPageIdx++;
+        renderWatchPage();
+    }
+}
+
+loadList();
+</script>
+
+</body>
+</html>

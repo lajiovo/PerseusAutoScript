@@ -1,48 +1,139 @@
 <template>
-  <div class="demo-page">
-    <text class="title">{{ $t("a.b") }},欢迎打开{{ title }}</text>
-    <!-- 点击跳转详情页 -->
-    <input class="btn" type="button" value="跳转到详情页" onclick="routeDetail" />
+  <div class="container">
+    <!-- Top Bar -->
+    <div class="top-bar">
+      <text class="app-title">Perseus 解析 ({{currentCategory}})</text>
+      <input class="settings-btn" type="button" value="设置" onclick="gotoSettings" />
+    </div>
+
+    <!-- Main Content List -->
+    <list class="list">
+      <list-item type="item" for="{{ansList}}" class="list-item" onclick="gotoReader($item.id)">
+        <text class="item-title">[{{$item.category}}] {{$item.title}}</text>
+        <text class="item-summary">{{$item.summary}}</text>
+      </list-item>
+    </list>
+
+    <!-- Floating Category Button -->
+    <input class="fab-btn" type="button" value="分类" onclick="gotoCategory" />
   </div>
 </template>
 
 <script>
 import router from "@system.router"
+import storage from "@system.storage"
 
 export default {
-  // 页面级组件的数据模型，影响传入数据的覆盖机制：private内定义的属性不允许被覆盖
   private: {
-    title: "示例页面"
+    currentCategory: "全部",
+    ansList: []
   },
-
-  routeDetail() {
-    // 跳转到应用内的某个页面，router用法详见：文档->接口->页面路由
-    router.push({
-      uri: "/pages/detail"
-    })
+  onInit() {
+    storage.get({
+      key: "current_category",
+      success: (data) => {
+        if (data) {
+          this.currentCategory = data;
+        }
+        this.loadLocalAnswers();
+      },
+      fail: () => {
+        this.loadLocalAnswers();
+      }
+    });
+  },
+  loadLocalAnswers() {
+    storage.get({
+      key: "local_answers",
+      success: (data) => {
+        if (data) {
+          try {
+            let list = JSON.parse(data);
+            if (this.currentCategory !== "全部") {
+              list = list.filter(item => item.category === this.currentCategory);
+            }
+            this.ansList = list;
+          } catch(e) {
+            this.ansList = [];
+          }
+        }
+      },
+      fail: () => {
+        this.ansList = [];
+      }
+    });
+  },
+  gotoSettings() {
+    router.push({ uri: "/pages/settings" });
+  },
+  gotoCategory() {
+    router.push({ uri: "/pages/category" });
+  },
+  gotoReader(id) {
+    router.push({ uri: "/pages/reader", params: { ansId: id } });
   }
 }
 </script>
 
 <style>
-.demo-page {
+.container {
   flex-direction: column;
-  justify-content: center;
+  background-color: #000000;
+  width: 100%;
+  height: 100%;
+  padding: 10px;
+}
+.top-bar {
+  flex-direction: row;
+  justify-content: space-between;
   align-items: center;
-}
-
-.title {
-  font-size: 20px;
-  text-align: center;
-}
-
-.btn {
-  width: 200px;
   height: 40px;
-  margin-top: 20px;
-  border-radius: 5px;
-  background-color: #09ba07;
-  font-size: 20px;
+  border-bottom-width: 1px;
+  border-bottom-color: #333333;
+}
+.app-title {
+  font-size: 16px;
   color: #ffffff;
+  font-weight: bold;
+}
+.settings-btn {
+  width: 50px;
+  height: 30px;
+  background-color: #333333;
+  color: #ffffff;
+  font-size: 12px;
+  border-radius: 4px;
+}
+.list {
+  flex: 1;
+  margin-top: 10px;
+}
+.list-item {
+  flex-direction: column;
+  padding: 10px;
+  background-color: #1a1a1a;
+  border-radius: 6px;
+  margin-bottom: 8px;
+}
+.item-title {
+  font-size: 15px;
+  color: #ff9900;
+  font-weight: bold;
+}
+.item-summary {
+  font-size: 12px;
+  color: #cccccc;
+  margin-top: 4px;
+}
+.fab-btn {
+  position: fixed;
+  right: 15px;
+  bottom: 15px;
+  width: 50px;
+  height: 50px;
+  border-radius: 25px;
+  background-color: #007bff;
+  color: #ffffff;
+  font-size: 14px;
 }
 </style>

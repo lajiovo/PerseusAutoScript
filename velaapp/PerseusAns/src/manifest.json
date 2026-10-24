@@ -11,6 +11,15 @@
   "features": [
     {
       "name": "system.router"
+    },
+    {
+      "name": "system.fetch"
+    },
+    {
+      "name": "system.storage"
+    },
+    {
+      "name": "system.prompt"
     }
   ],
   "config": {
@@ -21,6 +30,18 @@
     "entry": "pages/index",
     "pages": {
       "pages/index": {
+        "component": "index"
+      },
+      "pages/category": {
+        "component": "index"
+      },
+      "pages/settings": {
+        "component": "index"
+      },
+      "pages/reader": {
+        "component": "index"
+      },
+      "pages/sync": {
         "component": "index"
       }
     }

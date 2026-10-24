@@ -36,6 +36,7 @@ from zWatchServer import zWatchServer_bp
 from zBNPApi import bnp_bp
 from zLogApi import log_bp
 from zCodeStatusApi import codestatus_bp
+from zAnsApi import ans_bp
 
 app = Flask(__name__)
 app.register_blueprint(lk_bp)
@@ -46,6 +47,7 @@ app.register_blueprint(zWatchServer_bp)
 app.register_blueprint(log_bp)
 app.register_blueprint(bnp_bp)
 app.register_blueprint(codestatus_bp)
+app.register_blueprint(ans_bp)
 
 # 监听端口
 LISTEN_PORT = get_config("pushserver.listen_port", default=25566)
