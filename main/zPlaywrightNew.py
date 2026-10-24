@@ -413,7 +413,7 @@ def main(
 if __name__ == "__main__":
     # 默认按顺序执行：前往主页 -> 前往实例页 -> 启动调度器 -> 获取资源列表 -> 获取任务列表
     # 如需额外任务可添加 'get_screenshot' 或 'check_update'
-    default_tasks = ["home", "instance", "start", "get_resources", "get_tasks"]
+    default_tasks = ["home", "instance", "start", "get_resources", "get_tasks","get_screenshot"]
     
     result = main(
         headless=False,

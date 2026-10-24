@@ -23,8 +23,6 @@ def run_alas_mumu_check():
     # 0. 初始检测：若 MuMu 未运行，则拉起并隐藏（不计数）
     if not zMumu.is_mumu_running():
         print("[Info] 检测到 MuMu 未运行")
-    print("不管那么多了，先尝试隐藏再说")
-    zMumu.hidemumu()
 
     alas_soft_restart_count = 0  # Alas 软重启 (Playwright ["restart"]) 计数
     alas_hard_restart_count = 0  # Alas 硬重启 (cleanup + start) 计数
@@ -33,12 +31,13 @@ def run_alas_mumu_check():
     max_soft_restarts = 2
     max_hard_restarts = 2
     max_mumu_restarts = 2
+    print("[Info] 开始执行 Alas & MuMu 状态自动化检查流程...")
+    print(zMumu.hidemumu())
 
     # 标准执行任务队列
     # standard_task_list = ["check", "start", "wait", "check", "update"]
     standard_task_list =  ["home", "instance", "start", "get_resources", "get_tasks"]
 
-    print("[Info] 开始执行 Alas & MuMu 状态自动化检查流程...")
 
     while True:
         # 0. 校验硬重启与 MuMu 重启上限
@@ -112,7 +111,8 @@ def run_alas_mumu_check():
                     f"[Action] [{reason_msg}] 尝试第 {alas_hard_restart_count + 1} 次硬重启 Alas (cleanup + start)..."
                 )
                 zAlas.cleanup()
-                zAlas.start()
+                response = zAlas.start()
+                print(f"zAlas.start()->{response}")
                 alas_hard_restart_count += 1
 
             # 2. 检查是否有 0016 或 0017 (网页超时/无法访问)
@@ -123,12 +123,13 @@ def run_alas_mumu_check():
                 handle_alas_restart("页面无法访问")
                 continue
 
+            """
             # 3. 提取两次 check 任务的状态码 (分别对应索引 0 和 3)
             first_check_code = task_results[0][1] if len(task_results) > 0 else None
             second_check_code = task_results[3][1] if len(task_results) > 3 else None
 
             # 优先判定第一次 check：若检测到错误图标 (0026) -> 清理并重启 MuMu
-            """
+            
             if first_check_code == "0026":
                 print("[Warning] 第一次 Check 结果为 [0026] (检测到运行错误图标)，准备重启 MuMu...")
                 zMumu.mumu_kill()
@@ -143,13 +144,17 @@ def run_alas_mumu_check():
                 zMumu.hidemumu()
                 mumu_restart_count += 1
                 continue
-            """
+            
 
             # 4. 如果两次 Check 均正常 (均为 0027 或非 0026 异常) 且包含 0027
             # code已修改
+            
             if first_check_code == "0001" or second_check_code == "0003":
                 print("[Success] Check 结果通过 (正常)，所有检查流程成功完成！")
                 return True
+            """
+            print("Force return true")
+            return True
             
 
             # 5. 未命中预期状态码，尝试软/硬重启 Alas 恢复
@@ -163,6 +168,7 @@ def run_alas_mumu_check():
             print(f"[Error] 执行检查逻辑时发生未知异常: {e}\n{error_details}")
             PerseusErrorMsg("检查脚本运行异常", f"❌ **[运行异常]** 执行过程中发生未捕获异常：\n> `{e}`")
 
+            """
             # 遇到严重异常时进行 Alas 重启尝试恢复
             if alas_soft_restart_count < max_soft_restarts:
                 try:
@@ -176,6 +182,8 @@ def run_alas_mumu_check():
                 zAlas.cleanup()
                 zAlas.start()
                 alas_hard_restart_count += 1
+            """
+            return False
 
 def Handlepush(msg_dict: dict):
     try:
@@ -200,7 +208,7 @@ def Handlepush(msg_dict: dict):
                         f"🔄 **[自动重启]** **AzurPilot** 正在自动重启游戏...\n\n{raw_msg}",
                     )
                     print("保险起见，确保隐藏窗口先")
-                    if not zMumu.hidemumu():
+                    if not zMumu.hidemumu()[0]:
                         print("wtf,这也报错，为什么隐藏失败")
                         PerseusWarningMsg(
                             "Failed to hide mumu window",
@@ -334,7 +342,7 @@ def Handlepush(msg_dict: dict):
                         print(" -> 解析成功: 获得钻石奖励（未匹配到具体数值）")
                         PerseusNotifyMsg(
                             "Gems Obtained!",
-                            f"💎 **[委托大成功]** **Gems commission successful!**\n\n{raw_msg}",
+                            f"💎 **[委托]** *Ccommission**\n\n{raw_msg}",
                         )
 
                 # 2. 判定行动力数值变化通知

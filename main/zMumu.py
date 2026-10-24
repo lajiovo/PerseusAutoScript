@@ -156,6 +156,8 @@ def once_hidemumu():
             for hwnd in mumu_hwnds:
                 force_hide_window(hwnd)
                 print(f"成功隐藏窗口{hwnd}")
+        else:
+            print(f"不存在MuMu窗口")
         return True
     except Exception as e:
         err_msg = f"窗口检测/隐藏阶段发生错误: {e}"
@@ -176,6 +178,7 @@ def hidemumu_attempt():
         start_process(MUMU_DEVICE_PATH, hide=HIDE_MUMU)
     else:
         loop_min_duration = LOOP_MIN_DURATIONmin
+        print(f"检测到 mumumain 在运行loop_min_duration:{LOOP_MIN_DURATIONmin}")
     
     # 3. 循环检测窗口并执行组合技
     print(f"进入窗口检测循环，检测间隔 {CHECK_INTERVAL}s，最少持续 {loop_min_duration}s，超时限制 {HIDE_TIMEOUT}s...")
@@ -199,6 +202,7 @@ def hidemumu_attempt():
             # 【组合技 1】：利用管理员 API 权限强制隐藏每一个找到的句柄
             for hwnd in mumu_hwnds:
                 force_hide_window(hwnd)
+                print(f'成功隐藏{hwnd}')
                 # hide_hwnd_admin(hwnd)
             
             # 【组合技 2】：发送系统全局快捷键
