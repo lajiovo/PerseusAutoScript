@@ -1,124 +1,136 @@
 import os
 import json
-import time
 from flask import Blueprint, request, jsonify
-from zAns import process_markdown_and_latex
+from zAns import ZAnsProcessor
 
 ans_bp = Blueprint("ans_bp", __name__)
 
-DATA_FILE = os.path.join(os.path.dirname(__file__), "ans_data.json")
-TASKS_FILE = os.path.join(os.path.dirname(__file__), "ans_tasks.json")
+CACHE_DIR = os.path.join(os.path.dirname(__file__), "servercache", "watchans")
+os.makedirs(CACHE_DIR, exist_ok=True)
 
-def _load_data():
-    if not os.path.exists(DATA_FILE):
-        return {"answers": [], "next_id": 1}
-    try:
-        with open(DATA_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception:
-        return {"answers": [], "next_id": 1}
+TASKS_FILE = os.path.join(CACHE_DIR, "tasks.json")
 
-def _save_data(data):
-    with open(DATA_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+def load_tasks():
+    if os.path.exists(TASKS_FILE):
+        try:
+            with open(TASKS_FILE, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except:
+            return []
+    return []
 
-def _load_tasks():
-    if not os.path.exists(TASKS_FILE):
-        return []
-    try:
-        with open(TASKS_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception:
-        return []
-
-def _save_tasks(tasks):
-    with open(TASKS_FILE, "w", encoding="utf-8") as f:
+def save_tasks(tasks):
+    with open(TASKS_FILE, 'w', encoding='utf-8') as f:
         json.dump(tasks, f, ensure_ascii=False, indent=2)
 
-def add_task(action, ans_id, target_title=""):
-    tasks = _load_tasks()
-    task_id = int(time.time() * 1000)
-    tasks.append({
-        "task_id": task_id,
-        "action": action, # "download" or "delete"
-        "ans_id": ans_id,
-        "title": target_title
-    })
-    _save_tasks(tasks)
-
 @ans_bp.route("/watch/ans/tasks", methods=["GET"])
-def get_watch_tasks():
-    tasks = _load_tasks()
-    return jsonify({
-        "status": "success",
-        "tasks": tasks
-    })
+def get_tasks():
+    tasks = load_tasks()
+    return jsonify({"status": "success", "tasks": tasks})
 
 @ans_bp.route("/watch/ans/task/ack", methods=["POST"])
-def ack_watch_task():
-    req = request.get_json(silent=True) or {}
-    task_id = req.get("task_id")
-    if not task_id:
-        return jsonify({"status": "error", "message": "missing task_id"}), 400
-    
-    tasks = _load_tasks()
-    tasks = [t for t in tasks if t.get("task_id") != task_id]
-    _save_tasks(tasks)
-    return jsonify({"status": "success", "remaining": len(tasks)})
+def ack_task():
+    data = request.json or {}
+    task_id = data.get("task_id")
+    tasks = load_tasks()
+    new_tasks = [t for t in tasks if t.get("id") != task_id]
+    save_tasks(new_tasks)
+    return jsonify({"status": "success", "remaining_tasks": len(new_tasks)})
 
-@ans_bp.route("/watch/ans/get/<int:ans_id>", methods=["GET"])
-def get_ans_detail(ans_id):
-    data = _load_data()
-    for item in data.get("answers", []):
-        if item.get("id") == ans_id:
-            return jsonify({"status": "success", "data": item})
-    return jsonify({"status": "error", "message": "not found"}), 404
+@ans_bp.route("/watch/ans/get/<ans_id>", methods=["GET"])
+def get_ans(ans_id):
+    cache_path = os.path.join(CACHE_DIR, f"{ans_id}.json")
+    if os.path.exists(cache_path):
+        with open(cache_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            return jsonify({"status": "success", "source": "cache", "data": data})
+    return jsonify({"status": "error", "message": "Solution not found"}), 404
 
 @ans_bp.route("/watch/ans/upload", methods=["POST"])
 def upload_ans():
-    req = request.get_json(silent=True) or {}
-    title = req.get("title", "未命名题目")
-    category = req.get("category", "数学")
-    raw_markdown = req.get("markdown", "")
-    
-    parsed_result = process_markdown_and_latex(raw_markdown)
-    
-    data = _load_data()
-    ans_id = data.get("next_id", 1)
-    data["next_id"] = ans_id + 1
-    
-    new_item = {
-        "id": ans_id,
+    data = request.json or {}
+    raw_text = data.get("raw_text", "")
+    title = data.get("title", "未命名题目")
+    category = data.get("category", "数学")
+
+    if not raw_text:
+        return jsonify({"status": "error", "message": "raw_text cannot be empty"}), 400
+
+    result = ZAnsProcessor.process_content(raw_text, title=title, category=category)
+    ans_id = result["ans_id"]
+
+    cache_path = os.path.join(CACHE_DIR, f"{ans_id}.json")
+    with open(cache_path, 'w', encoding='utf-8') as f:
+        json.dump(result, f, ensure_ascii=False, indent=2)
+
+    tasks = load_tasks()
+    tasks = [t for t in tasks if t.get("ans_id") != ans_id]
+    new_task = {
+        "id": f"task_{ans_id}_{int(os.path.getmtime(cache_path) if os.path.exists(cache_path) else 0)}",
+        "action": "download",
+        "ans_id": ans_id,
         "title": title,
-        "category": category,
-        "summary": raw_markdown[:60] + ("..." if len(raw_markdown) > 60 else ""),
-        "total_pages": parsed_result["total_pages"],
-        "pages": parsed_result["pages"]
+        "category": category
     }
-    
-    data["answers"].append(new_item)
-    _save_data(data)
-    
-    # 添加入口同步任务
-    add_task("download", ans_id, title)
-    
-    return jsonify({"status": "success", "id": ans_id})
+    tasks.append(new_task)
+    save_tasks(tasks)
+
+    return jsonify({"status": "success", "ans_id": ans_id, "result": result})
 
 @ans_bp.route("/watch/ans/list", methods=["GET"])
 def list_ans():
-    category = request.args.get("category")
-    data = _load_data()
-    answers = data.get("answers", [])
-    if category and category != "全部":
-        answers = [a for a in answers if a.get("category") == category]
-    
-    # 返回简要列表供管理端/手表端展示
-    summary_list = [{
-        "id": a["id"],
-        "title": a["title"],
-        "category": a["category"],
-        "summary": a["summary"],
-        "total_pages": a["total_pages"]
-    } for a in answers]
-    
-    return jsonify({"status": "success", "list": summary_list})
+    items = []
+    if os.path.exists(CACHE_DIR):
+        for fname in os.listdir(CACHE_DIR):
+            if fname.endswith(".json") and fname != "tasks.json":
+                fpath = os.path.join(CACHE_DIR, fname)
+                try:
+                    with open(fpath, 'r', encoding='utf-8') as f:
+                        d = json.load(f)
+                        items.append({
+                            "ans_id": d.get("ans_id"),
+                            "title": d.get("title"),
+                            "category": d.get("category"),
+                            "total_pages": d.get("total_pages")
+                        })
+                except:
+                    pass
+    return jsonify({"status": "success", "items": items})
+
+@ans_bp.route("/watch/ans/manage/delete/<ans_id>", methods=["DELETE", "POST"])
+def delete_ans(ans_id):
+    cache_path = os.path.join(CACHE_DIR, f"{ans_id}.json")
+    if os.path.exists(cache_path):
+        os.remove(cache_path)
+    tasks = load_tasks()
+    tasks = [t for t in tasks if t.get("ans_id") != ans_id]
+    save_tasks(tasks)
+    return jsonify({"status": "success", "deleted": ans_id})
+
+@ans_bp.route("/watch/ans/manage/tasks/add", methods=["POST"])
+def add_task_manual():
+    data = request.json or {}
+    tasks = load_tasks()
+    task_id = f"task_manual_{len(tasks)+1}"
+    new_task = {
+        "id": task_id,
+        "action": data.get("action", "download"),
+        "ans_id": data.get("ans_id", ""),
+        "title": data.get("title", "手动任务"),
+        "category": data.get("category", "综合")
+    }
+    tasks.append(new_task)
+    save_tasks(tasks)
+    return jsonify({"status": "success", "task": new_task})
+
+@ans_bp.route("/watch/ans/manage/tasks/clear", methods=["POST", "DELETE"])
+def clear_tasks():
+    save_tasks([])
+    return jsonify({"status": "success", "message": "Task queue cleared"})
+
+@ans_bp.route("/watch/ans/manage/tasks/delete/<task_id>", methods=["DELETE", "POST"])
+def delete_task_item(task_id):
+    tasks = load_tasks()
+    tasks = [t for t in tasks if t.get("id") != task_id]
+    save_tasks(tasks)
+    return jsonify({"status": "success", "deleted_task_id": task_id})

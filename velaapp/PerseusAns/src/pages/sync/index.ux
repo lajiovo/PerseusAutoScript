@@ -59,7 +59,11 @@ export default {
             let resJson = JSON.parse(res.data);
             if (resJson.status === "success") {
               let ansItem = resJson.data;
-              this.saveAndAckTask(task.task_id, ansItem, () => {
+              if (!ansItem.id && ansItem.ans_id) {
+                ansItem.id = ansItem.ans_id;
+              }
+              const taskId = task.id || task.task_id;
+              this.saveAndAckTask(taskId, ansItem, () => {
                 this.processTaskQueue(tasks, index + 1);
               });
             } else {
@@ -76,7 +80,8 @@ export default {
       });
     } else {
       // 其它动作直接 ACK
-      this.sendAck(task.task_id, () => {
+      const taskId = task.id || task.task_id;
+      this.sendAck(taskId, () => {
         this.processTaskQueue(tasks, index + 1);
       });
     }

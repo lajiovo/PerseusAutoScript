@@ -1,125 +1,192 @@
 import re
 import json
+import hashlib
 
-def parse_latex_to_ast(latex_str):
+class LaTeXParser:
     """
-    将 LaTeX 公式字符串解析为简单的 AST 结构树 (fraction, sqrt, sup, sub, text)
+    将 LaTeX 数学表达式转换为树状 AST 结构。
+    支持 \frac, \sqrt, 上标 ^, 下标 _, 绝对值 \left|...\right|, 普通文本等。
     """
-    latex_str = latex_str.strip()
-    # 处理分数 \frac{num}{den}
-    frac_match = re.search(r'\\frac\{([^}]+)\}\{([^}]+)\}', latex_str)
-    if frac_match:
-        return {
-            "type": "fraction",
-            "numerator": parse_latex_to_ast(frac_match.group(1)),
-            "denominator": parse_latex_to_ast(frac_match.group(2))
-        }
-    
-    # 处理根号 \sqrt{content}
-    sqrt_match = re.search(r'\\sqrt\{([^}]+)\}', latex_str)
-    if sqrt_match:
-        return {
-            "type": "sqrt",
-            "content": parse_latex_to_ast(sqrt_match.group(1))
-        }
-    
-    # 处理上标 / 下标如 base^sup 或 base_sub
-    sup_match = re.search(r'([a-zA-Z0-9\+\-\*\/]+)\^([a-zA-Z0-9\+\-\*\/\{\}]+)', latex_str)
-    if sup_match:
-        return {
-            "type": "sup",
-            "base": {"type": "text", "value": sup_match.group(1)},
-            "sup": parse_latex_to_ast(sup_match.group(2).replace('{','').replace('}',''))
-        }
+    @staticmethod
+    def parse_expression(expr_str):
+        expr_str = expr_str.strip()
+        # 处理绝对值 \left| ... \right| 或 | ... |
+        if expr_str.startswith(r"\left|") and expr_str.endswith(r"\right|"):
+            inner = expr_str[6:-7].strip()
+            return {"type": "abs", "content": LaTeXParser.parse_expression(inner)}
+        if expr_str.startswith("|") and expr_str.endswith("|") and len(expr_str) > 2:
+            inner = expr_str[1:-1].strip()
+            return {"type": "abs", "content": LaTeXParser.parse_expression(inner)}
 
-    sub_match = re.search(r'([a-zA-Z0-9\+\-\*\/]+)_([a-zA-Z0-9\+\-\*\/\{\}]+)', latex_str)
-    if sub_match:
-        return {
-            "type": "sub",
-            "base": {"type": "text", "value": sub_match.group(1)},
-            "sub": parse_latex_to_ast(sub_match.group(2).replace('{','').replace('}',''))
-        }
+        # 处理分式 \frac{num}{den} 或简单分式
+        if expr_str.startswith(r"\frac"):
+            idx = 5
+            while idx < len(expr_str) and expr_str[idx].isspace():
+                idx += 1
+            if idx < len(expr_str) and expr_str[idx] == '{':
+                num_str, next_idx = LaTeXParser._extract_braces(expr_str, idx)
+                while next_idx < len(expr_str) and expr_str[next_idx].isspace():
+                    next_idx += 1
+                if next_idx < len(expr_str) and expr_str[next_idx] == '{':
+                    den_str, _ = LaTeXParser._extract_braces(expr_str, next_idx)
+                    return {
+                        "type": "fraction",
+                        "numerator": LaTeXParser.parse_expression(num_str),
+                        "denominator": LaTeXParser.parse_expression(den_str)
+                    }
 
-    return {
-        "type": "text",
-        "value": latex_str
-    }
+        # 处理根号 \sqrt{content}
+        if expr_str.startswith(r"\sqrt"):
+            idx = 5
+            while idx < len(expr_str) and expr_str[idx].isspace():
+                idx += 1
+            if idx < len(expr_str) and expr_str[idx] == '{':
+                content_str, _ = LaTeXParser._extract_braces(expr_str, idx)
+                return {
+                    "type": "sqrt",
+                    "content": LaTeXParser.parse_expression(content_str)
+                }
 
-def process_markdown_and_latex(raw_text):
+        # 处理上下标 (含 ^ 和 _)
+        if '^' in expr_str or '_' in expr_str:
+            parts = LaTeXParser._split_binary(expr_str)
+            if len(parts) == 3:
+                base, op, val = parts
+                return {
+                    "type": "sup" if op == '^' else "sub",
+                    "base": LaTeXParser.parse_expression(base),
+                    "value": LaTeXParser.parse_expression(val)
+                }
+
+        # 连等式或普通代数式分解
+        if '=' in expr_str and not expr_str.startswith('='):
+            eq_parts = [p.strip() for p in expr_str.split('=')]
+            if len(eq_parts) > 1:
+                return {
+                    "type": "equation_chain",
+                    "parts": [LaTeXParser.parse_expression(p) for p in eq_parts]
+                }
+
+        # 默认文本节点
+        return {"type": "text", "value": expr_str}
+
+    @staticmethod
+    def _extract_braces(s, start_idx):
+        depth = 0
+        i = start_idx
+        while i < len(s):
+            if s[i] == '{':
+                depth += 1
+            elif s[i] == '}':
+                depth -= 1
+                if depth == 0:
+                    return s[start_idx+1:i], i+1
+            i += 1
+        return s[start_idx+1:], len(s)
+
+    @staticmethod
+    def _split_binary(s):
+        for i, char in enumerate(s):
+            if char in ('^', '_'):
+                return s[:i].strip(), char, s[i+1:].strip()
+        return [s]
+
+
+class ZAnsProcessor:
     """
-    解析原始 Markdown 文本，提取行内 ($...$) 和块级 ($$...$$) LaTeX 公式并转为 AST，
-    同时将文本分块切页（每页 300-500 字）。
+    处理 Markdown 与 LaTeX 混合文本，提取 AST，并执行智能分页与字符分块。
     """
-    # 替换 LaTeX 为占位符或节点
-    # 简单按段落切分
-    paragraphs = raw_text.split('\n\n')
-    nodes = []
-    
-    for p in paragraphs:
-        p = p.strip()
-        if not p:
-            continue
-        # 检查是否是标题
-        if p.startswith('# '):
-            nodes.append({"type": "h1", "value": p[2:].strip()})
-        elif p.startswith('## '):
-            nodes.append({"type": "h2", "value": p[3:].strip()})
-        elif p.startswith('### '):
-            nodes.append({"type": "h3", "value": p[4:].strip()})
-        else:
-            # 提取 LaTeX 公式
-            # 查找所有 $...$ 或 $$...$$
-            parts = []
-            pattern = re.compile(r'(\$\$[\s\S]*?\$\$|\$[^\$]+?\$|[^\$\n]+)')
-            matches = pattern.findall(p)
-            for m in matches:
-                if m.startswith('$$') and m.endswith('$$'):
-                    latex_content = m[2:-2].strip()
-                    parts.append({
-                        "type": "formula_block",
-                        "ast": parse_latex_to_ast(latex_content)
-                    })
-                elif m.startswith('$') and m.endswith('$'):
-                    latex_content = m[1:-1].strip()
-                    parts.append({
-                        "type": "formula_inline",
-                        "ast": parse_latex_to_ast(latex_content)
-                    })
-                else:
-                    if m.strip():
-                        parts.append({
-                            "type": "text",
-                            "value": m.strip()
-                        })
-            nodes.append({
-                "type": "paragraph",
-                "children": parts
+    @staticmethod
+    def process_content(raw_text, title="", category="数学"):
+        lines = raw_text.split('\n')
+        blocks = []
+        
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            
+            block_type = "paragraph"
+            if line.startswith("# "):
+                block_type = "h1"
+                line = line[2:].strip()
+            elif line.startswith("## "):
+                block_type = "h2"
+                line = line[3:].strip()
+            elif line.startswith("### "):
+                block_type = "h3"
+                line = line[4:].strip()
+            elif line.startswith("$$") and line.endswith("$$"):
+                block_type = "block_math"
+                line = line[2:-2].strip()
+
+            parsed_inlines = ZAnsProcessor._parse_inlines_and_math(line)
+            blocks.append({
+                "block_type": block_type,
+                "raw": line,
+                "content": parsed_inlines,
+                "length": len(line)
             })
 
-    # 分页算法：每页约 350 字
-    pages = []
-    current_page_nodes = []
-    current_char_count = 0
-    target_page_chars = 350
+        pages = []
+        current_page_blocks = []
+        current_page_len = 0
+        target_page_len = 400
 
-    for node in nodes:
-        node_str = json.dumps(node, ensure_ascii=False)
-        node_len = len(node_str)
-        if current_char_count + node_len > target_page_chars and current_page_nodes:
-            pages.append(current_page_nodes)
-            current_page_nodes = [node]
-            current_char_count = node_len
-        else:
-            current_page_nodes.append(node)
-            current_char_count += node_len
+        for block in blocks:
+            b_len = block["length"]
+            if current_page_len + b_len > target_page_len and current_page_blocks:
+                pages.append({
+                    "page_index": len(pages) + 1,
+                    "blocks": current_page_blocks
+                })
+                current_page_blocks = [block]
+                current_page_len = b_len
+            else:
+                current_page_blocks.append(block)
+                current_page_len += b_len
 
-    if current_page_nodes:
-        pages.append(current_page_nodes)
+        if current_page_blocks:
+            pages.append({
+                "page_index": len(pages) + 1,
+                "blocks": current_page_blocks
+            })
 
-    if not pages:
-        pages = [[]]
+        if not pages:
+            pages.append({"page_index": 1, "blocks": []})
 
-    return {
-        "total_pages": len(pages),
-        "pages": pages
-    }
+        ans_id = hashlib.md5(raw_text.encode('utf-8')).hexdigest()[:8]
+        result = {
+            "ans_id": ans_id,
+            "title": title or "未命名解析",
+            "category": category,
+            "total_pages": len(pages),
+            "pages": pages,
+            "raw_text": raw_text
+        }
+        return result
+
+    @staticmethod
+    def _parse_inlines_and_math(text):
+        tokens = []
+        pattern = re.compile(r'\$(.*?)\$|\*\*(.*?)\*\*|([^\$\*]+)')
+        matches = pattern.findall(text)
+        
+        for m_math, m_bold, m_plain in matches:
+            if m_math:
+                tokens.append({
+                    "type": "inline_math",
+                    "ast": LaTeXParser.parse_expression(m_math),
+                    "raw": m_math
+                })
+            elif m_bold:
+                tokens.append({
+                    "type": "bold",
+                    "value": m_bold
+                })
+            elif m_plain:
+                tokens.append({
+                    "type": "text",
+                    "value": m_plain
+                })
+        return tokens

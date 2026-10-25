@@ -1,240 +1,381 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <title>Vela OS 数理化解析管理与手表模拟器</title>
-    <style>
-        body { font-family: sans-serif; margin: 0; padding: 20px; background: #f0f2f5; display: flex; gap: 20px; }
-        .panel { background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); flex: 1; }
-        h2 { margin-top: 0; font-size: 18px; color: #333; }
-        label { display: block; margin-top: 10px; font-weight: bold; font-size: 14px; }
-        input[type="text"], select, textarea { width: 100%; padding: 8px; margin-top: 5px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; }
-        textarea { height: 150px; resize: vertical; font-family: monospace; }
-        button { margin-top: 15px; background: #007bff; color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer; }
-        button:hover { background: #0056b3; }
-        
-        /* Watch Simulator 1:1 Redmi Watch 6 */
-        .watch-frame {
-            width: 336px;
-            height: 480px;
-            background: #111;
-            border-radius: 40px;
-            padding: 20px;
-            box-sizing: border-box;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
-            margin: auto;
-            display: flex;
-            flex-direction: column;
-            color: #fff;
-            position: relative;
-        }
-        .watch-screen {
-            flex: 1;
-            background: #000;
-            border-radius: 20px;
-            padding: 15px;
-            overflow-y: auto;
-            font-size: 14px;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-        .watch-header { font-size: 12px; color: #aaa; border-bottom: 1px solid #333; padding-bottom: 5px; display: flex; justify-content: space-between; }
-        .watch-footer { font-size: 12px; color: #aaa; border-top: 1px solid #333; padding-top: 5px; text-align: center; }
-        
-        /* AST formula simulation rendering */
-        .ast-fraction { display: inline-flex; flex-direction: column; align-items: center; vertical-align: middle; margin: 0 4px; }
-        .ast-num { border-bottom: 1px solid #fff; padding-bottom: 1px; font-size: 12px; }
-        .ast-den { padding-top: 1px; font-size: 12px; }
-        .ast-sqrt { display: inline-flex; align-items: center; vertical-align: middle; }
-        .ast-sqrt-symbol { font-size: 16px; margin-right: 2px; }
-        .ast-sqrt-content { border-top: 1px solid #fff; padding-top: 1px; }
-        .ast-sup { vertical-align: super; font-size: 10px; }
-        .ast-sub { vertical-align: sub; font-size: 10px; }
-        
-        .list-item { padding: 8px; border-bottom: 1px solid #eee; cursor: pointer; display: flex; justify-content: space-between; }
-        .list-item:hover { background: #f8f9fa; }
-    </style>
+  <meta charset="UTF-8">
+  <title>Vela Watch 答题解析展示系统 - Web后台与模拟器</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #0f172a; color: #f8fafc; display: flex; height: 100vh; overflow: hidden; }
+    #app { display: flex; width: 100%; height: 100%; }
+    
+    /* 左侧控制与编辑面板 */
+    .panel-left { width: 45%; padding: 24px; border-right: 1px solid #334155; display: flex; flex-direction: column; gap: 16px; overflow-y: auto; }
+    .header-title { font-size: 1.25rem; font-weight: bold; color: #38bdf8; display: flex; align-items: center; justify-content: space-between; }
+    .form-group { display: flex; flex-direction: column; gap: 6px; }
+    label { font-size: 0.875rem; color: #94a3b8; }
+    input, select, textarea { background: #1e293b; border: 1px solid #334155; color: #fff; padding: 8px 12px; border-radius: 6px; font-size: 0.875rem; outline: none; }
+    input:focus, select:focus, textarea:focus { border-color: #38bdf8; }
+    textarea { height: 160px; resize: vertical; font-family: monospace; }
+    .btn { background: #0284c7; color: white; border: none; padding: 10px 16px; border-radius: 6px; cursor: pointer; font-weight: 500; display: inline-flex; justify-content: center; align-items: center; gap: 6px; }
+    .btn:hover { background: #0369a1; }
+    .btn-danger { background: #ef4444; }
+    .btn-danger:hover { background: #dc2626; }
+    .btn-secondary { background: #334155; }
+    .btn-secondary:hover { background: #475569; }
+    
+    /* 标签页与列表 */
+    .tabs { display: flex; gap: 8px; border-bottom: 1px solid #334155; padding-bottom: 8px; }
+    .tab-btn { background: none; border: none; color: #94a3b8; cursor: pointer; padding: 6px 12px; font-weight: bold; }
+    .tab-btn.active { color: #38bdf8; border-bottom: 2px solid #38bdf8; }
+    .list-container { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+    .card-item { background: #1e293b; padding: 12px; border-radius: 6px; border: 1px solid #334155; display: flex; justify-content: space-between; align-items: center; }
+    .card-info { display: flex; flex-direction: column; gap: 4px; }
+    .card-title { font-weight: bold; font-size: 0.95rem; }
+    .card-meta { font-size: 0.75rem; color: #94a3b8; }
+    
+    /* 右侧模拟器 */
+    .panel-right { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #020617; position: relative; }
+    .watch-wrapper { width: 336px; height: 480px; background: #000; border-radius: 40px; border: 10px solid #1e293b; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); display: flex; flex-direction: column; overflow: hidden; position: relative; }
+    
+    /* 手表顶部栏 */
+    .watch-header { height: 48px; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; border-bottom: 1px solid #222; font-size: 0.85rem; color: #aaa; }
+    .watch-body { flex: 1; overflow-y: auto; padding: 12px 16px; display: flex; flex-direction: column; gap: 10px; font-size: 14px; line-height: 1.5; color: #eee; }
+    .watch-footer { height: 48px; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; border-top: 1px solid #222; }
+    
+    /* 模拟 LVGL 节点渲染 */
+    .lv-h1 { font-size: 18px; font-weight: bold; color: #fff; margin-top: 6px; }
+    .lv-h2 { font-size: 16px; font-weight: bold; color: #38bdf8; }
+    .lv-h3 { font-size: 15px; font-weight: bold; color: #cbd5e1; }
+    .lv-para { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; }
+    .lv-bold { font-weight: bold; color: #facc15; }
+    
+    /* 公式 AST 渲染 */
+    .ast-container { display: inline-flex; align-items: center; overflow-x: auto; max-width: 100%; padding: 4px 0; }
+    .ast-fraction { display: inline-flex; flex-direction: column; align-items: center; margin: 0 4px; }
+    .ast-frac-num, .ast-frac-den { padding: 0 4px; font-size: 0.85em; }
+    .ast-frac-line { width: 100%; height: 1px; background: #fff; margin: 2px 0; }
+    .ast-sqrt { display: inline-flex; align-items: center; margin: 0 4px; border-top: 1px solid #fff; padding-top: 1px; }
+    .ast-sqrt::before { content: "√"; font-size: 1.1em; margin-right: 2px; border-top: none; }
+    .ast-sup { font-size: 0.7em; vertical-align: super; line-height: 0; color: #38bdf8; }
+    .ast-sub { font-size: 0.7em; vertical-align: sub; line-height: 0; color: #38bdf8; }
+    .ast-abs { display: inline-flex; align-items: center; border-left: 1px solid #fff; border-right: 1px solid #fff; padding: 0 4px; margin: 0 2px; }
+  </style>
 </head>
 <body>
+  <div id="app">
+    <!-- 左侧控制面板 -->
+    <div class="panel-left">
+      <div class="header-title">
+        <span>Vela 解析管理后台</span>
+      </div>
 
-<div class="panel">
-    <h2>题目上传与编辑器</h2>
-    <label>题目名称</label>
-    <input type="text" id="titleInput" placeholder="例如：二次函数最值求解导引">
-    
-    <label>科目分类</label>
-    <select id="categorySelect">
-        <option value="数学">数学</option>
-        <option value="物理">物理</option>
-        <option value="化学">化学</option>
-        <option value="语文">语文</option>
-        <option value="英语">英语</option>
-        <option value="生物">生物</option>
-        <option value="历史">历史</option>
-        <option value="地理">地理</option>
-        <option value="政治">政治</option>
-    </select>
-    
-    <label>Markdown & LaTeX 解析正文</label>
-    <textarea id="markdownInput" placeholder="# 题目导引&#10;已知 $\frac{-b+\sqrt{b^2-4ac}}{2a}$ 为求根公式..."></textarea>
-    
-    <button onclick="uploadAns()">上传并生成 AST 解析</button>
-    
-    <h2 style="margin-top: 30px;">已同步题目列表</h2>
-    <div id="ansList" style="max-height: 250px; overflow-y: auto;"></div>
-</div>
+      <div class="tabs">
+        <button class="tab-btn active" onclick="switchTab('upload')">解析录入</button>
+        <button class="tab-btn" onclick="switchTab('cache')">本地缓存</button>
+        <button class="tab-btn" onclick="switchTab('tasks')">同步队列</button>
+      </div>
 
-<div class="panel" style="flex: 0 0 400px; text-align: center;">
-    <h2>Redmi Watch 6 模拟器</h2>
-    <div class="watch-frame">
-        <div class="watch-header">
-            <span id="simTitle">加载中...</span>
-            <span id="simPage">1/1</span>
+      <!-- 选项卡 1：解析录入 -->
+      <div id="tab-upload" class="tab-content">
+        <div class="form-group">
+          <label>题目标题</label>
+          <input type="text" id="ans-title" placeholder="如：解析几何双曲线离心率求解">
         </div>
-        <div class="watch-screen" id="watchScreen">
-            <div style="color: #666; text-align: center; margin-top: 100px;">请在左侧选择或上传题目</div>
+        <div class="form-group" style="margin-top: 8px;">
+          <label>科目分类</label>
+          <select id="ans-category">
+            <option value="数学">数学</option>
+            <option value="物理">物理</option>
+            <option value="化学">化学</option>
+            <option value="生物">生物</option>
+            <option value="语文">语文</option>
+            <option value="英语">英语</option>
+          </select>
+        </div>
+        <div class="form-group" style="margin-top: 8px;">
+          <label>Markdown & LaTeX 混合内容</label>
+          <textarea id="ans-text" placeholder="输入 Markdown 内容，如：
+# 题目解析
+根据题意，我们可以得出：
+$$\vert{}F'M\vert{}^2 = (4a^2 - c^2 - 2cx_1) + 2cx_1 + c^2$$
+代入分式可得：$\frac{a + b}{\sqrt{x^2}}$"></textarea>
+        </div>
+        <button class="btn" style="width: 100%; margin-top: 12px;" onclick="uploadContent()">解析并存入缓存</button>
+      </div>
+
+      <!-- 选项卡 2：本地缓存 -->
+      <div id="tab-cache" class="tab-content" style="display: none;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+          <span style="font-size: 0.85rem; color: #94a3b8;">已缓存解析列表</span>
+          <button class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.75rem;" onclick="loadCacheList()">刷新</button>
+        </div>
+        <div id="cache-list" class="list-container"></div>
+      </div>
+
+      <!-- 选项卡 3：同步队列管理 -->
+      <div id="tab-tasks" class="tab-content" style="display: none;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+          <span style="font-size: 0.85rem; color: #94a3b8;">当前待同步任务队列</span>
+          <div style="display: flex; gap: 6px;">
+            <button class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.75rem;" onclick="loadTasks()">刷新</button>
+            <button class="btn btn-danger" style="padding: 4px 8px; font-size: 0.75rem;" onclick="clearTasks()">清空队列</button>
+          </div>
+        </div>
+        <div id="task-list" class="list-container"></div>
+      </div>
+    </div>
+
+    <!-- 右侧：Redmi Watch 6 1:1 模拟渲染器 -->
+    <div class="panel-right">
+      <div class="watch-wrapper">
+        <div class="watch-header">
+          <span id="watch-title">未加载题目</span>
+          <span id="watch-page-num" style="color: #38bdf8; font-weight: bold;">1/1</span>
+        </div>
+        <div class="watch-body" id="watch-body">
+          <div style="color: #64748b; text-align: center; margin-top: 40px;">暂无解析内容，请在左侧选择或上传</div>
         </div>
         <div class="watch-footer">
-            <button onclick="prevPage()" style="margin:0 5px; padding:2px 8px; font-size:10px;">上一页</button>
-            <button onclick="nextPage()" style="margin:0 5px; padding:2px 8px; font-size:10px;">下一页</button>
+          <button class="btn btn-secondary" style="padding: 4px 10px; font-size: 0.75rem;" onclick="prevPage()">上一页</button>
+          <button class="btn btn-secondary" style="padding: 4px 10px; font-size: 0.75rem;" onclick="nextPage()">下一页</button>
         </div>
+      </div>
+      <div style="margin-top: 16px; color: #64748b; font-size: 0.8rem;">
+        Redmi Watch 6 模拟器 (336×480) - 支持公式横向滚动与智能分页
+      </div>
     </div>
-</div>
+  </div>
 
-<script>
-let currentAnsData = null;
-let currentPageIdx = 0;
+  <script>
+    let currentSolution = null;
+    let currentPageIndex = 0;
 
-async function loadList() {
-    try {
-        let res = await fetch('/watch/ans/list');
-        let json = await res.json();
-        if (json.status === 'success') {
-            let container = document.getElementById('ansList');
-            container.innerHTML = '';
-            json.list.forEach(item => {
-                let div = document.createElement('div');
-                div.className = 'list-item';
-                div.innerHTML = `<span><b>[${item.category}]</b> ${item.title}</span> <button onclick="loadDetail(${item.id})">查看</button>`;
-                container.appendChild(div);
-            });
-        }
-    } catch(e) { console.error(e); }
-}
+    function switchTab(tab) {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(c => c.style.display = 'none');
+      event.target.classList.add('active');
+      document.getElementById('tab-' + tab).style.display = 'block';
+      if (tab === 'cache') loadCacheList();
+      if (tab === 'tasks') loadTasks();
+    }
 
-async function uploadAns() {
-    let title = document.getElementById('titleInput').value;
-    let category = document.getElementById('categorySelect').value;
-    let markdown = document.getElementById('markdownInput').value;
-    
-    if (!title || !markdown) {
-        alert('标题和正文不能为空！');
-        return;
-    }
-    
-    try {
-        let res = await fetch('/watch/ans/upload', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({title, category, markdown})
-        });
-        let json = await res.json();
-        if (json.status === 'success') {
-            alert('上传成功！');
-            loadList();
-            loadDetail(json.id);
-        } else {
-            alert('上传失败');
-        }
-    } catch(e) {
-        alert('请求错误: ' + e);
-    }
-}
+    async function uploadContent() {
+      const title = document.getElementById('ans-title').value;
+      const category = document.getElementById('ans-category').value;
+      const raw_text = document.getElementById('ans-text').value;
+      if (!raw_text.trim()) return alert("请输入内容！");
 
-async function loadDetail(id) {
-    try {
-        let res = await fetch(`/watch/ans/get/${id}`);
-        let json = await res.json();
-        if (json.status === 'success') {
-            currentAnsData = json.data;
-            currentPageIdx = 0;
-            renderWatchPage();
-        }
-    } catch(e) { console.error(e); }
-}
+      const res = await fetch('/watch/ans/upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, category, raw_text })
+      });
+      const data = await res.json();
+      if (data.status === 'success') {
+        alert("上传并处理成功！");
+        renderSolution(data.result);
+      } else {
+        alert("错误: " + data.message);
+      }
+    }
 
-function renderAST(ast) {
-    if (!ast) return '';
-    if (ast.type === 'text') {
-        return `<span>${ast.value}</span>`;
+    async function loadCacheList() {
+      const res = await fetch('/watch/ans/list');
+      const data = await res.json();
+      const container = document.getElementById('cache-list');
+      container.innerHTML = '';
+      data.items.forEach(item => {
+        const div = document.createElement('div');
+        div.className = 'card-item';
+        div.innerHTML = `
+          <div class="card-info">
+            <span class="card-title">${item.title}</span>
+            <span class="card-meta">[${item.category}] · ${item.total_pages} 页 · ID: ${item.ans_id}</span>
+          </div>
+          <div style="display: flex; gap: 6px;">
+            <button class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.75rem;" onclick="loadAnsDetail('${item.ans_id}')">预览</button>
+            <button class="btn btn-danger" style="padding: 4px 8px; font-size: 0.75rem;" onclick="deleteAns('${item.ans_id}')">删除</button>
+          </div>
+        `;
+        container.appendChild(div);
+      });
     }
-    if (ast.type === 'fraction') {
-        return `<span class="ast-fraction"><span class="ast-num">${renderAST(ast.numerator)}</span><span class="ast-den">${renderAST(ast.denominator)}</span></span>`;
-    }
-    if (ast.type === 'sqrt') {
-        return `<span class="ast-sqrt"><span class="ast-sqrt-symbol">√</span><span class="ast-sqrt-content">${renderAST(ast.content)}</span></span>`;
-    }
-    if (ast.type === 'sup') {
-        return `<span>${renderAST(ast.base)}<span class="ast-sup">${renderAST(ast.sup)}</span></span>`;
-    }
-    if (ast.type === 'sub') {
-        return `<span>${renderAST(ast.base)}<span class="ast-sub">${renderAST(ast.sub)}</span></span>`;
-    }
-    return '';
-}
 
-function renderNode(node) {
-    if (node.type === 'h1') return `<div style="font-size:16px; font-weight:bold; margin:6px 0;">${node.value}</div>`;
-    if (node.type === 'h2') return `<div style="font-size:15px; font-weight:bold; margin:5px 0;">${node.value}</div>`;
-    if (node.type === 'h3') return `<div style="font-size:14px; font-weight:bold; margin:4px 0;">${node.value}</div>`;
-    if (node.type === 'paragraph') {
-        let html = '<div style="margin:4px 0; line-height:1.4;">';
-        (node.children || []).forEach(child => {
-            if (child.type === 'text') {
-                html += `<span>${child.value}</span>`;
-            } else if (child.type === 'formula_inline' || child.type === 'formula_block') {
-                html += renderAST(child.ast);
+    async function deleteAns(ans_id) {
+      if (!confirm("确定删除该题目解析吗？")) return;
+      await fetch(`/watch/ans/manage/delete/${ans_id}`, { method: 'POST' });
+      loadCacheList();
+    }
+
+    async function loadAnsDetail(ans_id) {
+      const res = await fetch(`/watch/ans/get/${ans_id}`);
+      const data = await res.json();
+      if (data.status === 'success') {
+        renderSolution(data.data);
+      }
+    }
+
+    async function loadTasks() {
+      const res = await fetch('/watch/ans/tasks');
+      const data = await res.json();
+      const container = document.getElementById('task-list');
+      container.innerHTML = '';
+      (data.tasks || []).forEach(t => {
+        const div = document.createElement('div');
+        div.className = 'card-item';
+        div.innerHTML = `
+          <div class="card-info">
+            <span class="card-title">${t.title || t.ans_id}</span>
+            <span class="card-meta">类型: ${t.action} · Task ID: ${t.id}</span>
+          </div>
+          <button class="btn btn-danger" style="padding: 4px 8px; font-size: 0.75rem;" onclick="deleteTask('${t.id}')">移除</button>
+        `;
+        container.appendChild(div);
+      });
+    }
+
+    async function deleteTask(task_id) {
+      await fetch(`/watch/ans/manage/tasks/delete/${task_id}`, { method: 'POST' });
+      loadTasks();
+    }
+
+    async function clearTasks() {
+      if (!confirm("确定清空任务队列吗？")) return;
+      await fetch('/watch/ans/manage/tasks/clear', { method: 'POST' });
+      loadTasks();
+    }
+
+    /* 手表端 1:1 渲染逻辑 */
+    function renderSolution(solution) {
+      currentSolution = solution;
+      currentPageIndex = 0;
+      updateWatchPage();
+    }
+
+    function prevPage() {
+      if (currentPageIndex > 0) {
+        currentPageIndex--;
+        updateWatchPage();
+      }
+    }
+
+    function nextPage() {
+      if (currentSolution && currentPageIndex < currentSolution.pages.length - 1) {
+        currentPageIndex++;
+        updateWatchPage();
+      }
+    }
+
+    function updateWatchPage() {
+      if (!currentSolution) return;
+      document.getElementById('watch-title').innerText = currentSolution.title || "解析";
+      document.getElementById('watch-page-num').innerText = `${currentPageIndex + 1}/${currentSolution.pages.length}`;
+      
+      const body = document.getElementById('watch-body');
+      body.innerHTML = '';
+      const page = currentSolution.pages[currentPageIndex];
+      if (!page) return;
+
+      page.blocks.forEach(block => {
+        const blockEl = document.createElement('div');
+        if (block.block_type === 'h1') blockEl.className = 'lv-h1';
+        else if (block.block_type === 'h2') blockEl.className = 'lv-h2';
+        else if (block.block_type === 'h3') blockEl.className = 'lv-h3';
+        else blockEl.className = 'lv-para';
+
+        if (block.content && block.content.length > 0) {
+          block.content.forEach(token => {
+            if (token.type === 'text') {
+              const span = document.createElement('span');
+              span.innerText = token.value;
+              blockEl.appendChild(span);
+            } else if (token.type === 'bold') {
+              const span = document.createElement('span');
+              span.className = 'lv-bold';
+              span.innerText = token.value;
+              blockEl.appendChild(span);
+            } else if (token.type === 'inline_math') {
+              const wrap = document.createElement('div');
+              wrap.className = 'ast-container';
+              wrap.appendChild(renderASTDOM(token.ast));
+              blockEl.appendChild(wrap);
             }
+          });
+        } else {
+          blockEl.innerText = block.raw;
+        }
+        body.appendChild(blockEl);
+      });
+    }
+
+    function renderASTDOM(node) {
+      if (!node) return document.createTextNode('');
+      if (node.type === 'text') {
+        const span = document.createElement('span');
+        span.innerText = node.value;
+        return span;
+      }
+      if (node.type === 'fraction') {
+        const frac = document.createElement('div');
+        frac.className = 'ast-fraction';
+        const num = document.createElement('div');
+        num.className = 'ast-frac-num';
+        num.appendChild(renderASTDOM(node.numerator));
+        const line = document.createElement('div');
+        line.className = 'ast-frac-line';
+        const den = document.createElement('div');
+        den.className = 'ast-frac-den';
+        den.appendChild(renderASTDOM(node.denominator));
+        frac.appendChild(num);
+        frac.appendChild(line);
+        frac.appendChild(den);
+        return frac;
+      }
+      if (node.type === 'sqrt') {
+        const sqrt = document.createElement('div');
+        sqrt.className = 'ast-sqrt';
+        sqrt.appendChild(renderASTDOM(node.content));
+        return sqrt;
+      }
+      if (node.type === 'sup') {
+        const wrap = document.createElement('span');
+        wrap.appendChild(renderASTDOM(node.base));
+        const sup = document.createElement('sup');
+        sup.className = 'ast-sup';
+        sup.appendChild(renderASTDOM(node.value));
+        wrap.appendChild(sup);
+        return wrap;
+      }
+      if (node.type === 'sub') {
+        const wrap = document.createElement('span');
+        wrap.appendChild(renderASTDOM(node.base));
+        const sub = document.createElement('sub');
+        sub.className = 'ast-sub';
+        sub.appendChild(renderASTDOM(node.value));
+        wrap.appendChild(sub);
+        return wrap;
+      }
+      if (node.type === 'abs') {
+        const abs = document.createElement('div');
+        abs.className = 'ast-abs';
+        abs.appendChild(renderASTDOM(node.content));
+        return abs;
+      }
+      if (node.type === 'equation_chain') {
+        const chain = document.createElement('div');
+        chain.className = 'ast-container';
+        node.parts.forEach((p, idx) => {
+          if (idx > 0) {
+            const eq = document.createElement('span');
+            eq.innerText = ' = ';
+            chain.appendChild(eq);
+          }
+          chain.appendChild(renderASTDOM(p));
         });
-        html += '</div>';
-        return html;
+        return chain;
+      }
+      return document.createTextNode(node.value || '');
     }
-    return '';
-}
-
-function renderWatchPage() {
-    if (!currentAnsData) return;
-    document.getElementById('simTitle').innerText = currentAnsData.title;
-    document.getElementById('simPage').innerText = `${currentPageIdx + 1}/${currentAnsData.total_pages}`;
-    
-    let screen = document.getElementById('watchScreen');
-    screen.innerHTML = '';
-    
-    let pageNodes = currentAnsData.pages[currentPageIdx] || [];
-    pageNodes.forEach(node => {
-        screen.innerHTML += renderNode(node);
-    });
-}
-
-function prevPage() {
-    if (!currentAnsData) return;
-    if (currentPageIdx > 0) {
-        currentPageIdx--;
-        renderWatchPage();
-    }
-}
-
-function nextPage() {
-    if (!currentAnsData) return;
-    if (currentPageIdx < currentAnsData.total_pages - 1) {
-        currentPageIdx++;
-        renderWatchPage();
-    }
-}
-
-loadList();
-</script>
-
+  </script>
 </body>
 </html>

@@ -11,25 +11,40 @@
       <div class="content-body" id="contentBody">
         <!-- Rendered paragraphs and AST nodes -->
         <block for="{{pageNodes}}">
-          <text class="h1" if="{{$item.type === 'h1'}}">{{$item.value}}</text>
-          <text class="h2" if="{{$item.type === 'h2'}}">{{$item.value}}</text>
-          <text class="h3" if="{{$item.type === 'h3'}}">{{$item.value}}</text>
-          <div class="paragraph" if="{{$item.type === 'paragraph'}}">
-            <block for="{{$item.children}}">
+          <text class="h1" if="{{$item.block_type === 'h1' || $item.type === 'h1'}}">{{$item.raw || $item.value}}</text>
+          <text class="h2" if="{{$item.block_type === 'h2' || $item.type === 'h2'}}">{{$item.raw || $item.value}}</text>
+          <text class="h3" if="{{$item.block_type === 'h3' || $item.type === 'h3'}}">{{$item.raw || $item.value}}</text>
+          <div class="paragraph" if="{{$item.block_type === 'paragraph' || $item.block_type === 'block_math' || $item.type === 'paragraph'}}">
+            <block for="{{$item.content || $item.children}}">
               <text class="text" if="{{$item.type === 'text'}}">{{$item.value}}</text>
-              <!-- Fraction AST -->
-              <div class="ast-fraction" if="{{$item.type === 'formula_inline' && $item.ast.type === 'fraction'}}">
-                <text class="ast-num">{{$item.ast.numerator.value}}</text>
-                <line class="ast-line"></line>
-                <text class="ast-den">{{$item.ast.denominator.value}}</text>
+              <text class="bold-text" if="{{$item.type === 'bold'}}">{{$item.value}}</text>
+              
+              <!-- Formula / AST rendering -->
+              <div class="ast-wrapper" if="{{$item.type === 'inline_math' || $item.type === 'formula_inline'}}">
+                <!-- Fraction -->
+                <div class="ast-fraction" if="{{($item.ast && $item.ast.type === 'fraction')}}">
+                  <text class="ast-num">{{$item.ast.numerator.value || $item.ast.numerator}}</text>
+                  <div class="ast-line"></div>
+                  <text class="ast-den">{{$item.ast.denominator.value || $item.ast.denominator}}</text>
+                </div>
+                <!-- Sqrt -->
+                <div class="ast-sqrt" if="{{($item.ast && $item.ast.type === 'sqrt')}}">
+                  <text class="ast-symbol">√</text>
+                  <text class="ast-sqrt-text">{{$item.ast.content.value || $item.ast.content}}</text>
+                </div>
+                <!-- Sup -->
+                <div class="ast-sup-wrap" if="{{($item.ast && $item.ast.type === 'sup')}}">
+                  <text class="text">{{$item.ast.base.value || $item.ast.base}}</text>
+                  <text class="ast-sup">{{$item.ast.value.value || $item.ast.value}}</text>
+                </div>
+                <!-- Sub -->
+                <div class="ast-sub-wrap" if="{{($item.ast && $item.ast.type === 'sub')}}">
+                  <text class="text">{{$item.ast.base.value || $item.ast.base}}</text>
+                  <text class="ast-sub">{{$item.ast.value.value || $item.ast.value}}</text>
+                </div>
+                <!-- Generic math fallback -->
+                <text class="formula-text" if="{{!$item.ast || ($item.ast.type !== 'fraction' && $item.ast.type !== 'sqrt' && $item.ast.type !== 'sup' && $item.ast.type !== 'sub')}}">{{$item.raw || $item.value || '[公式]'}}</text>
               </div>
-              <!-- Sqrt AST -->
-              <div class="ast-sqrt" if="{{$item.type === 'formula_inline' && $item.ast.type === 'sqrt'}}">
-                <text class="ast-symbol">√</text>
-                <text class="ast-sqrt-text">{{$item.ast.content.value}}</text>
-              </div>
-              <!-- Generic formula fallback -->
-              <text class="formula-text" if="{{$item.type === 'formula_inline' && !$item.ast.type}}">[公式]</text>
             </block>
           </div>
         </block>
@@ -70,10 +85,10 @@ export default {
         if (data) {
           try {
             let list = JSON.parse(data);
-            let item = list.find(i => String(i.id) === String(this.ansId));
+            let item = list.find(i => String(i.id) === String(this.ansId) || String(i.ans_id) === String(this.ansId));
             if (item) {
               this.ansTitle = item.title;
-              this.totalPages = item.total_pages || 1;
+              this.totalPages = item.total_pages || (item.pages ? item.pages.length : 1);
               this.pagesData = item.pages || [];
               this.updatePageContent();
             }
@@ -84,7 +99,8 @@ export default {
   },
   updatePageContent() {
     if (this.pagesData && this.pagesData.length > this.currentPage) {
-      this.pageNodes = this.pagesData[this.currentPage];
+      let currentPageObj = this.pagesData[this.currentPage];
+      this.pageNodes = currentPageObj.blocks || currentPageObj || [];
     }
   },
   prevPage() {
@@ -194,6 +210,16 @@ export default {
   font-size: 13px;
   color: #e0e0e0;
 }
+.bold-text {
+  font-size: 13px;
+  color: #ffcc00;
+  font-weight: bold;
+}
+.ast-wrapper {
+  flex-direction: row;
+  align-items: center;
+  margin: 0 2px;
+}
 .ast-fraction {
   flex-direction: column;
   align-items: center;
@@ -205,6 +231,11 @@ export default {
   border-bottom-width: 1px;
   border-bottom-color: #00ffff;
   padding-bottom: 1px;
+}
+.ast-line {
+  width: 100%;
+  height: 1px;
+  background-color: #00ffff;
 }
 .ast-den {
   font-size: 11px;
@@ -226,6 +257,28 @@ export default {
   border-top-width: 1px;
   border-top-color: #ff00ff;
   padding-top: 1px;
+}
+.ast-sup-wrap {
+  flex-direction: row;
+  align-items: flex-start;
+}
+.ast-sup {
+  font-size: 9px;
+  color: #38bdf8;
+  margin-left: 1px;
+}
+.ast-sub-wrap {
+  flex-direction: row;
+  align-items: flex-end;
+}
+.ast-sub {
+  font-size: 9px;
+  color: #38bdf8;
+  margin-left: 1px;
+}
+.formula-text {
+  font-size: 12px;
+  color: #00e5ff;
 }
 .bottom-bar {
   flex-direction: row;
