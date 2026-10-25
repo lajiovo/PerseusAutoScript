@@ -32,7 +32,7 @@ def get_tasks():
 @ans_bp.route("/watch/ans/task/ack", methods=["POST"])
 def ack_task():
     data = request.json or {}
-    task_id = data.get("task_id")
+    task_id = data.get("task_id") or data.get("id")
     tasks = load_tasks()
     new_tasks = [t for t in tasks if t.get("id") != task_id and t.get("task_id") != task_id]
     save_tasks(new_tasks)
@@ -45,7 +45,6 @@ def get_ans(ans_id):
     if os.path.exists(cache_path):
         with open(cache_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
-            # Ensure id and ans_id both present
             if "id" not in data:
                 data["id"] = ans_id
             print(f"/watch/ans/get/<ans_id> ->{data}")

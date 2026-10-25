@@ -13,22 +13,24 @@ class LaTeXParser:
         if not expr_str:
             return {"type": "text", "value": ""}
 
-        # 1. 化学方程式 \ce{...}
+        # 1. 化学方程式 \ce{...} 或包含箭头
         if expr_str.startswith(r"\ce{") and expr_str.endswith("}"):
             inner = expr_str[4:-1].strip()
             return {"type": "chemical", "value": inner}
+        if "->" in expr_str or "<=>" in expr_str or "\\xlongequal" in expr_str:
+            return {"type": "chemical", "value": expr_str}
 
-        # 2. 极限 \lim_{...} ...
+        # 2. 极限 \lim
         if expr_str.startswith(r"\lim"):
-            return {"type": "limit", "raw": expr_str}
+            return {"type": "limit", "value": expr_str}
 
-        # 3. 积分 \int ...
+        # 3. 积分 \int
         if expr_str.startswith(r"\int") or expr_str.startswith(r"\displaystyle\int"):
-            return {"type": "integral", "raw": expr_str}
+            return {"type": "integral", "value": expr_str}
 
-        # 4. 求和 \sum ...
+        # 4. 求和 \sum
         if expr_str.startswith(r"\sum"):
-            return {"type": "summation", "raw": expr_str}
+            return {"type": "summation", "value": expr_str}
 
         # 5. 绝对值 \left| ... \right| 或 | ... |
         if expr_str.startswith(r"\left|") and expr_str.endswith(r"\right|"):
