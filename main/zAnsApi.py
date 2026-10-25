@@ -26,6 +26,7 @@ def save_tasks(tasks):
 @ans_bp.route("/watch/ans/tasks", methods=["GET"])
 def get_tasks():
     tasks = load_tasks()
+    print(f"/watch/ans/tasks ->{tasks}")
     return jsonify({"status": "success", "tasks": tasks})
 
 @ans_bp.route("/watch/ans/task/ack", methods=["POST"])
@@ -33,8 +34,9 @@ def ack_task():
     data = request.json or {}
     task_id = data.get("task_id")
     tasks = load_tasks()
-    new_tasks = [t for t in tasks if t.get("id") != task_id]
+    new_tasks = [t for t in tasks if t.get("id") != task_id and t.get("task_id") != task_id]
     save_tasks(new_tasks)
+    print(f"/watch/ans/task/ack ->{new_tasks}")
     return jsonify({"status": "success", "remaining_tasks": len(new_tasks)})
 
 @ans_bp.route("/watch/ans/get/<ans_id>", methods=["GET"])
@@ -43,6 +45,10 @@ def get_ans(ans_id):
     if os.path.exists(cache_path):
         with open(cache_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
+            # Ensure id and ans_id both present
+            if "id" not in data:
+                data["id"] = ans_id
+            print(f"/watch/ans/get/<ans_id> ->{data}")
             return jsonify({"status": "success", "source": "cache", "data": data})
     return jsonify({"status": "error", "message": "Solution not found"}), 404
 
@@ -65,8 +71,10 @@ def upload_ans():
 
     tasks = load_tasks()
     tasks = [t for t in tasks if t.get("ans_id") != ans_id]
+    task_id = f"task_{ans_id}_{int(os.path.getmtime(cache_path) if os.path.exists(cache_path) else 0)}"
     new_task = {
-        "id": f"task_{ans_id}_{int(os.path.getmtime(cache_path) if os.path.exists(cache_path) else 0)}",
+        "id": task_id,
+        "task_id": task_id,
         "action": "download",
         "ans_id": ans_id,
         "title": title,
@@ -74,6 +82,7 @@ def upload_ans():
     }
     tasks.append(new_task)
     save_tasks(tasks)
+    print(f"/watch/ans/upload ->{ans_id}+{result}")
 
     return jsonify({"status": "success", "ans_id": ans_id, "result": result})
 
@@ -89,12 +98,14 @@ def list_ans():
                         d = json.load(f)
                         items.append({
                             "ans_id": d.get("ans_id"),
+                            "id": d.get("ans_id"),
                             "title": d.get("title"),
                             "category": d.get("category"),
                             "total_pages": d.get("total_pages")
                         })
                 except:
                     pass
+    print(f"/watch/ans/list ->{items}")
     return jsonify({"status": "success", "items": items})
 
 @ans_bp.route("/watch/ans/manage/delete/<ans_id>", methods=["DELETE", "POST"])
@@ -103,7 +114,7 @@ def delete_ans(ans_id):
     if os.path.exists(cache_path):
         os.remove(cache_path)
     tasks = load_tasks()
-    tasks = [t for t in tasks if t.get("ans_id") != ans_id]
+    tasks = [t for t in tasks if t.get("ans_id") != ans_id and t.get("id") != ans_id]
     save_tasks(tasks)
     return jsonify({"status": "success", "deleted": ans_id})
 
@@ -114,6 +125,7 @@ def add_task_manual():
     task_id = f"task_manual_{len(tasks)+1}"
     new_task = {
         "id": task_id,
+        "task_id": task_id,
         "action": data.get("action", "download"),
         "ans_id": data.get("ans_id", ""),
         "title": data.get("title", "手动任务"),
@@ -131,6 +143,6 @@ def clear_tasks():
 @ans_bp.route("/watch/ans/manage/tasks/delete/<task_id>", methods=["DELETE", "POST"])
 def delete_task_item(task_id):
     tasks = load_tasks()
-    tasks = [t for t in tasks if t.get("id") != task_id]
+    tasks = [t for t in tasks if t.get("id") != task_id and t.get("task_id") != task_id]
     save_tasks(tasks)
     return jsonify({"status": "success", "deleted_task_id": task_id})

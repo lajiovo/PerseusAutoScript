@@ -4,13 +4,33 @@ import hashlib
 
 class LaTeXParser:
     """
-    将 LaTeX 数学表达式转换为树状 AST 结构。
-    支持 \frac, \sqrt, 上标 ^, 下标 _, 绝对值 \left|...\right|, 普通文本等。
+    高级 LaTeX 数学表达式及化学方程式 (\ce) 转换为树状 AST 结构。
+    支持 \frac, \dfrac, \sqrt, 上标 ^, 下标 _, 极限 \lim, 积分 \int, 求和 \sum, 化学方程式 \ce 等。
     """
     @staticmethod
     def parse_expression(expr_str):
         expr_str = expr_str.strip()
-        # 处理绝对值 \left| ... \right| 或 | ... |
+        if not expr_str:
+            return {"type": "text", "value": ""}
+
+        # 1. 化学方程式 \ce{...}
+        if expr_str.startswith(r"\ce{") and expr_str.endswith("}"):
+            inner = expr_str[4:-1].strip()
+            return {"type": "chemical", "value": inner}
+
+        # 2. 极限 \lim_{...} ...
+        if expr_str.startswith(r"\lim"):
+            return {"type": "limit", "raw": expr_str}
+
+        # 3. 积分 \int ...
+        if expr_str.startswith(r"\int") or expr_str.startswith(r"\displaystyle\int"):
+            return {"type": "integral", "raw": expr_str}
+
+        # 4. 求和 \sum ...
+        if expr_str.startswith(r"\sum"):
+            return {"type": "summation", "raw": expr_str}
+
+        # 5. 绝对值 \left| ... \right| 或 | ... |
         if expr_str.startswith(r"\left|") and expr_str.endswith(r"\right|"):
             inner = expr_str[6:-7].strip()
             return {"type": "abs", "content": LaTeXParser.parse_expression(inner)}
@@ -18,9 +38,10 @@ class LaTeXParser:
             inner = expr_str[1:-1].strip()
             return {"type": "abs", "content": LaTeXParser.parse_expression(inner)}
 
-        # 处理分式 \frac{num}{den} 或简单分式
-        if expr_str.startswith(r"\frac"):
-            idx = 5
+        # 6. 分式 \frac{num}{den} 或 \dfrac{num}{den}
+        if expr_str.startswith(r"\frac") or expr_str.startswith(r"\dfrac"):
+            offset = 5 if expr_str.startswith(r"\frac") else 6
+            idx = offset
             while idx < len(expr_str) and expr_str[idx].isspace():
                 idx += 1
             if idx < len(expr_str) and expr_str[idx] == '{':
@@ -35,7 +56,7 @@ class LaTeXParser:
                         "denominator": LaTeXParser.parse_expression(den_str)
                     }
 
-        # 处理根号 \sqrt{content}
+        # 7. 根号 \sqrt{content}
         if expr_str.startswith(r"\sqrt"):
             idx = 5
             while idx < len(expr_str) and expr_str[idx].isspace():
@@ -47,7 +68,7 @@ class LaTeXParser:
                     "content": LaTeXParser.parse_expression(content_str)
                 }
 
-        # 处理上下标 (含 ^ 和 _)
+        # 8. 上下标 (含 ^ 和 _)
         if '^' in expr_str or '_' in expr_str:
             parts = LaTeXParser._split_binary(expr_str)
             if len(parts) == 3:
@@ -58,7 +79,7 @@ class LaTeXParser:
                     "value": LaTeXParser.parse_expression(val)
                 }
 
-        # 连等式或普通代数式分解
+        # 9. 连等式
         if '=' in expr_str and not expr_str.startswith('='):
             eq_parts = [p.strip() for p in expr_str.split('=')]
             if len(eq_parts) > 1:
@@ -67,7 +88,6 @@ class LaTeXParser:
                     "parts": [LaTeXParser.parse_expression(p) for p in eq_parts]
                 }
 
-        # 默认文本节点
         return {"type": "text", "value": expr_str}
 
     @staticmethod
@@ -94,7 +114,7 @@ class LaTeXParser:
 
 class ZAnsProcessor:
     """
-    处理 Markdown 与 LaTeX 混合文本，提取 AST，并执行智能分页与字符分块。
+    处理 Markdown 与高级 LaTeX/化学方程式混合文本，并执行智能分页。
     """
     @staticmethod
     def process_content(raw_text, title="", category="数学"):
@@ -103,7 +123,7 @@ class ZAnsProcessor:
         
         for line in lines:
             line = line.strip()
-            if not line:
+            if not line or line.startswith("%"):
                 continue
             
             block_type = "paragraph"
@@ -131,7 +151,7 @@ class ZAnsProcessor:
         pages = []
         current_page_blocks = []
         current_page_len = 0
-        target_page_len = 400
+        target_page_len = 350
 
         for block in blocks:
             b_len = block["length"]
@@ -158,6 +178,7 @@ class ZAnsProcessor:
         ans_id = hashlib.md5(raw_text.encode('utf-8')).hexdigest()[:8]
         result = {
             "ans_id": ans_id,
+            "id": ans_id,
             "title": title or "未命名解析",
             "category": category,
             "total_pages": len(pages),
