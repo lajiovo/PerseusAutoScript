@@ -26,7 +26,6 @@ def save_tasks(tasks):
 @ans_bp.route("/watch/ans/tasks", methods=["GET"])
 def get_tasks():
     tasks = load_tasks()
-    print(f"/watch/ans/tasks ->{tasks}")
     return jsonify({"status": "success", "tasks": tasks})
 
 @ans_bp.route("/watch/ans/task/ack", methods=["POST"])
@@ -36,7 +35,6 @@ def ack_task():
     tasks = load_tasks()
     new_tasks = [t for t in tasks if t.get("id") != task_id and t.get("task_id") != task_id]
     save_tasks(new_tasks)
-    print(f"/watch/ans/task/ack ->{new_tasks}")
     return jsonify({"status": "success", "remaining_tasks": len(new_tasks)})
 
 @ans_bp.route("/watch/ans/get/<ans_id>", methods=["GET"])
@@ -47,7 +45,6 @@ def get_ans(ans_id):
             data = json.load(f)
             if "id" not in data:
                 data["id"] = ans_id
-            print(f"/watch/ans/get/<ans_id> ->{data}")
             return jsonify({"status": "success", "source": "cache", "data": data})
     return jsonify({"status": "error", "message": "Solution not found"}), 404
 
@@ -81,7 +78,6 @@ def upload_ans():
     }
     tasks.append(new_task)
     save_tasks(tasks)
-    print(f"/watch/ans/upload ->{ans_id}+{result}")
 
     return jsonify({"status": "success", "ans_id": ans_id, "result": result})
 
@@ -104,7 +100,6 @@ def list_ans():
                         })
                 except:
                     pass
-    print(f"/watch/ans/list ->{items}")
     return jsonify({"status": "success", "items": items})
 
 @ans_bp.route("/watch/ans/manage/delete/<ans_id>", methods=["DELETE", "POST"])
@@ -145,3 +140,35 @@ def delete_task_item(task_id):
     tasks = [t for t in tasks if t.get("id") != task_id and t.get("task_id") != task_id]
     save_tasks(tasks)
     return jsonify({"status": "success", "deleted_task_id": task_id})
+
+@ans_bp.route("/watch/ans/manage/sync/<ans_id>", methods=["POST"])
+def sync_specific_ans(ans_id):
+    """针对某项已缓存解析，一键加入或重新加入同步队列"""
+    cache_path = os.path.join(CACHE_DIR, f"{ans_id}.json")
+    if not os.path.exists(cache_path):
+        return jsonify({"status": "error", "message": "Solution not found in cache"}), 404
+    
+    try:
+        with open(cache_path, 'r', encoding='utf-8') as f:
+            d = json.load(f)
+            title = d.get("title", "未命名题目")
+            category = d.get("category", "综合")
+    except:
+        title = "未命名题目"
+        category = "综合"
+
+    tasks = load_tasks()
+    # 移除已有的同 ans_id 任务，确保排到队列最前或最新
+    tasks = [t for t in tasks if t.get("ans_id") != ans_id]
+    task_id = f"task_{ans_id}_{int(os.path.getmtime(cache_path) if os.path.exists(cache_path) else 0)}"
+    new_task = {
+        "id": task_id,
+        "task_id": task_id,
+        "action": "download",
+        "ans_id": ans_id,
+        "title": title,
+        "category": category
+    }
+    tasks.append(new_task)
+    save_tasks(tasks)
+    return jsonify({"status": "success", "message": f"已将 [{title}] 加入同步队列", "task": new_task})

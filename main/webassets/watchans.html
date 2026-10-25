@@ -2,63 +2,68 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <title>Vela Watch 答题解析展示系统 - Web后台与模拟器</title>
+  <title>Vela Watch 答题解析系统 - 专业管理后台与手表模拟器</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #0f172a; color: #f8fafc; display: flex; height: 100vh; overflow: hidden; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #0b0f19; color: #f1f5f9; display: flex; height: 100vh; overflow: hidden; }
     #app { display: flex; width: 100%; height: 100%; }
     
     /* 左侧控制与编辑面板 */
-    .panel-left { width: 45%; padding: 24px; border-right: 1px solid #334155; display: flex; flex-direction: column; gap: 16px; overflow-y: auto; }
+    .panel-left { width: 48%; padding: 20px; border-right: 1px solid #1e293b; display: flex; flex-direction: column; gap: 14px; overflow-y: auto; background: #0f172a; }
     .header-title { font-size: 1.25rem; font-weight: bold; color: #38bdf8; display: flex; align-items: center; justify-content: space-between; }
     .form-group { display: flex; flex-direction: column; gap: 6px; }
-    label { font-size: 0.875rem; color: #94a3b8; }
+    label { font-size: 0.85rem; color: #94a3b8; font-weight: 500; }
     input, select, textarea { background: #1e293b; border: 1px solid #334155; color: #fff; padding: 8px 12px; border-radius: 6px; font-size: 0.875rem; outline: none; }
-    input:focus, select:focus, textarea:focus { border-color: #38bdf8; }
-    textarea { height: 160px; resize: vertical; font-family: monospace; }
-    .btn { background: #0284c7; color: white; border: none; padding: 10px 16px; border-radius: 6px; cursor: pointer; font-weight: 500; display: inline-flex; justify-content: center; align-items: center; gap: 6px; }
+    input:focus, select:focus, textarea:focus { border-color: #38bdf8; box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.2); }
+    textarea { height: 140px; resize: vertical; font-family: monospace; }
+    
+    .btn { background: #0284c7; color: white; border: none; padding: 8px 14px; border-radius: 6px; cursor: pointer; font-weight: 500; display: inline-flex; justify-content: center; align-items: center; gap: 6px; font-size: 0.85rem; }
     .btn:hover { background: #0369a1; }
+    .btn-success { background: #10b981; }
+    .btn-success:hover { background: #059669; }
     .btn-danger { background: #ef4444; }
     .btn-danger:hover { background: #dc2626; }
-    .btn-secondary { background: #334155; }
+    .btn-secondary { background: #334155; color: #cbd5e1; }
     .btn-secondary:hover { background: #475569; }
     
-    /* 标签页与列表 */
-    .tabs { display: flex; gap: 8px; border-bottom: 1px solid #334155; padding-bottom: 8px; }
-    .tab-btn { background: none; border: none; color: #94a3b8; cursor: pointer; padding: 6px 12px; font-weight: bold; }
-    .tab-btn.active { color: #38bdf8; border-bottom: 2px solid #38bdf8; }
-    .list-container { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
-    .card-item { background: #1e293b; padding: 12px; border-radius: 6px; border: 1px solid #334155; display: flex; justify-content: space-between; align-items: center; }
-    .card-info { display: flex; flex-direction: column; gap: 4px; }
-    .card-title { font-weight: bold; font-size: 0.95rem; }
+    /* 选项卡与列表 */
+    .tabs { display: flex; gap: 6px; border-bottom: 1px solid #334155; padding-bottom: 8px; }
+    .tab-btn { background: #1e293b; border: 1px solid #334155; color: #94a3b8; cursor: pointer; padding: 6px 14px; border-radius: 6px; font-weight: 500; font-size: 0.85rem; transition: all 0.2s; }
+    .tab-btn.active { color: #fff; background: #0284c7; border-color: #0284c7; }
+    
+    .list-container { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding-right: 4px; }
+    .card-item { background: #1e293b; padding: 12px; border-radius: 8px; border: 1px solid #334155; display: flex; justify-content: space-between; align-items: center; }
+    .card-info { display: flex; flex-direction: column; gap: 4px; max-width: 65%; }
+    .card-title { font-weight: bold; font-size: 0.95rem; color: #f8fafc; }
     .card-meta { font-size: 0.75rem; color: #94a3b8; }
-    
+    .card-actions { display: flex; gap: 6px; align-items: center; }
+
     /* 右侧模拟器 */
-    .panel-right { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #020617; position: relative; }
-    .watch-wrapper { width: 336px; height: 480px; background: #000; border-radius: 40px; border: 10px solid #1e293b; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); display: flex; flex-direction: column; overflow: hidden; position: relative; }
+    .panel-right { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #020617; position: relative; padding: 20px; }
+    .watch-wrapper { width: 336px; height: 480px; background: #000; border-radius: 40px; border: 12px solid #1e293b; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7); display: flex; flex-direction: column; overflow: hidden; position: relative; }
     
-    /* 手表顶部栏 */
-    .watch-header { height: 48px; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; border-bottom: 1px solid #222; font-size: 0.85rem; color: #aaa; }
-    .watch-body { flex: 1; overflow-y: auto; padding: 12px 16px; display: flex; flex-direction: column; gap: 10px; font-size: 14px; line-height: 1.5; color: #eee; }
-    .watch-footer { height: 48px; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; border-top: 1px solid #222; }
+    .watch-header { height: 48px; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; border-bottom: 1px solid #1e293b; font-size: 0.85rem; color: #94a3b8; background: #0f172a; }
+    .watch-body { flex: 1; overflow-y: auto; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; font-size: 14px; line-height: 1.5; color: #f8fafc; }
+    .watch-footer { height: 48px; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; border-top: 1px solid #1e293b; background: #0f172a; }
     
     /* 模拟 LVGL 节点渲染 */
-    .lv-h1 { font-size: 18px; font-weight: bold; color: #fff; margin-top: 6px; }
+    .lv-h1 { font-size: 18px; font-weight: bold; color: #ffffff; margin-top: 6px; border-bottom: 1px solid #334155; padding-bottom: 4px; }
     .lv-h2 { font-size: 16px; font-weight: bold; color: #38bdf8; }
     .lv-h3 { font-size: 15px; font-weight: bold; color: #cbd5e1; }
-    .lv-para { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; }
+    .lv-para { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
     .lv-bold { font-weight: bold; color: #facc15; }
     
-    /* 公式 AST 渲染 */
-    .ast-container { display: inline-flex; align-items: center; overflow-x: auto; max-width: 100%; padding: 4px 0; }
-    .ast-fraction { display: inline-flex; flex-direction: column; align-items: center; margin: 0 4px; }
-    .ast-frac-num, .ast-frac-den { padding: 0 4px; font-size: 0.85em; }
-    .ast-frac-line { width: 100%; height: 1px; background: #fff; margin: 2px 0; }
-    .ast-sqrt { display: inline-flex; align-items: center; margin: 0 4px; border-top: 1px solid #fff; padding-top: 1px; }
-    .ast-sqrt::before { content: "√"; font-size: 1.1em; margin-right: 2px; border-top: none; }
+    /* AST 复杂公式与化学方程式渲染 */
+    .ast-container { display: inline-flex; align-items: center; overflow-x: auto; max-width: 100%; padding: 4px 2px; }
+    .ast-fraction { display: inline-flex; flex-direction: column; align-items: center; margin: 0 4px; vertical-align: middle; }
+    .ast-frac-num, .ast-frac-den { padding: 0 4px; font-size: 0.85em; color: #38bdf8; text-align: center; }
+    .ast-frac-line { width: 100%; height: 1px; background: #38bdf8; margin: 2px 0; }
+    .ast-sqrt { display: inline-flex; align-items: center; margin: 0 4px; border-top: 1px solid #c084fc; padding-top: 1px; color: #c084fc; }
+    .ast-sqrt::before { content: "√"; font-size: 1.1em; margin-right: 2px; }
     .ast-sup { font-size: 0.7em; vertical-align: super; line-height: 0; color: #38bdf8; }
     .ast-sub { font-size: 0.7em; vertical-align: sub; line-height: 0; color: #38bdf8; }
     .ast-abs { display: inline-flex; align-items: center; border-left: 1px solid #fff; border-right: 1px solid #fff; padding: 0 4px; margin: 0 2px; }
+    .ast-chemical { font-family: monospace; color: #34d399; background: rgba(52, 211, 153, 0.1); padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(52, 211, 153, 0.2); }
   </style>
 </head>
 <body>
@@ -66,7 +71,8 @@
     <!-- 左侧控制面板 -->
     <div class="panel-left">
       <div class="header-title">
-        <span>Vela 解析管理后台</span>
+        <span>Vela Watch 答题解析管理中心</span>
+        <button class="btn btn-secondary" style="padding: 4px 10px; font-size: 0.75rem;" onclick="loadAllData()">全局刷新</button>
       </div>
 
       <div class="tabs">
@@ -77,45 +83,45 @@
 
       <!-- 选项卡 1：解析录入 -->
       <div id="tab-upload" class="tab-content">
-        <div class="form-group">
-          <label>题目标题</label>
-          <input type="text" id="ans-title" placeholder="如：解析几何双曲线离心率求解">
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+          <div class="form-group">
+            <label>题目标题</label>
+            <input type="text" id="ans-title" placeholder="如：高等数学/化学方程式汇总">
+          </div>
+          <div class="form-group">
+            <label>科目分类</label>
+            <select id="ans-category">
+              <option value="数学">数学</option>
+              <option value="物理">物理</option>
+              <option value="化学">化学</option>
+              <option value="生物">生物</option>
+              <option value="语文">语文</option>
+              <option value="英语">英语</option>
+              <option value="综合">综合</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Markdown & LaTeX / 化学方程式内容</label>
+            <textarea id="ans-text" placeholder="支持公式：$x=\dfrac{-b\pm\sqrt{b^2-4ac}}{2a}$
+支持化学方程式：\ce{2H2 + O2 ->[点燃] 2H2O}"></textarea>
+          </div>
+          <button class="btn btn-success" style="width: 100%; padding: 10px;" onclick="uploadContent()">解析并自动加入同步队列</button>
         </div>
-        <div class="form-group" style="margin-top: 8px;">
-          <label>科目分类</label>
-          <select id="ans-category">
-            <option value="数学">数学</option>
-            <option value="物理">物理</option>
-            <option value="化学">化学</option>
-            <option value="生物">生物</option>
-            <option value="语文">语文</option>
-            <option value="英语">英语</option>
-          </select>
-        </div>
-        <div class="form-group" style="margin-top: 8px;">
-          <label>Markdown & LaTeX 混合内容</label>
-          <textarea id="ans-text" placeholder="输入 Markdown 内容，如：
-# 题目解析
-根据题意，我们可以得出：
-$$\vert{}F'M\vert{}^2 = (4a^2 - c^2 - 2cx_1) + 2cx_1 + c^2$$
-代入分式可得：$\frac{a + b}{\sqrt{x^2}}$"></textarea>
-        </div>
-        <button class="btn" style="width: 100%; margin-top: 12px;" onclick="uploadContent()">解析并存入缓存</button>
       </div>
 
       <!-- 选项卡 2：本地缓存 -->
-      <div id="tab-cache" class="tab-content" style="display: none;">
+      <div id="tab-cache" class="tab-content" style="display: none; height: 100%;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-          <span style="font-size: 0.85rem; color: #94a3b8;">已缓存解析列表</span>
+          <span style="font-size: 0.85rem; color: #94a3b8;">已持久化缓存的题目库 (可随时重新同步)</span>
           <button class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.75rem;" onclick="loadCacheList()">刷新</button>
         </div>
         <div id="cache-list" class="list-container"></div>
       </div>
 
       <!-- 选项卡 3：同步队列管理 -->
-      <div id="tab-tasks" class="tab-content" style="display: none;">
+      <div id="tab-tasks" class="tab-content" style="display: none; height: 100%;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-          <span style="font-size: 0.85rem; color: #94a3b8;">当前待同步任务队列</span>
+          <span style="font-size: 0.85rem; color: #94a3b8;">手表端待同步任务队列 (断点续传)</span>
           <div style="display: flex; gap: 6px;">
             <button class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.75rem;" onclick="loadTasks()">刷新</button>
             <button class="btn btn-danger" style="padding: 4px 8px; font-size: 0.75rem;" onclick="clearTasks()">清空队列</button>
@@ -129,19 +135,20 @@ $$\vert{}F'M\vert{}^2 = (4a^2 - c^2 - 2cx_1) + 2cx_1 + c^2$$
     <div class="panel-right">
       <div class="watch-wrapper">
         <div class="watch-header">
-          <span id="watch-title">未加载题目</span>
-          <span id="watch-page-num" style="color: #38bdf8; font-weight: bold;">1/1</span>
+          <span id="watch-title" style="font-weight: bold; color: #38bdf8;">未加载题目</span>
+          <span id="watch-page-num" style="color: #cbd5e1; font-weight: bold;">1/1</span>
         </div>
         <div class="watch-body" id="watch-body">
-          <div style="color: #64748b; text-align: center; margin-top: 40px;">暂无解析内容，请在左侧选择或上传</div>
+          <div style="color: #64748b; text-align: center; margin-top: 120px;">暂无解析内容<br>请在左侧选择题目预览或上传新解析</div>
         </div>
         <div class="watch-footer">
-          <button class="btn btn-secondary" style="padding: 4px 10px; font-size: 0.75rem;" onclick="prevPage()">上一页</button>
-          <button class="btn btn-secondary" style="padding: 4px 10px; font-size: 0.75rem;" onclick="nextPage()">下一页</button>
+          <button class="btn btn-secondary" style="padding: 4px 12px; font-size: 0.75rem;" onclick="prevPage()">上一页</button>
+          <span id="watch-cat-tag" style="font-size: 0.75rem; color: #94a3b8;">分类: -</span>
+          <button class="btn btn-secondary" style="padding: 4px 12px; font-size: 0.75rem;" onclick="nextPage()">下一页</button>
         </div>
       </div>
-      <div style="margin-top: 16px; color: #64748b; font-size: 0.8rem;">
-        Redmi Watch 6 模拟器 (336×480) - 支持公式横向滚动与智能分页
+      <div style="margin-top: 14px; color: #64748b; font-size: 0.8rem;">
+        Redmi Watch 6 模拟器 (336×480) · 支持高级公式与化学方程式手搓排版
       </div>
     </div>
   </div>
@@ -159,11 +166,16 @@ $$\vert{}F'M\vert{}^2 = (4a^2 - c^2 - 2cx_1) + 2cx_1 + c^2$$
       if (tab === 'tasks') loadTasks();
     }
 
+    function loadAllData() {
+      loadCacheList();
+      loadTasks();
+    }
+
     async function uploadContent() {
       const title = document.getElementById('ans-title').value;
       const category = document.getElementById('ans-category').value;
       const raw_text = document.getElementById('ans-text').value;
-      if (!raw_text.trim()) return alert("请输入内容！");
+      if (!raw_text.trim()) return alert("请输入解析内容！");
 
       const res = await fetch('/watch/ans/upload', {
         method: 'POST',
@@ -172,8 +184,10 @@ $$\vert{}F'M\vert{}^2 = (4a^2 - c^2 - 2cx_1) + 2cx_1 + c^2$$
       });
       const data = await res.json();
       if (data.status === 'success') {
-        alert("上传并处理成功！");
+        alert("解析成功并已自动加入同步队列！");
         renderSolution(data.result);
+        loadTasks();
+        loadCacheList();
       } else {
         alert("错误: " + data.message);
       }
@@ -184,6 +198,10 @@ $$\vert{}F'M\vert{}^2 = (4a^2 - c^2 - 2cx_1) + 2cx_1 + c^2$$
       const data = await res.json();
       const container = document.getElementById('cache-list');
       container.innerHTML = '';
+      if (!data.items || data.items.length === 0) {
+        container.innerHTML = '<div style="color: #64748b; text-align: center; margin-top: 20px;">暂无本地缓存解析</div>';
+        return;
+      }
       data.items.forEach(item => {
         const div = document.createElement('div');
         div.className = 'card-item';
@@ -192,7 +210,8 @@ $$\vert{}F'M\vert{}^2 = (4a^2 - c^2 - 2cx_1) + 2cx_1 + c^2$$
             <span class="card-title">${item.title}</span>
             <span class="card-meta">[${item.category}] · ${item.total_pages} 页 · ID: ${item.ans_id}</span>
           </div>
-          <div style="display: flex; gap: 6px;">
+          <div class="card-actions">
+            <button class="btn btn-success" style="padding: 4px 8px; font-size: 0.75rem;" onclick="syncAns('${item.ans_id}')">同步</button>
             <button class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.75rem;" onclick="loadAnsDetail('${item.ans_id}')">预览</button>
             <button class="btn btn-danger" style="padding: 4px 8px; font-size: 0.75rem;" onclick="deleteAns('${item.ans_id}')">删除</button>
           </div>
@@ -201,10 +220,29 @@ $$\vert{}F'M\vert{}^2 = (4a^2 - c^2 - 2cx_1) + 2cx_1 + c^2$$
       });
     }
 
+    async function syncAns(ans_id) {
+      const res = await fetch(`/watch/ans/manage/sync/${ans_id}`, { method: 'POST' });
+      const data = await res.json();
+      if (data.status === 'success') {
+        alert(data.message);
+        switchTab('tasks');
+        document.querySelectorAll('.tab-btn')[2].classList.add('active');
+        document.querySelectorAll('.tab-btn')[0].classList.remove('active');
+        document.querySelectorAll('.tab-btn')[1].classList.remove('active');
+        document.getElementById('tab-tasks').style.display = 'block';
+        document.getElementById('tab-cache').style.display = 'none';
+        document.getElementById('tab-upload').style.display = 'none';
+        loadTasks();
+      } else {
+        alert("同步操作失败: " + data.message);
+      }
+    }
+
     async function deleteAns(ans_id) {
-      if (!confirm("确定删除该题目解析吗？")) return;
+      if (!confirm("确定彻底删除该题目解析吗？")) return;
       await fetch(`/watch/ans/manage/delete/${ans_id}`, { method: 'POST' });
       loadCacheList();
+      loadTasks();
     }
 
     async function loadAnsDetail(ans_id) {
@@ -220,27 +258,32 @@ $$\vert{}F'M\vert{}^2 = (4a^2 - c^2 - 2cx_1) + 2cx_1 + c^2$$
       const data = await res.json();
       const container = document.getElementById('task-list');
       container.innerHTML = '';
-      (data.tasks || []).forEach(t => {
+      const tasks = data.tasks || [];
+      if (tasks.length === 0) {
+        container.innerHTML = '<div style="color: #64748b; text-align: center; margin-top: 20px;">当前任务队列为空</div>';
+        return;
+      }
+      tasks.forEach(t => {
         const div = document.createElement('div');
         div.className = 'card-item';
         div.innerHTML = `
           <div class="card-info">
             <span class="card-title">${t.title || t.ans_id}</span>
-            <span class="card-meta">类型: ${t.action} · Task ID: ${t.id}</span>
+            <span class="card-meta">动作: ${t.action} · 关联ID: ${t.ans_id}</span>
           </div>
-          <button class="btn btn-danger" style="padding: 4px 8px; font-size: 0.75rem;" onclick="deleteTask('${t.id}')">移除</button>
+          <button class="btn btn-danger" style="padding: 4px 8px; font-size: 0.75rem;" onclick="deleteTask('${t.id || t.task_id}')">移除</button>
         `;
         container.appendChild(div);
       });
     }
 
-    async function deleteTask(task_id) {
-      await fetch(`/watch/ans/manage/tasks/delete/${task_id}`, { method: 'POST' });
+    async function deleteTask(taskId) {
+      await fetch(`/watch/ans/manage/tasks/delete/${taskId}`, { method: 'POST' });
       loadTasks();
     }
 
     async function clearTasks() {
-      if (!confirm("确定清空任务队列吗？")) return;
+      if (!confirm("确定清空所有待同步任务吗？")) return;
       await fetch('/watch/ans/manage/tasks/clear', { method: 'POST' });
       loadTasks();
     }
@@ -270,11 +313,12 @@ $$\vert{}F'M\vert{}^2 = (4a^2 - c^2 - 2cx_1) + 2cx_1 + c^2$$
       if (!currentSolution) return;
       document.getElementById('watch-title').innerText = currentSolution.title || "解析";
       document.getElementById('watch-page-num').innerText = `${currentPageIndex + 1}/${currentSolution.pages.length}`;
+      document.getElementById('watch-cat-tag').innerText = `分类: ${currentSolution.category || '综合'}`;
       
       const body = document.getElementById('watch-body');
       body.innerHTML = '';
       const page = currentSolution.pages[currentPageIndex];
-      if (!page) return;
+      if (!page || !page.blocks) return;
 
       page.blocks.forEach(block => {
         const blockEl = document.createElement('div');
@@ -312,6 +356,12 @@ $$\vert{}F'M\vert{}^2 = (4a^2 - c^2 - 2cx_1) + 2cx_1 + c^2$$
       if (!node) return document.createTextNode('');
       if (node.type === 'text') {
         const span = document.createElement('span');
+        span.innerText = node.value;
+        return span;
+      }
+      if (node.type === 'chemical') {
+        const span = document.createElement('span');
+        span.className = 'ast-chemical';
         span.innerText = node.value;
         return span;
       }
@@ -374,7 +424,13 @@ $$\vert{}F'M\vert{}^2 = (4a^2 - c^2 - 2cx_1) + 2cx_1 + c^2$$
         });
         return chain;
       }
-      return document.createTextNode(node.value || '');
+      if (node.type === 'limit' || node.type === 'integral' || node.type === 'summation') {
+        const span = document.createElement('span');
+        span.className = 'ast-chemical';
+        span.innerText = node.value || node.raw || '';
+        return span;
+      }
+      return document.createTextNode(node.value || node.raw || '');
     }
   </script>
 </body>
