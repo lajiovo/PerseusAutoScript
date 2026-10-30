@@ -2,7 +2,7 @@
   <div class="container">
     <!-- Top Bar -->
     <div class="top-bar">
-      <text class="app-title">Perseus 解析 ({{currentCategory}})</text>
+      <text class="app-title">Perseus解析 ({{currentCategory}})</text>
       <input class="settings-btn" type="button" value="设置" onclick="gotoSettings" />
     </div>
 
@@ -10,7 +10,7 @@
     <list class="list">
       <list-item type="item" for="{{ansList}}" class="list-item" onclick="gotoReader($item.id)">
         <text class="item-title">[{{$item.category}}] {{$item.title}}</text>
-        <text class="item-summary">{{$item.summary}}</text>
+        <text class="item-summary">{{$item.summary || '共 ' + ($item.total_pages || 1) + ' 页解析'}}</text>
       </list-item>
     </list>
 
@@ -29,15 +29,25 @@ export default {
     ansList: []
   },
   onInit() {
+    this.loadData();
+  },
+  onShow() {
+    // 每次回到主页自动重新加载分类与数据，确保筛选有效且自动刷新
+    this.loadData();
+  },
+  loadData() {
     storage.get({
       key: "current_category",
       success: (data) => {
         if (data) {
           this.currentCategory = data;
+        } else {
+          this.currentCategory = "全部";
         }
         this.loadLocalAnswers();
       },
       fail: () => {
+        this.currentCategory = "全部";
         this.loadLocalAnswers();
       }
     });
@@ -48,14 +58,26 @@ export default {
       success: (data) => {
         if (data) {
           try {
-            let list = JSON.parse(data);
+            let cleaned = data.trim().replace(/^\uFEFF/, '');
+            let list = JSON.parse(cleaned);
+            if (!Array.isArray(list)) list = [];
+            
+            // 确保每个 item 都有 id 和 category
+            list = list.map(item => ({
+              ...item,
+              id: item.id || item.ans_id,
+              category: item.category || "数学"
+            }));
+
             if (this.currentCategory !== "全部") {
-              list = list.filter(item => item.category === this.currentCategory);
+              list = list.filter(item => String(item.category).trim() === String(this.currentCategory).trim());
             }
             this.ansList = list;
           } catch(e) {
             this.ansList = [];
           }
+        } else {
+          this.ansList = [];
         }
       },
       fail: () => {
@@ -70,7 +92,8 @@ export default {
     router.push({ uri: "/pages/category" });
   },
   gotoReader(id) {
-    router.push({ uri: "/pages/reader", params: { ansId: id } });
+    if (!id) return;
+    router.push({ uri: "/pages/reader", params: { ansId: String(id) } });
   }
 }
 </script>
@@ -92,7 +115,7 @@ export default {
   border-bottom-color: #333333;
 }
 .app-title {
-  font-size: 16px;
+  font-size: 15px;
   color: #ffffff;
   font-weight: bold;
 }
