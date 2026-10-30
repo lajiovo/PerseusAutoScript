@@ -9,6 +9,7 @@ import win32gui
 import win32process
 import win32con
 import psutil
+import pyautogui
 
 # 导入自定义通知模块
 from zBarkCustom import PerseusErrorMsg, PerseusNotifyMsg
@@ -62,6 +63,64 @@ def is_site_accessible(url="http://127.0.0.1:22267"):
     except Exception:
         return False
 
+def click_minimize_by_box(window_title=TARGET_TITLE):
+  matching_hwnds = []
+
+  # 枚举所有窗口，找到所有标题匹配的句柄
+  def enum_windows_callback(hwnd, extra):
+    if win32gui.IsWindow(hwnd):
+      title = win32gui.GetWindowText(hwnd)
+      if title == window_title:
+        matching_hwnds.append(hwnd)
+    return True
+
+  win32gui.EnumWindows(enum_windows_callback, None)
+
+  if not matching_hwnds:
+    print(f"未找到任何标题为 [{window_title}] 的窗口。")
+    return False
+
+  print(f"共找到 {len(matching_hwnds)} 个匹配的窗口，开始依次处理...")
+  success_count = 0
+
+  for hwnd in matching_hwnds:
+    # 1. 检查窗口是否被完全隐藏（如果 IsWindowVisible 返回 0，说明被隐藏了，跳过）
+    if not win32gui.IsWindowVisible(hwnd):
+      print(f"窗口句柄 {hwnd} 当前处于隐藏状态，跳过操作。")
+      continue
+
+    # 2. 检查窗口是否最小化，如果是则恢复显示
+    if win32gui.IsIconic(hwnd):
+      print(f"检测到窗口句柄 {hwnd} 已最小化，正在恢复显示...")
+      win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
+
+    try:
+      win32gui.SetForegroundWindow(hwnd)
+      time.sleep(0.05)  # 稍微等待窗口响应前台焦点
+    except Exception as e:
+      print(f"设置窗口 {hwnd} 前台焦点失败: {e}")
+      continue
+
+    # 3. 获取窗口实时坐标并计算位置
+    left, top, right, bottom = win32gui.GetWindowRect(hwnd)
+    region_width = 250
+    region_height = 60
+    region_left = right - region_width
+    region_top = top
+    target_x = region_left + 45
+    target_y = region_top + 22
+
+    print(f"窗口 [{hwnd}] 右上角区域: 左上({region_left}, {region_top})")
+    print(f"计算得到的最小化按钮点击坐标: X={target_x}, Y={target_y}")
+
+    # 4. 移动鼠标并执行物理点击
+    pyautogui.click(target_x, target_y)
+    print(f"已点击窗口 [{hwnd}] 的指定位置。")
+    success_count += 1
+    time.sleep(0.1)  # 多个窗口连续点击时稍微留出一点间隔
+
+  return success_count > 0
+
 
 def get_azurpilot_hwnds():
     """获取所有符合条件的 AzurPilot 可见窗口句柄列表"""
@@ -91,6 +150,7 @@ def force_hide_window(hwnd):
     
     try:
         print(f"🛡️ 正在使用系统底层 API 直接隐藏窗口 (HWND: {hwnd})...")
+        win32gui.PostMessage(hwnd, win32con.WM_SYSCOMMAND, win32con.SC_MINIMIZE, 0)
         ctypes.windll.user32.ShowWindowAsync(hwnd, 0)
         win32gui.ShowWindow(hwnd, win32con.SW_HIDE)
         win32gui.SetWindowPos(
@@ -200,7 +260,7 @@ def cleanup():
 # ---------------------------------------------------------------------------
 # 2. Hide 监控并强制隐藏窗口
 # ---------------------------------------------------------------------------
-def hide(target_count=1):
+def hide(target_count=2):
     """
     智能隐藏 AzurPilot 窗口主逻辑
     :param target_count: 期望隐藏的目标窗口数量（1 或 2）
@@ -236,6 +296,8 @@ def hide(target_count=1):
                 visible_hwnds = get_azurpilot_hwnds()
                 for hwnd in visible_hwnds:
                     if hwnd not in hidden_hwnds:
+                        if len(hidden_hwnds) >= 1 :
+                            click_minimize_by_box(TARGET_TITLE)
                         if force_hide_window(hwnd):
                             hidden_hwnds.add(hwnd)
                             print(f"🎉 成功隐藏第 {len(hidden_hwnds)} 个窗口 (HWND: {hwnd})")

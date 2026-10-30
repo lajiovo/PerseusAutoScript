@@ -23,21 +23,20 @@ def run_alas_mumu_check():
     # 0. 初始检测：若 MuMu 未运行，则拉起并隐藏（不计数）
     if not zMumu.is_mumu_running():
         print("[Info] 检测到 MuMu 未运行")
+    if not zAlas.is_site_accessible():
+        print("[Info] AzurPilot Webui不可访问")
 
-    alas_soft_restart_count = 0  # Alas 软重启 (Playwright ["restart"]) 计数
     alas_hard_restart_count = 0  # Alas 硬重启 (cleanup + start) 计数
     mumu_restart_count = 0       # MuMu 重启计数
 
-    max_soft_restarts = 2
     max_hard_restarts = 2
     max_mumu_restarts = 2
     print("[Info] 开始执行 Alas & MuMu 状态自动化检查流程...")
-    print(zMumu.hidemumu())
+    zMumu.once_hidemumu()
+    zAlas.once_hidealas()
 
     # 标准执行任务队列
-    # standard_task_list = ["check", "start", "wait", "check", "update"]
-    standard_task_list =  ["home", "instance", "start", "get_resources", "get_tasks"]
-
+    standard_task_list =  ["home", "instance", "start", "get_resources", "get_tasks","get_screenshot"]
 
     while True:
         # 0. 校验硬重启与 MuMu 重启上限
@@ -48,8 +47,7 @@ def run_alas_mumu_check():
             err_title = "Alas/MuMu 自动恢复失败"
             err_body = (
                 f"❌ **[严重错误]** 重启次数达到上限，已停止重试并清除进程。\n\n"
-                f"- **Alas软重启:** `{alas_soft_restart_count}/{max_soft_restarts}`\n"
-                f"- **Alas硬重启:** `{alas_hard_restart_count}/{max_hard_restarts}`\n"
+                f"- **Alas重启:** `{alas_hard_restart_count}/{max_hard_restarts}`\n"
                 f"- **MuMu重启:** `{mumu_restart_count}/{max_mumu_restarts}`"
             )
             print(f"[Fatal] {err_title}: {err_body}")
@@ -59,131 +57,60 @@ def run_alas_mumu_check():
             try:
                 zAlas.cleanup()
                 zMumu.mumu_kill()
+                # 保留节目
+                zMumu.once_hidemumu()
+                zAlas.once_hidealas()
             except Exception as e:
                 print(f"[Error] 清理进程时出现异常: {e}")
-
             return False
-
-        print(
-            f"[Info] 运行 Playwright 任务... (Alas 软重启: {alas_soft_restart_count}/{max_soft_restarts}, "
-            f"硬重启: {alas_hard_restart_count}/{max_hard_restarts}, MuMu 重启: {mumu_restart_count}/{max_mumu_restarts})"
-        )
-
-        try:
+        if not zAlas.is_process_running():
+            zAlas.cleanup()
+            reponse = zAlas.start()[0]
+            alas_hard_restart_count += 1
+            if reponse :
+                print("[Info]Alas重启成功")
+            else:
+                if not zAlas.is_site_accessible():
+                    print("[Error]Alas重启失败，将直接放弃")
+                    # 直接放弃
+                    alas_hard_restart_count += 1
+                else:
+                    print("[Info]网页可以访问，再试试看")
+        if not zMumu.is_mumu_running():
+            print("[Info] 检测到mumu不在运行")
+            zMumu.mumu_kill()
+            reponse = zMumu.hidemumu()[0]
+            if not reponse :
+                print("[Error] mumu未能正常重启，已放弃")
+                mumu_restart_count += 2
+            else:
+                print("[Info] mumu正常重启")
+                mumu_restart_count += 1
+        if zAlas.is_site_accessible():
+            print(
+                f"[Info] 网页正常，开始运行 Playwright 任务... "
+                f"硬重启: {alas_hard_restart_count}/{max_hard_restarts}, MuMu 重启: {mumu_restart_count}/{max_mumu_restarts})"
+            )
             # 1. 调用 zPlaywrightNew 主函数进行常规检查
             is_all_success, task_results = zPlaywrightNew.main(
                 headless=True,
                 task_list=standard_task_list,
             )
-
             print(f"[Info] Playwright 返回结果: {task_results}")
-
             # 提取所有返回的状态码
             codes = [item[1] for item in task_results]
-
-            # Helper 函数：统一处理 Alas 重启（优先软重启，额度用尽则硬重启）
-            def handle_alas_restart(reason_msg):
-                nonlocal alas_soft_restart_count, alas_hard_restart_count
-
-                if alas_soft_restart_count < max_soft_restarts:
-                    print(
-                        f"[Action] [{reason_msg}] 尝试第 {alas_soft_restart_count + 1} 次软重启 Alas (Playwright restart)..."
-                    )
-
-                    """
-                    restart_ok, restart_results = zPlaywrightNew.main(
-                        headless=True,
-                        task_list=["restart"],
-                    )
-                    restart_codes = [item[1] for item in restart_results]
-
-                    if "0024" in restart_codes:
-                        alas_soft_restart_count += 1
-                        print("[Info] 软重启指令触发成功 [0024]，重新进入检查循环。")
-                        return
-                    """
-                    alas_soft_restart_count += 1
-
-                    print("[Warning] 软重启触发失败，将直接尝试硬重启 Alas...")
-
-                # 软重启额度用尽或软重启失败，进入硬重启
-                print(
-                    f"[Action] [{reason_msg}] 尝试第 {alas_hard_restart_count + 1} 次硬重启 Alas (cleanup + start)..."
-                )
-                zAlas.cleanup()
-                response = zAlas.start()
-                print(f"zAlas.start()->{response}")
-                alas_hard_restart_count += 1
-
             # 2. 检查是否有 0016 或 0017 (网页超时/无法访问)
-            if "0016" in codes or "0017" in codes:
+            if "0000" in codes :
                 print(
-                    f"[Warning] 检测到页面无响应/无法访问状态码 ({[c for c in codes if c in ('0016', '0017')]})，触发 Alas 重启..."
+                    f"[Warning] 检测到页面无响应/无法访问状态码，触发 Alas 重启..."
                 )
-                handle_alas_restart("页面无法访问")
-                continue
-
-            """
-            # 3. 提取两次 check 任务的状态码 (分别对应索引 0 和 3)
-            first_check_code = task_results[0][1] if len(task_results) > 0 else None
-            second_check_code = task_results[3][1] if len(task_results) > 3 else None
-
-            # 优先判定第一次 check：若检测到错误图标 (0026) -> 清理并重启 MuMu
-            
-            if first_check_code == "0026":
-                print("[Warning] 第一次 Check 结果为 [0026] (检测到运行错误图标)，准备重启 MuMu...")
-                zMumu.mumu_kill()
-                zMumu.hidemumu()
-                mumu_restart_count += 1
-                continue
-
-            # 校验第二次 check：若等待后再次检测到错误图标 (0026) -> 清理并重启 MuMu
-            if second_check_code == "0026":
-                print("[Warning] 第二次 Check 结果为 [0026] (检测到运行错误图标)，准备重启 MuMu...")
-                zMumu.mumu_kill()
-                zMumu.hidemumu()
-                mumu_restart_count += 1
-                continue
-            
-
-            # 4. 如果两次 Check 均正常 (均为 0027 或非 0026 异常) 且包含 0027
-            # code已修改
-            
-            if first_check_code == "0001" or second_check_code == "0003":
-                print("[Success] Check 结果通过 (正常)，所有检查流程成功完成！")
-                return True
-            """
-            print("Force return true")
-            return True
-            
-
-            # 5. 未命中预期状态码，尝试软/硬重启 Alas 恢复
-            print(
-                f"[Warning] 未检测到明确的 0026 或 0027 状态码，当前状态码: {codes}，尝试重启 Alas..."
-            )
-            handle_alas_restart("未检测到有效状态码")
-
-        except Exception as e:
-            error_details = traceback.format_exc()
-            print(f"[Error] 执行检查逻辑时发生未知异常: {e}\n{error_details}")
-            PerseusErrorMsg("检查脚本运行异常", f"❌ **[运行异常]** 执行过程中发生未捕获异常：\n> `{e}`")
-
-            """
-            # 遇到严重异常时进行 Alas 重启尝试恢复
-            if alas_soft_restart_count < max_soft_restarts:
-                try:
-                    zPlaywrightNew.main(headless=True, task_list=["restart"])
-                    alas_soft_restart_count += 1
-                except Exception:
-                    zAlas.cleanup()
-                    zAlas.start()
-                    alas_hard_restart_count += 1
-            else:
                 zAlas.cleanup()
-                zAlas.start()
-                alas_hard_restart_count += 1
-            """
-            return False
+                continue
+            print("[Info]Force return true")
+            return True
+        else:
+            print("[Error]网页无法访问，直接结束Alas进程")
+            zAlas.cleanup()
 
 def Handlepush(msg_dict: dict):
     try:

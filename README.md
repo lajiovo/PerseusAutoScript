@@ -109,7 +109,7 @@ Perseus/
 本项目基于 Python 3.10+ 开发，核心依赖包括 `Flask`, `playwright`, `botpy` (腾讯频道机器人 SDK) 等。
 ```bash
 # 安装 Python 依赖包
-pip install aiohttp botpy beautifulsoup4 ebooklib flask opencc playwright psutil pynput requests ruamel.yaml urllib3 pywin32 patool pillow python-docx
+pip install aiohttp botpy beautifulsoup4 ebooklib flask opencc playwright psutil pynput requests ruamel.yaml urllib3 pywin32 patool pillow python-docx pyautogui
 
 # 安装 Playwright 浏览器内核
 playwright install chromium
@@ -177,8 +177,8 @@ Perseus 提供了优雅的多级防闪退、静默挂载启动链：
 ```
 5.  设置初始主人后，发送`#op help`获取指令菜单
 
-### 8. 模块单走
-这些代码可以直接运行，开箱即用
+### 8. 可独立模块
+这些代码可以直接运行，也就是复制下来就能用
 
 支持列表如下：
 1. [`main/zLK.py`](main/zLK.py) - 稳定入口,tkinter
