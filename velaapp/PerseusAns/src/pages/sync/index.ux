@@ -3,14 +3,19 @@
     <text class="title">增量同步中心</text>
     <text class="status-text">{{syncStatus}}</text>
 
-    <!-- Debug 模式下展示详细日志排查面板 -->
-    <div class="debug-panel" if="{{debugMode}}">
-      <text class="debug-title">[Debug 日志排查]</text>
-      <text class="debug-log">{{debugLog}}</text>
+    <!-- Debug 模式下展示详细日志排查面板（支持全屏/滚动切换） -->
+    <div class="debug-panel {{isFullScreenLog ? 'debug-fullscreen' : ''}}" if="{{debugMode}}">
+      <div class="debug-header">
+        <text class="debug-title">[Sync Debug Log]</text>
+        <input class="debug-toggle-btn" type="button" value="{{isFullScreenLog ? '收起' : '全屏'}}" onclick="toggleFullScreenLog" />
+      </div>
+      <scroll class="debug-scroll" scroll-y="true">
+        <text class="debug-text">{{debugLog}}</text>
+      </scroll>
     </div>
 
-    <input class="btn" type="button" value="开始同步" onclick="startSync" />
-    <input class="btn-back" type="button" value="返回" onclick="goBack" />
+    <input class="btn" if="{{!isFullScreenLog}}" type="button" value="开始同步" onclick="startSync" />
+    <input class="btn-back" if="{{!isFullScreenLog}}" type="button" value="返回" onclick="goBack" />
   </div>
 </template>
 
@@ -23,9 +28,10 @@ import prompt from "@system.prompt"
 export default {
   private: {
     syncStatus: "点击下方按钮开始同步任务队列...",
-    isSyncing: false, // 并发锁，防止重复点击
+    isSyncing: false,
     debugMode: false,
-    debugLog: "等待同步..."
+    debugLog: "等待同步...",
+    isFullScreenLog: false
   },
   onInit() {
     this.checkDebugMode();
@@ -46,6 +52,9 @@ export default {
     if (this.debugMode) {
       this.debugLog = msg + "\n" + (this.debugLog || "");
     }
+  },
+  toggleFullScreenLog() {
+    this.isFullScreenLog = !this.isFullScreenLog;
   },
 
   safeParseJson(rawData) {
@@ -367,21 +376,47 @@ export default {
 }
 .debug-panel {
   width: 100%;
-  height: 120px;
+  height: 100px;
   background-color: #1a1a1a;
   border-radius: 6px;
   padding: 8px;
   margin-bottom: 10px;
   flex-direction: column;
 }
+.debug-fullscreen {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 90%;
+  background-color: #111111;
+  z-index: 999;
+  padding: 10px;
+}
+.debug-header {
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
 .debug-title {
   font-size: 11px;
   color: #ffaa00;
   font-weight: bold;
-  margin-bottom: 4px;
 }
-.debug-log {
-  font-size: 10px;
+.debug-toggle-btn {
+  width: 40px;
+  height: 22px;
+  background-color: #dc3545;
+  color: #ffffff;
+  font-size: 9px;
+  border-radius: 3px;
+}
+.debug-scroll {
+  flex: 1;
+}
+.debug-text {
+  font-size: 9px;
   color: #cccccc;
 }
 .btn {

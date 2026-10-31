@@ -12,14 +12,19 @@
       </div>
     </div>
 
-    <!-- Debug Log Panel -->
-    <div class="debug-panel" if="{{debugMode}}">
-      <text class="debug-title">[Index Debug Log]</text>
-      <text class="debug-text">{{debugLog}}</text>
+    <!-- Debug Log Panel (支持滚动或点击切换全屏) -->
+    <div class="debug-panel {{isFullScreenLog ? 'debug-fullscreen' : ''}}" if="{{debugMode}}">
+      <div class="debug-header">
+        <text class="debug-title">[Index Debug Log]</text>
+        <input class="debug-toggle-btn" type="button" value="{{isFullScreenLog ? '收起' : '全屏'}}" onclick="toggleFullScreenLog" />
+      </div>
+      <scroll class="debug-scroll" scroll-y="true">
+        <text class="debug-text">{{debugLog}}</text>
+      </scroll>
     </div>
 
     <!-- Main Content List -->
-    <list class="list">
+    <list class="list" if="{{!isFullScreenLog}}">
       <list-item type="item" for="{{ansList}}" class="list-item" onclick="gotoReader($item.id)">
         <text class="item-title">[{{$item.category || '数学'}}] {{$item.title || '无标题解析'}}</text>
         <text class="item-summary">{{$item.summary || ('共 ' + ($item.total_pages || 1) + ' 页解析 | ID: ' + $item.id)}}</text>
@@ -27,7 +32,7 @@
     </list>
 
     <!-- Empty State / Hint if no data -->
-    <div class="empty-box" if="{{ansList.length === 0}}">
+    <div class="empty-box" if="{{!isFullScreenLog && ansList.length === 0}}">
       <text class="empty-text">暂无解析数据，请前往同步中心拉取</text>
     </div>
 
@@ -45,7 +50,8 @@ export default {
     categories: ["全部", "数学", "物理", "化学", "综合"],
     ansList: [],
     debugMode: false,
-    debugLog: "初始化加载..."
+    debugLog: "初始化加载...",
+    isFullScreenLog: false
   },
   onInit() {
     this.checkDebugAndLoad();
@@ -71,6 +77,9 @@ export default {
     if (this.debugMode) {
       this.debugLog = msg + "\n" + (this.debugLog || "");
     }
+  },
+  toggleFullScreenLog() {
+    this.isFullScreenLog = !this.isFullScreenLog;
   },
   loadData() {
     storage.get({
@@ -218,10 +227,37 @@ export default {
   margin-top: 6px;
   flex-direction: column;
 }
+.debug-fullscreen {
+  position: absolute;
+  left: 0;
+  top: 40px;
+  width: 100%;
+  height: 90%;
+  background-color: #111111;
+  z-index: 999;
+  padding: 10px;
+}
+.debug-header {
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
 .debug-title {
   font-size: 10px;
   color: #ffaa00;
   font-weight: bold;
+}
+.debug-toggle-btn {
+  width: 40px;
+  height: 22px;
+  background-color: #dc3545;
+  color: #ffffff;
+  font-size: 9px;
+  border-radius: 3px;
+}
+.debug-scroll {
+  flex: 1;
 }
 .debug-text {
   font-size: 9px;
