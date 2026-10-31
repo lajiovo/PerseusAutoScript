@@ -2,8 +2,9 @@
   <div class="container">
     <!-- Top Bar -->
     <div class="top-bar">
-      <text class="app-title">Perseus ({{currentCategory}})</text>
+      <text class="app-title" onclick="switchCategory">{{currentCategory === '全部' ? '全部 ▼' : (currentCategory + ' ▼')}}</text>
       <div class="top-btns">
+        <input class="sync-btn" type="button" value="刷新" onclick="reloadLocal" />
         <input class="sync-btn" type="button" value="同步" onclick="gotoSync" />
         <input class="settings-btn" type="button" value="设置" onclick="gotoSettings" />
       </div>
@@ -28,17 +29,18 @@
 <script>
 import router from "@system.router"
 import storage from "@system.storage"
+import prompt from "@system.prompt"
 
 export default {
   private: {
     currentCategory: "全部",
+    categories: ["全部", "数学", "物理", "化学", "综合"],
     ansList: []
   },
   onInit() {
     this.loadData();
   },
   onShow() {
-    // 每次回到主页自动重新加载分类与数据，确保筛选有效且自动刷新
     this.loadData();
   },
   loadData() {
@@ -68,7 +70,6 @@ export default {
             let list = JSON.parse(cleaned);
             if (!Array.isArray(list)) list = [];
             
-            // 确保每个 item 都有 id 和 category，对齐离线存储结构
             list = list.map(item => ({
               ...item,
               id: item.id || item.ans_id,
@@ -91,14 +92,29 @@ export default {
       }
     });
   },
+  reloadLocal() {
+    prompt.showToast({ message: "正在重新载入本地数据..." });
+    this.loadData();
+  },
+  switchCategory() {
+    // 循环切换分类：全部 -> 数学 -> 物理 -> 化学 -> 综合 -> 全部
+    const idx = this.categories.indexOf(this.currentCategory);
+    const nextIdx = (idx + 1) % this.categories.length;
+    this.currentCategory = this.categories[nextIdx];
+    
+    storage.set({
+      key: "current_category",
+      value: this.currentCategory,
+      success: () => {
+        prompt.showToast({ message: `已切换分类: ${this.currentCategory}` });
+        this.loadLocalAnswers();
+      }
+    });
+  },
   gotoSettings() {
     router.push({ uri: "/pages/settings" });
   },
-  gotoCategory() {
-    router.push({ uri: "/pages/category" });
-  },
   gotoSync() {
-    // 快捷跳转到增量同步中心页面（根据实际项目路径调整，通常为 /pages/sync 或类似）
     router.push({ uri: "/pages/sync" });
   },
   gotoReader(id) {
@@ -125,8 +141,8 @@ export default {
   border-bottom-color: #333333;
 }
 .app-title {
-  font-size: 14px;
-  color: #ffffff;
+  font-size: 13px;
+  color: #ffaa00;
   font-weight: bold;
 }
 .top-btns {
@@ -134,16 +150,16 @@ export default {
   align-items: center;
 }
 .sync-btn {
-  width: 42px;
+  width: 36px;
   height: 28px;
   background-color: #007bff;
   color: #ffffff;
   font-size: 11px;
   border-radius: 4px;
-  margin-right: 6px;
+  margin-right: 4px;
 }
 .settings-btn {
-  width: 42px;
+  width: 36px;
   height: 28px;
   background-color: #333333;
   color: #ffffff;
@@ -180,16 +196,5 @@ export default {
   font-size: 12px;
   color: #666666;
   text-align: center;
-}
-.fab-btn {
-  position: fixed;
-  right: 15px;
-  bottom: 15px;
-  width: 45px;
-  height: 45px;
-  border-radius: 22px;
-  background-color: #007bff;
-  color: #ffffff;
-  font-size: 13px;
 }
 </style>

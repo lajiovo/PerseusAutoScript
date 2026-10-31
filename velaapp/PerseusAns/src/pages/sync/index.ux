@@ -176,19 +176,21 @@ export default {
     });
   },
 
-  processTaskQueue(tasks, index) {
+  processTaskQueue(tasks, index, syncedTitles = []) {
     if (index >= tasks.length) {
-      console.log("[Sync] === 所有任务同步完成 ===");
-      this.syncStatus = "所有任务同步完成！";
-      prompt.showToast({ message: "同步成功" });
+      console.log("[Sync] === 所有任务同步完成 ===", syncedTitles);
+      const summary = syncedTitles.length > 0 ? `同步完成，已同步: ${syncedTitles.join(', ')}` : "所有任务同步完成！";
+      this.syncStatus = summary;
+      prompt.showToast({ message: summary });
       this.isSyncing = false; // 释放锁
       return;
     }
 
     let task = tasks[index];
     const taskId = task.id || task.task_id;
+    const taskTitle = task.title || task.ans_id;
     console.log(`[Sync] [任务 ${index + 1}/${tasks.length}] 开始处理:`, task);
-    this.syncStatus = `正在同步 (${index + 1}/${tasks.length}): ${task.title || task.ans_id}`;
+    this.syncStatus = `正在同步 (${index + 1}/${tasks.length}): ${taskTitle}`;
 
     if (task.action === "download") {
       const downloadUrl = `http://192.168.10.3:25566/watch/pans/get/${task.ans_id}`;
@@ -208,20 +210,24 @@ export default {
 
               console.log(`[Sync] [任务 ${index + 1}] 题目数据解析清洗完毕，准备写入本地存储:`, ansItem.id);
               
+              syncedTitles.push(ansItem.title || taskTitle);
+
               // 保存本地成功后 ACK 并推进队列
               this.saveAndAckTask(taskId, ansItem, () => {
-                this.processTaskQueue(tasks, index + 1);
+                this.processTaskQueue(tasks, index + 1, syncedTitles);
               });
             } else {
               console.warn(`[Sync] [任务 ${index + 1}] 服务端返回非 success 状态或无 data，直接 ACK 跳过:`, resJson);
+              syncedTitles.push(taskTitle);
               this.sendAck(taskId, () => {
-                this.processTaskQueue(tasks, index + 1);
+                this.processTaskQueue(tasks, index + 1, syncedTitles);
               });
             }
           } catch(e) {
             console.error(`[Sync] [任务 ${index + 1}] 详情解析 JSON 失败 Error:`, e.message, "原始文本:", res.data);
+            syncedTitles.push(taskTitle);
             this.sendAck(taskId, () => {
-              this.processTaskQueue(tasks, index + 1);
+              this.processTaskQueue(tasks, index + 1, syncedTitles);
             });
           }
         },
@@ -229,14 +235,15 @@ export default {
           console.error(`[Sync] [任务 ${index + 1}] 获取题目 ${task.ans_id} 网络失败 code:${code}，1.5s 后重试`);
           this.syncStatus = `获取题目 ${task.ans_id} 详情失败，将在 1.5 秒后重试`;
           setTimeout(() => { 
-            this.processTaskQueue(tasks, index); 
+            this.processTaskQueue(tasks, index, syncedTitles); 
           }, 1500);
         }
       });
     } else {
       console.log(`[Sync] [任务 ${index + 1}] 非下载动作 (${task.action})，直接发送 ACK`);
+      syncedTitles.push(taskTitle);
       this.sendAck(taskId, () => {
-        this.processTaskQueue(tasks, index + 1);
+        this.processTaskQueue(tasks, index + 1, syncedTitles);
       });
     }
   },

@@ -26,8 +26,16 @@ def save_tasks(tasks):
         json.dump(tasks, f, ensure_ascii=False, indent=2)
 
 def log_api_request(endpoint, data):
-    # 只记录来自手表的 API 请求（通过请求头或路径中确认手表标识，或者凡是 /watch/pans/ 且明确包含同步/获取/ack等操作）
-    # 手表通常调用 /watch/pans/tasks, /watch/pans/get/, /watch/pans/task/ack
+    # 检查请求是否带有非手表标记（例如来自网页端控制台的调用）
+    # 兼容 request.args 以及任何形式的 client 参数
+    try:
+        if request.args.get("client") == "web":
+            return
+        if request.is_json and request.json and request.json.get("client") == "web":
+            return
+    except:
+        pass
+
     logs = []
     if os.path.exists(LOGS_FILE):
         try:
@@ -148,7 +156,6 @@ def get_pans_ans(ans_id):
 
 @p_ans_bp.route("/watch/pans/upload", methods=["POST"])
 def upload_pans_ans():
-    # 后台网页端上传不计入“手表API请求”
     data = request.json or {}
     raw_text = data.get("raw_text", "")
     title = data.get("title", "未命名题目")
@@ -182,6 +189,7 @@ def upload_pans_ans():
 
 @p_ans_bp.route("/watch/pans/list", methods=["GET"])
 def list_pans_ans():
+    log_api_request("/watch/pans/list", dict(request.args))
     items = []
     if os.path.exists(CACHE_DIR):
         for fname in os.listdir(CACHE_DIR):
@@ -261,6 +269,7 @@ def clear_recent_logs():
 
 @p_ans_bp.route("/watch/pans/sync_status", methods=["GET"])
 def get_sync_status():
+    log_api_request("/watch/pans/sync_status", dict(request.args))
     tasks = load_tasks()
     items = []
     if os.path.exists(CACHE_DIR):

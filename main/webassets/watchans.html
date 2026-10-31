@@ -26,13 +26,14 @@
         .badge { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; font-weight: bold; }
         .badge.synced { background: #d4edda; color: #155724; }
         .badge.pending { background: #fff3cd; color: #856404; }
-        .log-box { background: #1e1e1e; color: #dcdcdc; padding: 10px; border-radius: 4px; font-family: monospace; height: 180px; overflow-y: auto; font-size: 0.8rem; }
         .action-btns { display: flex; gap: 4px; }
         /* 模态框样式 */
         .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); justify-content: center; align-items: center; }
         .modal-content { background: white; padding: 20px; border-radius: 8px; width: 600px; max-height: 80vh; overflow-y: auto; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
         .modal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #ddd; padding-bottom: 8px; margin-bottom: 12px; }
         .modal-close { cursor: pointer; font-size: 1.2rem; font-weight: bold; }
+        tr.log-row { cursor: pointer; }
+        tr.log-row:hover { background-color: #f1f3f5; }
     </style>
 </head>
 <body>
@@ -69,7 +70,17 @@
                         <button class="danger" onclick="clearLogs()" style="padding: 2px 6px; font-size: 0.75rem;">清空日志</button>
                     </div>
                 </h2>
-                <div class="log-box" id="logBox">暂无手表请求日志...</div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>时间</th>
+                            <th>接口端点</th>
+                        </tr>
+                    </thead>
+                    <tbody id="logTableBody">
+                        <!-- 动态加载去重后的日志表格 -->
+                    </tbody>
+                </table>
             </div>
         </div>
 
@@ -118,11 +129,11 @@
         </div>
     </div>
 
-    <!-- 在线查看模态框 -->
+    <!-- 详情 / 日志查看模态框 -->
     <div id="viewModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h3 id="modalTitle" style="margin:0;">题目详情</h3>
+                <h3 id="modalTitle" style="margin:0;">详情</h3>
                 <span class="modal-close" onclick="closeModal()">&times;</span>
             </div>
             <div id="modalBody">
@@ -133,6 +144,30 @@
 
     <script>
         const API_BASE = '/watch/pans';
+
+        // 网页端请求附加标记 { client: "web" } 避免纳入手表日志记录
+        async function fetchWithWebTag(url, options = {}) {
+            options.headers = options.headers || {};
+            options.headers['Content-Type'] = 'application/json';
+            
+            if (options.body && typeof options.body === 'string') {
+                try {
+                    let obj = JSON.parse(options.body);
+                    obj.client = 'web';
+                    options.body = JSON.stringify(obj);
+                } catch(e) {}
+            } else if (options.body && typeof options.body === 'object') {
+                options.body.client = 'web';
+                options.body = JSON.stringify(options.body);
+            } else if (!options.body && (options.method === 'POST' || options.method === 'PUT')) {
+                options.body = JSON.stringify({ client: 'web' });
+            } else if (url.includes('?')) {
+                url += '&client=web';
+            } else {
+                url += '?client=web';
+            }
+            return fetch(url, options);
+        }
 
         async function uploadAns() {
             const title = document.getElementById('titleInput').value;
@@ -145,10 +180,9 @@
             }
 
             try {
-                const res = await fetch(`${API_BASE}/upload`, {
+                const res = await fetchWithWebTag(`${API_BASE}/upload`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ title, category, raw_text })
+                    body: { title, category, raw_text }
                 });
                 const data = await res.json();
                 if (data.status === 'success') {
@@ -166,7 +200,7 @@
 
         async function loadStatus() {
             try {
-                const res = await fetch(`${API_BASE}/sync_status`);
+                const res = await fetchWithWebTag(`${API_BASE}/sync_status`);
                 const data = await res.json();
                 if (data.status === 'success') {
                     const tbody = document.getElementById('statusTableBody');
@@ -196,7 +230,7 @@
 
         async function loadTasks() {
             try {
-                const res = await fetch(`${API_BASE}/tasks`);
+                const res = await fetchWithWebTag(`${API_BASE}/tasks`);
                 const data = await res.json();
                 if (data.status === 'success') {
                     const tbody = document.getElementById('taskTableBody');
@@ -219,25 +253,60 @@
 
         async function loadLogs() {
             try {
-                const res = await fetch(`${API_BASE}/logs`);
+                const res = await fetchWithWebTag(`${API_BASE}/logs`);
                 const data = await res.json();
                 if (data.status === 'success') {
-                    const logBox = document.getElementById('logBox');
-                    if (data.logs.length === 0) {
-                        logBox.innerHTML = '暂无手表专用 API 请求日志...';
-                    } else {
-                        logBox.innerHTML = data.logs.map(l => `[${l.time}] ${l.endpoint} -> ${JSON.stringify(l.data)}`).join('\n');
+                    const tbody = document.getElementById('logTableBody');
+                    tbody.innerHTML = '';
+                    
+                    // 刷新时进行去重：按 endpoint 和 data 的内容或保留最新的唯一请求
+                    const rawLogs = data.logs || [];
+                    const seen = new Set();
+                    const uniqueLogs = [];
+                    rawLogs.forEach(l => {
+                        // 以 endpoint + 简要数据作为去重 key
+                        const key = l.endpoint + "_" + JSON.stringify(l.data);
+                        if (!seen.has(key)) {
+                            seen.add(key);
+                            uniqueLogs.push(l);
+                        }
+                    });
+
+                    if (uniqueLogs.length === 0) {
+                        tbody.innerHTML = `<tr><td colspan="2" style="text-align:center; color:#888;">暂无手表专用 API 请求日志...</td></tr>`;
+                        return;
                     }
+
+                    uniqueLogs.forEach(l => {
+                        const tr = document.createElement('tr');
+                        tr.className = 'log-row';
+                        tr.innerHTML = `
+                            <td>${l.time}</td>
+                            <td><strong>${l.endpoint}</strong></td>
+                        `;
+                        // 悬停或点击时显示详情
+                        tr.onclick = () => showLogDetail(l);
+                        tbody.appendChild(tr);
+                    });
                 }
             } catch (e) {
                 console.error(e);
             }
         }
 
+        function showLogDetail(log) {
+            document.getElementById('modalTitle').innerText = `手表请求详情: ${log.endpoint}`;
+            let html = `<p><strong>请求时间:</strong> ${log.time}</p>`;
+            html += `<p><strong>端点:</strong> ${log.endpoint}</p>`;
+            html += `<h4>请求负载 / 参数:</h4><pre style="background:#f8f9fa;padding:10px;border-radius:4px;max-height:200px;overflow:auto;">${JSON.stringify(log.data, null, 2)}</pre>`;
+            document.getElementById('modalBody').innerHTML = html;
+            document.getElementById('viewModal').style.display = 'flex';
+        }
+
         async function clearLogs() {
             if (!confirm('确定清空所有手表 API 请求日志吗？')) return;
             try {
-                await fetch(`${API_BASE}/logs/clear`, { method: 'POST' });
+                await fetchWithWebTag(`${API_BASE}/logs/clear`, { method: 'POST' });
                 loadLogs();
             } catch (e) {
                 console.error(e);
@@ -247,7 +316,7 @@
         async function deleteAns(ans_id) {
             if (!confirm(`确定删除题目 ${ans_id} 吗？`)) return;
             try {
-                const res = await fetch(`${API_BASE}/delete/${ans_id}`, { method: 'DELETE' });
+                const res = await fetchWithWebTag(`${API_BASE}/delete/${ans_id}`, { method: 'DELETE' });
                 const data = await res.json();
                 if (data.status === 'success') {
                     loadStatus();
@@ -260,7 +329,7 @@
 
         async function resyncAns(ans_id) {
             try {
-                const res = await fetch(`${API_BASE}/resync/${ans_id}`, { method: 'POST' });
+                const res = await fetchWithWebTag(`${API_BASE}/resync/${ans_id}`, { method: 'POST' });
                 const data = await res.json();
                 if (data.status === 'success') {
                     alert(data.message);
@@ -276,7 +345,7 @@
 
         async function viewAns(ans_id) {
             try {
-                const res = await fetch(`${API_BASE}/get/${ans_id}`);
+                const res = await fetchWithWebTag(`${API_BASE}/get/${ans_id}`);
                 const data = await res.json();
                 if (data.status === 'success' && data.data) {
                     const item = data.data;
