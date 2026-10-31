@@ -32,9 +32,6 @@
       "pages/index": {
         "component": "index"
       },
-      "pages/category": {
-        "component": "index"
-      },
       "pages/settings": {
         "component": "index"
       },

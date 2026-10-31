@@ -37,6 +37,7 @@ from zBNPApi import bnp_bp
 from zLogApi import log_bp
 from zCodeStatusApi import codestatus_bp
 from zAnsApi import ans_bp
+from zPAnsApi import p_ans_bp
 
 app = Flask(__name__)
 # 配置请求大小限制
@@ -45,6 +46,7 @@ app.register_blueprint(lk_bp)
 app.register_blueprint(inovel_bp)
 app.register_blueprint(lk_cache_viewer_bp)
 app.register_blueprint(log_bp)
+app.register_blueprint(p_ans_bp)
 app.register_blueprint(bnp_bp)
 app.register_blueprint(codestatus_bp)
 app.register_blueprint(ans_bp)

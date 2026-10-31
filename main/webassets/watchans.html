@@ -5,28 +5,39 @@
     <title>WatchAns 管理控制台 (Perseus AST)</title>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; padding: 20px; background: #f0f2f5; color: #333; }
-        .container { max-width: 1200px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .container { max-width: 1300px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
         .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); margin-bottom: 20px; }
-        h2 { margin-top: 0; font-size: 1.2rem; border-bottom: 2px solid #007bff; padding-bottom: 8px; }
+        h2 { margin-top: 0; font-size: 1.2rem; border-bottom: 2px solid #007bff; padding-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
         .form-group { margin-bottom: 12px; }
         label { display: block; margin-bottom: 4px; font-weight: 600; font-size: 0.9rem; }
         input, select, textarea { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; font-size: 0.9rem; }
         textarea { height: 120px; resize: vertical; font-family: monospace; }
-        button { background: #007bff; color: white; border: none; padding: 10px 16px; border-radius: 4px; cursor: pointer; font-weight: 600; }
+        button { background: #007bff; color: white; border: none; padding: 8px 14px; border-radius: 4px; cursor: pointer; font-weight: 600; font-size: 0.85rem; }
         button:hover { background: #0056b3; }
+        button.danger { background: #dc3545; }
+        button.danger:hover { background: #c82333; }
+        button.success { background: #28a745; }
+        button.success:hover { background: #218838; }
+        button.secondary { background: #6c757d; }
+        button.secondary:hover { background: #5a6268; }
         table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.85rem; }
         th, td { border: 1px solid #ddd; padding: 6px 8px; text-align: left; }
         th { background: #f8f9fa; }
         .badge { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; font-weight: bold; }
         .badge.synced { background: #d4edda; color: #155724; }
         .badge.pending { background: #fff3cd; color: #856404; }
-        .full-width { grid-column: span 2; }
         .log-box { background: #1e1e1e; color: #dcdcdc; padding: 10px; border-radius: 4px; font-family: monospace; height: 180px; overflow-y: auto; font-size: 0.8rem; }
+        .action-btns { display: flex; gap: 4px; }
+        /* 模态框样式 */
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); justify-content: center; align-items: center; }
+        .modal-content { background: white; padding: 20px; border-radius: 8px; width: 600px; max-height: 80vh; overflow-y: auto; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #ddd; padding-bottom: 8px; margin-bottom: 12px; }
+        .modal-close { cursor: pointer; font-size: 1.2rem; font-weight: bold; }
     </style>
 </head>
 <body>
     <div class="container">
-        <!-- 左侧：输入与上传 -->
+        <!-- 左侧：输入与手表专用请求日志 -->
         <div>
             <div class="card">
                 <h2>📥 新增题目 / 解析文本 (AST)</h2>
@@ -47,21 +58,28 @@
                     <label>Markdown / LaTeX 原始文本</label>
                     <textarea id="rawTextInput" placeholder="支持 \frac{a}{b}, \sqrt{x}, \ce{H2O}, 等..."></textarea>
                 </div>
-                <button onclick="uploadAns()">处理并同步到手表</button>
+                <button class="success" onclick="uploadAns()">处理并同步到手表</button>
             </div>
 
             <div class="card">
-                <h2>📡 最近手表 API 请求日志</h2>
-                <button onclick="loadLogs()" style="margin-bottom: 10px; padding: 4px 8px; font-size: 0.8rem;">刷新日志</button>
-                <div class="log-box" id="logBox">暂无日志...</div>
+                <h2>
+                    <span>⌚ 最近手表专用 API 请求日志</span>
+                    <div>
+                        <button class="secondary" onclick="loadLogs()" style="padding: 2px 6px; font-size: 0.75rem;">刷新</button>
+                        <button class="danger" onclick="clearLogs()" style="padding: 2px 6px; font-size: 0.75rem;">清空日志</button>
+                    </div>
+                </h2>
+                <div class="log-box" id="logBox">暂无手表请求日志...</div>
             </div>
         </div>
 
-        <!-- 右侧：列表与同步状态 -->
+        <!-- 右侧：题目列表与同步状态 -->
         <div>
             <div class="card">
-                <h2>📋 题目列表与同步状态</h2>
-                <button onclick="loadStatus()" style="margin-bottom: 10px; padding: 4px 8px; font-size: 0.8rem;">刷新列表</button>
+                <h2>
+                    <span>📋 题目列表与同步状态</span>
+                    <button class="secondary" onclick="loadStatus()" style="padding: 2px 6px; font-size: 0.75rem;">刷新</button>
+                </h2>
                 <table>
                     <thead>
                         <tr>
@@ -79,8 +97,10 @@
             </div>
 
             <div class="card">
-                <h2>⚡ 当前同步队列 (Tasks)</h2>
-                <button onclick="loadTasks()" style="margin-bottom: 10px; padding: 4px 8px; font-size: 0.8rem;">刷新队列</button>
+                <h2>
+                    <span>⚡ 当前同步队列 (Tasks)</span>
+                    <button class="secondary" onclick="loadTasks()" style="padding: 2px 6px; font-size: 0.75rem;">刷新</button>
+                </h2>
                 <table>
                     <thead>
                         <tr>
@@ -94,6 +114,19 @@
                         <!-- 动态加载 -->
                     </tbody>
                 </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- 在线查看模态框 -->
+    <div id="viewModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modalTitle" style="margin:0;">题目详情</h3>
+                <span class="modal-close" onclick="closeModal()">&times;</span>
+            </div>
+            <div id="modalBody">
+                <!-- 动态填充 -->
             </div>
         </div>
     </div>
@@ -123,7 +156,6 @@
                     document.getElementById('rawTextInput').value = '';
                     loadStatus();
                     loadTasks();
-                    loadLogs();
                 } else {
                     alert('处理失败: ' + data.message);
                 }
@@ -146,7 +178,13 @@
                             <td>${item.title}</td>
                             <td>${item.category}</td>
                             <td>${item.synced ? '<span class="badge synced">已同步</span>' : '<span class="badge pending">待同步</span>'}</td>
-                            <td>-</td>
+                            <td>
+                                <div class="action-btns">
+                                    <button class="success" onclick="viewAns('${item.ans_id}')" style="padding:2px 6px;">查看</button>
+                                    <button onclick="resyncAns('${item.ans_id}')" style="padding:2px 6px;">同步</button>
+                                    <button class="danger" onclick="deleteAns('${item.ans_id}')" style="padding:2px 6px;">删除</button>
+                                </div>
+                            </td>
                         `;
                         tbody.appendChild(tr);
                     });
@@ -185,11 +223,80 @@
                 const data = await res.json();
                 if (data.status === 'success') {
                     const logBox = document.getElementById('logBox');
-                    logBox.innerHTML = data.logs.map(l => `[${l.time}] ${l.endpoint} -> ${JSON.stringify(l.data)}`).join('\n');
+                    if (data.logs.length === 0) {
+                        logBox.innerHTML = '暂无手表专用 API 请求日志...';
+                    } else {
+                        logBox.innerHTML = data.logs.map(l => `[${l.time}] ${l.endpoint} -> ${JSON.stringify(l.data)}`).join('\n');
+                    }
                 }
             } catch (e) {
                 console.error(e);
             }
+        }
+
+        async function clearLogs() {
+            if (!confirm('确定清空所有手表 API 请求日志吗？')) return;
+            try {
+                await fetch(`${API_BASE}/logs/clear`, { method: 'POST' });
+                loadLogs();
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        async function deleteAns(ans_id) {
+            if (!confirm(`确定删除题目 ${ans_id} 吗？`)) return;
+            try {
+                const res = await fetch(`${API_BASE}/delete/${ans_id}`, { method: 'DELETE' });
+                const data = await res.json();
+                if (data.status === 'success') {
+                    loadStatus();
+                    loadTasks();
+                }
+            } catch (e) {
+                alert('删除失败: ' + e);
+            }
+        }
+
+        async function resyncAns(ans_id) {
+            try {
+                const res = await fetch(`${API_BASE}/resync/${ans_id}`, { method: 'POST' });
+                const data = await res.json();
+                if (data.status === 'success') {
+                    alert(data.message);
+                    loadStatus();
+                    loadTasks();
+                } else {
+                    alert('重新同步失败: ' + data.message);
+                }
+            } catch (e) {
+                alert('请求异常: ' + e);
+            }
+        }
+
+        async function viewAns(ans_id) {
+            try {
+                const res = await fetch(`${API_BASE}/get/${ans_id}`);
+                const data = await res.json();
+                if (data.status === 'success' && data.data) {
+                    const item = data.data;
+                    document.getElementById('modalTitle').innerText = item.title + ` (${item.category})`;
+                    let html = `<p><strong>ID:</strong> ${item.ans_id} | <strong>总页数:</strong> ${item.total_pages}</p>`;
+                    html += `<h4>原始文本:</h4><pre style="background:#f8f9fa;padding:10px;border-radius:4px;">${item.raw_text}</pre>`;
+                    html += `<h4>AST 结构预览 (共 ${item.pages.length} 页):</h4>`;
+                    item.pages.forEach((p, idx) => {
+                        html += `<div style="border:1px solid #ddd;padding:8px;margin-bottom:6px;border-radius:4px;"><strong>第 ${idx+1} 页:</strong><pre style="font-size:0.75rem;max-height:120px;overflow:auto;">${JSON.stringify(p.blocks, null, 2)}</pre></div>`;
+                    });
+                    document.getElementById('modalBody').innerHTML = html;
+                    document.getElementById('viewModal').style.display = 'flex';
+                }
+            } catch (e) {
+                alert('获取详情失败: ' + e);
+            }
+        }
+
+        function closeModal() {
+            document.getElementById('viewModal').style.display = 'none';
         }
 
         window.onload = () => {

@@ -26,6 +26,8 @@ def save_tasks(tasks):
         json.dump(tasks, f, ensure_ascii=False, indent=2)
 
 def log_api_request(endpoint, data):
+    # 只记录来自手表的 API 请求（通过请求头或路径中确认手表标识，或者凡是 /watch/pans/ 且明确包含同步/获取/ack等操作）
+    # 手表通常调用 /watch/pans/tasks, /watch/pans/get/, /watch/pans/task/ack
     logs = []
     if os.path.exists(LOGS_FILE):
         try:
@@ -69,7 +71,6 @@ class PAnsProcessor:
                 block_type = "block_math"
                 line = line[2:-2].strip()
 
-            # 解析内联公式或整行文本为 zLatex AST 结构
             ast_nodes = parser.parse_latex(line)
             blocks.append({
                 "block_type": block_type,
@@ -147,8 +148,8 @@ def get_pans_ans(ans_id):
 
 @p_ans_bp.route("/watch/pans/upload", methods=["POST"])
 def upload_pans_ans():
+    # 后台网页端上传不计入“手表API请求”
     data = request.json or {}
-    log_api_request("/watch/pans/upload", {"title": data.get("title"), "category": data.get("category"), "length": len(data.get("raw_text", ""))})
     raw_text = data.get("raw_text", "")
     title = data.get("title", "未命名题目")
     category = data.get("category", "数学")
@@ -181,7 +182,6 @@ def upload_pans_ans():
 
 @p_ans_bp.route("/watch/pans/list", methods=["GET"])
 def list_pans_ans():
-    log_api_request("/watch/pans/list", dict(request.args))
     items = []
     if os.path.exists(CACHE_DIR):
         for fname in os.listdir(CACHE_DIR):
@@ -201,6 +201,46 @@ def list_pans_ans():
                     pass
     return jsonify({"status": "success", "items": items})
 
+@p_ans_bp.route("/watch/pans/delete/<ans_id>", methods=["DELETE", "POST"])
+def delete_pans_ans(ans_id):
+    cache_path = os.path.join(CACHE_DIR, f"{ans_id}.json")
+    if os.path.exists(cache_path):
+        os.remove(cache_path)
+    tasks = load_tasks()
+    tasks = [t for t in tasks if t.get("ans_id") != ans_id and t.get("id") != ans_id]
+    save_tasks(tasks)
+    return jsonify({"status": "success", "deleted": ans_id})
+
+@p_ans_bp.route("/watch/pans/resync/<ans_id>", methods=["POST"])
+def resync_pans_ans(ans_id):
+    cache_path = os.path.join(CACHE_DIR, f"{ans_id}.json")
+    if not os.path.exists(cache_path):
+        return jsonify({"status": "error", "message": "Solution not found"}), 404
+    
+    try:
+        with open(cache_path, 'r', encoding='utf-8') as f:
+            d = json.load(f)
+            title = d.get("title", "未命名题目")
+            category = d.get("category", "数学")
+    except:
+        title = "未命名题目"
+        category = "数学"
+
+    tasks = load_tasks()
+    tasks = [t for t in tasks if t.get("ans_id") != ans_id]
+    task_id = f"task_{ans_id}_{int(os.path.getmtime(cache_path) if os.path.exists(cache_path) else 0)}"
+    new_task = {
+        "id": task_id,
+        "task_id": task_id,
+        "action": "download",
+        "ans_id": ans_id,
+        "title": title,
+        "category": category
+    }
+    tasks.append(new_task)
+    save_tasks(tasks)
+    return jsonify({"status": "success", "message": f"已重新加入同步队列: {title}", "task": new_task})
+
 @p_ans_bp.route("/watch/pans/logs", methods=["GET"])
 def get_recent_logs():
     logs = []
@@ -211,6 +251,13 @@ def get_recent_logs():
         except:
             logs = []
     return jsonify({"status": "success", "logs": logs})
+
+@p_ans_bp.route("/watch/pans/logs/clear", methods=["POST", "DELETE"])
+def clear_recent_logs():
+    if os.path.exists(LOGS_FILE):
+        with open(LOGS_FILE, 'w', encoding='utf-8') as f:
+            json.dump([], f)
+    return jsonify({"status": "success", "message": "手表 API 请求日志已清空"})
 
 @p_ans_bp.route("/watch/pans/sync_status", methods=["GET"])
 def get_sync_status():
