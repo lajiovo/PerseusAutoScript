@@ -97,8 +97,8 @@ def start_process(path, hide=False):
 
 def get_real_mumu_hwnds():
     """获取所有符合条件的真实可见 MuMu 窗口句柄列表"""
-    window_keywords = ["MuMu", "MuMuPlayer", "MuMuNxMain"]
-    black_keywords = ["aiot ide"]  # 排除黑名单
+    window_keywords = ["mumu", "mumunxmain","安卓设备","模拟器","mumunvdevice"]
+    black_keywords = ["ide","aiot","chrome"]  # 排除黑名单
     hwnds = []
 
     def enum_windows_callback(hwnd, extra):
@@ -121,7 +121,7 @@ def get_real_mumu_hwnds():
             rect = win32gui.GetWindowRect(hwnd)
             width = rect[2] - rect[0]
             height = rect[3] - rect[1]
-            if width > 100 and height > 100:
+            if width > 25 and height > 25:
                 print(f"-> 捕捉到窗口: '{title}' [{width}x{height}] HWND: {hwnd}")
                 hwnds.append(hwnd)
         return True
