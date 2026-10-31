@@ -9,7 +9,8 @@ import ctypes
 import subprocess
 import threading
 import multiprocessing
-from flask import Flask, request, send_from_directory,abort
+from flask import Flask, request, send_from_directory,abort,Response
+import requests
 from pathlib import Path
 import urllib.request
 import win32gui
@@ -55,6 +56,8 @@ QBOT_IDENTIFIER = get_config("pushserver.qbot.identifier")
 
 # 全局状态控制与定时器线程锁/事件控制
 HANDLEPUSH = True
+FORCESTOP = False
+QBOTSTOP = False
 timer_thread = None
 timer_event = threading.Event()  # 用于优雅控制和停止定时器线程
 timer_counter = 0
@@ -85,6 +88,9 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 WEBASSETS_DIR = os.path.join(BASE_DIR, "webassets")
 
 cpurls = []
+
+# 目标转发的基础地址
+TARGET_BASE_URL = "http://127.0.0.1:25567/bot"
 
 def parse_bool(val):
     if isinstance(val, bool):
@@ -629,8 +635,11 @@ def start_alas_mumu_check_timer():
                         print("今日已重启过qbot")
                     else:
                         try:
-                            print("今日尚未重启过qbot")
-                            start_qbot_process()
+                            if QBOTSTOP :
+                                print("QBOT重启被禁用")
+                            else:
+                                print("正在重启QBOT")
+                                start_qbot_process()
                             print("今日也没有签到pgrjz")
                             zPGRJZ.run(headless=True)
                         except Exception as e :
@@ -1540,12 +1549,23 @@ def handle_stop():
     PerseusNotifyMsg(str({"status": "ok", "message": "服务已进入待机状态"}),"")
     return format_response({"status": "ok", "message": "服务已进入待机状态"}, 200)
 
-@app.route("/start", methods=["GET", "POST"])
-def handle_start():
-    """接收 /start 请求，恢复运行状态"""
-    global HANDLEPUSH
-    HANDLEPUSH = True
-    
+@app.route("/forcestop", methods=["GET", "POST"])
+def force_stop():
+    """接收 /forcestop 请求，进入待机状态"""
+    print("收到forcestop请求")
+    global FORCESTOP
+    enter_standby()
+    FORCESTOP = True
+    PerseusNotifyMsg(str({"status": "ok", "message": "服务已进入待机状态"}),"")
+    return format_response({"status": "ok", "message": "服务已进入待机状态"}, 200)
+
+@app.route("/forcestart", methods=["GET", "POST"])
+def force_start():
+    """接收 /forcestart 请求，进入待机状态"""
+    print("收到forcestart请求")
+    global FORCESTOP
+    enter_standby()
+    FORCESTOP = False
     try:
         print("▶️ 收到 /start 请求，正在运行 zMumu.hidemumu()")
         zMumu.hidemumu()
@@ -1559,11 +1579,37 @@ def handle_start():
             _save_stats(stats)
         print("⏱️ [统计模块] autocheck处理次数+1")
     except Exception as e:
-        print(f"⚠️ 运行 run_alas_mumu_check 出现异常: {e}")
-        
+        print(f"⚠️ 运行 run_alas_mumu_check 出现异常: {e}")  
     start_alas_mumu_check_timer()
-    PerseusNotifyMsg(str({"status": "ok", "message": "服务已重新启动并恢复处理"}),"")
-    return format_response({"status": "ok", "message": "服务已重新启动并恢复处理"}, 200)
+    PerseusNotifyMsg(str({"status": "ok", "message": "服务已恢复"}),"")
+    return format_response({"status": "ok", "message": "服务已恢复"}, 200)
+
+@app.route("/start", methods=["GET", "POST"])
+def handle_start():
+    """接收 /start 请求，恢复运行状态"""
+    global HANDLEPUSH , FORCESTOP
+    if FORCESTOP :
+        return format_response({"status": "error", "message": "服务已被强制禁用"}, 200)
+    else:
+        HANDLEPUSH = True
+        try:
+            print("▶️ 收到 /start 请求，正在运行 zMumu.hidemumu()")
+            zMumu.hidemumu()
+            print("▶️ 收到 /start 请求，正在运行 zAlas.start()")
+            zAlas.start()
+            print("正在运行 run_alas_mumu_check...")
+            run_alas_mumu_check()
+            with stats_lock:
+                stats = _load_stats()
+                stats["auto_check_count"] += 1
+                _save_stats(stats)
+            print("⏱️ [统计模块] autocheck处理次数+1")
+        except Exception as e:
+            print(f"⚠️ 运行 run_alas_mumu_check 出现异常: {e}")
+            
+        start_alas_mumu_check_timer()
+        PerseusNotifyMsg(str({"status": "ok", "message": "服务已重新启动并恢复处理"}),"")
+        return format_response({"status": "ok", "message": "服务已重新启动并恢复处理"}, 200)
 
 @app.route("/shutdown", methods=["GET", "POST"])
 def handle_shutdown():
@@ -1627,10 +1673,12 @@ def handle_restart():
 
 # ==================== 新增：Bot 启动与关闭路由 ====================
 
-@app.route("/bot/start", methods=["GET", "POST"])
+@app.route("/qbot/start", methods=["GET", "POST"])
+@app.route("/qbot/restart", methods=["GET", "POST"])
 def handle_bot_start():
-    """接收 /bot/start 请求：先杀死旧的 QBot 进程，再用 pythonw 后台无窗口拉起"""
+    """接收 /qbot/start 请求：先杀死旧的 QBot 进程，再用 pythonw 后台无窗口拉起"""
     try:
+        QBOTSTOP = False
         start_qbot_process()
         return format_response({
             "status": "ok", 
@@ -1643,9 +1691,19 @@ def handle_bot_start():
             "message": f"QBot 启动失败: {str(e)}"
         }, 500)
 
-@app.route("/bot/shutdown", methods=["GET", "POST"])
+@app.route("/qbot/forcestop", methods=["GET", "POST"])
+def qbotfstop():
+    """接收 /qbot/forcestop 请求"""
+    QBOTSTOP = True
+    kill_qbot_process()
+    return format_response({
+        "status": "ok", 
+        "message": "已强制结束QBOT进程"
+    }, 200)
+
+@app.route("/qbot/shutdown", methods=["GET", "POST"])
 def handle_bot_shutdown():
-    """接收 /bot/shutdown 请求：精准结束 QBot 进程"""
+    """接收 /qbot/shutdown 请求：精准结束 QBot 进程"""
     PerseusErrorMsg("","收到 bot/shutdown 请求：将结束 QBot 进程")
     try:
         kill_qbot_process()
@@ -1659,6 +1717,41 @@ def handle_bot_shutdown():
             "status": "error", 
             "message": f"QBot 查杀失败: {str(e)}"
         }, 500)
+
+@app.route("/bot", defaults={"subpath": ""}, methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"])
+@app.route("/bot/<path:subpath>", methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"])
+def proxy_bot(subpath):
+    # 拼接完整的目标 URL
+    target_url = f"{TARGET_BASE_URL}/{subpath}" if subpath else TARGET_BASE_URL
+    
+    # 过滤掉原请求的 Host 头，防止目标服务器识别错误
+    headers = {key: value for key, value in request.headers if key.lower() != 'host'}
+    
+    try:
+        # 使用 requests 转发请求（支持 GET、POST 及其他所有方法）
+        resp = requests.request(
+            method=request.method,
+            url=target_url,
+            headers=headers,
+            data=request.get_data(),
+            cookies=request.cookies,
+            params=request.args,
+            allow_redirects=False,
+            timeout=30
+        )
+        
+        # 过滤掉底层的传输头（Hop-by-hop headers）
+        excluded_headers = ['content-encoding', 'content-length', 'transfer-encoding', 'connection']
+        response_headers = [
+            (name, value) for name, value in resp.raw.headers.items() 
+            if name.lower() not in excluded_headers
+        ]
+        
+        # 返回从目标服务器得到的内容和状态码
+        return Response(resp.content, resp.status_code, response_headers)
+        
+    except requests.exceptions.RequestException as e:
+        return {"error": f"Proxy error: {str(e)}"}, 500
 
 # ==================== Web 帮助与运行路由 ====================
 
@@ -1728,7 +1821,9 @@ def handle_pushlog_get(level, span):
 def handle_ping():
     return format_response({"handlepush": HANDLEPUSH,
         "mumu_running": zMumu.is_mumu_running(),
-        "alas_running": zAlas.is_process_running()}, 200)
+        "alas_running": zAlas.is_process_running(),
+        "force_stop": FORCESTOP,
+        "qbot_stop": QBOTSTOP}, 200)
 
 @app.route("/getip", methods=["GET"])
 @app.route("/main/getip", methods=["GET"])
