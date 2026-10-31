@@ -28,6 +28,7 @@ from zFfmpeg import process_audio as ffmrun
 import zCpolar
 from zLK import crawl_lightnovel_to_epub
 from zConfig import get_config
+import zPlaywrightNew
 
 from zLKserver import lk_bp
 from zInovelServer import inovel_bp
@@ -1559,6 +1560,7 @@ def receive_push():
 # ==================== 控制路由命令 ====================
 
 @app.route("/stop", methods=["GET", "POST"])
+@app.route("/main/stop", methods=["GET", "POST"])
 def handle_stop():
     """接收 /stop 请求，进入待机状态"""
     enter_standby()
@@ -1566,6 +1568,7 @@ def handle_stop():
     return format_response({"status": "ok", "message": "服务已进入待机状态"}, 200)
 
 @app.route("/forcestop", methods=["GET", "POST"])
+@app.route("/main/forcestop", methods=["GET", "POST"])
 def force_stop():
     """接收 /forcestop 请求，进入待机状态"""
     print("收到forcestop请求")
@@ -1576,6 +1579,7 @@ def force_stop():
     return format_response({"status": "ok", "message": "服务已进入待机状态"}, 200)
 
 @app.route("/forcestart", methods=["GET", "POST"])
+@app.route("/main/forcestart", methods=["GET", "POST"])
 def force_start():
     """接收 /forcestart 请求，进入待机状态"""
     print("收到forcestart请求")
@@ -1601,6 +1605,7 @@ def force_start():
     return format_response({"status": "ok", "message": "服务已恢复"}, 200)
 
 @app.route("/start", methods=["GET", "POST"])
+@app.route("/main/start", methods=["GET", "POST"])
 def handle_start():
     """接收 /start 请求，恢复运行状态"""
     global HANDLEPUSH , FORCESTOP
@@ -1691,6 +1696,8 @@ def handle_restart():
 
 @app.route("/qbot/start", methods=["GET", "POST"])
 @app.route("/qbot/restart", methods=["GET", "POST"])
+@app.route("/main/qbot/start", methods=["GET", "POST"])
+@app.route("/main/qbot/restart", methods=["GET", "POST"])
 def handle_bot_start():
     """接收 /qbot/start 请求：先杀死旧的 QBot 进程，再用 pythonw 后台无窗口拉起"""
     try:
@@ -1709,6 +1716,7 @@ def handle_bot_start():
         }, 500)
 
 @app.route("/qbot/forcestop", methods=["GET", "POST"])
+@app.route("/main/qbot/forcestop", methods=["GET", "POST"])
 def qbotfstop():
     global QBOTSTOP
     """接收 /qbot/forcestop 请求"""
@@ -1720,6 +1728,7 @@ def qbotfstop():
     }, 200)
 
 @app.route("/qbot/shutdown", methods=["GET", "POST"])
+@app.route("/main/qbot/shutdown", methods=["GET", "POST"])
 def handle_bot_shutdown():
     """接收 /qbot/shutdown 请求：精准结束 QBot 进程"""
     PerseusErrorMsg("","收到 bot/shutdown 请求：将结束 QBot 进程")
@@ -1880,6 +1889,15 @@ def handle_run():
     run_result = handlerun(req_data)
     PerseusNotifyMsg(str(run_result),"")
     return format_response(run_result, 200)
+
+@app.route("/main/pwupdate", methods=["GET", "POST"])
+@app.route("/pwupdate", methods=["GET", "POST"])
+def run_screeen_shot():
+    try:
+        reponse = zPlaywrightNew.main(["home", "instance", "get_resources", "get_tasks","get_screenshot"])
+        return format_response({"status":"ok","message":str(reponse)}, 200)
+    except Exception: 
+        return format_response({"status":"error","message":str(Exception)}, 200)
 
 
 @app.route("/servercache/<path:filepath>", methods=["GET"])

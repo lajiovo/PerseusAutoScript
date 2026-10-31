@@ -51,11 +51,11 @@
         <div class="card">
           <div class="card-title">系统核心控制</div>
           <div class="btn-group">
-            <button class="btn-primary" onclick="sendReq('/ping')">⚡ Ping</button>
-            <button class="btn-success" onclick="sendReq('/start')">▶️ 启动</button>
-            <button class="btn-warning" onclick="sendReq('/stop')">⏸️ 暂停</button>
-            <button class="btn-success" onclick="sendReq('/forcestart')">▶️ 强制启动</button>
-            <button class="btn-warning" onclick="sendReq('/forcestop')">⏸️ 强制暂停</button>
+            <button class="btn-primary" onclick="sendReq('/main/ping')">⚡ Ping</button>
+            <button class="btn-success" onclick="sendReq('/main/start')">▶️ 启动</button>
+            <button class="btn-warning" onclick="sendReq('/main/stop')">⏸️ 暂停</button>
+            <button class="btn-success" onclick="sendReq('/main/forcestart')">▶️ 强制启动</button>
+            <button class="btn-warning" onclick="sendReq('/main/forcestop')">⏸️ 强制暂停</button>
             <button class="btn-accent" onclick="sendReq('/restart')">🔄 重启</button>
             <button class="btn-danger" onclick="sendReq('/shutdown')">🛑 关机</button>
           </div>
@@ -65,9 +65,17 @@
         <div class="card">
           <div class="card-title">Bot 服务</div>
           <div class="btn-group">
-            <button class="btn-success" onclick="sendReq('/qbot/start')">🤖 启动</button>
-            <button class="btn-success" onclick="sendReq('/qbot/forcestop')">🤖 暂停</button>
-            <button class="btn-danger" onclick="sendReq('/qbot/shutdown')">🤖 关闭</button>
+            <button class="btn-success" onclick="sendReq('/main/qbot/start')">🤖 启动</button>
+            <button class="btn-success" onclick="sendReq('/main/qbot/forcestop')">🤖 暂停</button>
+            <button class="btn-danger" onclick="sendReq('/main/qbot/shutdown')">🤖 关闭</button>
+          </div>
+        </div>
+
+        <!-- AP 服务 -->
+        <div class="card">
+          <div class="card-title">AzurPilot限定</div>
+          <div class="btn-group">
+            <button class="btn-success" onclick="sendReq('/main/pwupdate')">刷新截图</button>
           </div>
         </div>
 
