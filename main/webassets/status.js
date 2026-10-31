@@ -41,6 +41,9 @@ async function loadAllStatusData() {
             const hpEl = document.getElementById('svHandlepush') || document.querySelector('#section-status #svHandlepush');
             const mumuEl = document.getElementById('svMumu') || document.querySelector('#section-status #svMumu');
             const alasEl = document.getElementById('svAlas') || document.querySelector('#section-status #svAlas');
+            const fsEl = document.getElementById('svForcestop') || document.querySelector('#section-status #svForcestop');
+            const qbotEl = document.getElementById('svQbot') || document.querySelector('#section-status #svQbot');
+            const qbotStopEl = document.getElementById('svQbotstop') || document.querySelector('#section-status #svQbotstop');
 
             if (hpEl) {
                 const active = data.handlepush !== undefined ? data.handlepush : true;
@@ -56,6 +59,23 @@ async function loadAllStatusData() {
                 const active = data.alas_running !== undefined ? data.alas_running : (data.alas !== undefined ? data.alas : true);
                 alasEl.textContent = active ? '🟢 运行中' : '⚪ 未运行';
                 alasEl.className = active ? 'text-xs font-bold px-2.5 py-1 rounded bg-emerald-950/60 text-emerald-300' : 'text-xs font-bold px-2.5 py-1 rounded bg-slate-800 text-slate-400';
+            }
+            if (fsEl) {
+                const rawVal = data.force_stop !== undefined ? data.force_stop : (data.forcestop !== undefined ? data.forcestop : false);
+                const active = !rawVal; // stop 字段为真代表停止，因此取反
+                fsEl.textContent = active ? '🟢 正常' : '🔴 已强制停止';
+                fsEl.className = active ? 'text-xs font-bold px-2.5 py-1 rounded bg-emerald-950/60 text-emerald-300' : 'text-xs font-bold px-2.5 py-1 rounded bg-rose-950/60 text-rose-300';
+            }
+            if (qbotEl) {
+                const active = data.bot_running !== undefined ? data.bot_running : (data.qbot !== undefined ? data.qbot : true);
+                qbotEl.textContent = active ? '🟢 运行中' : '⚪ 未运行';
+                qbotEl.className = active ? 'text-xs font-bold px-2.5 py-1 rounded bg-emerald-950/60 text-emerald-300' : 'text-xs font-bold px-2.5 py-1 rounded bg-slate-800 text-slate-400';
+            }
+            if (qbotStopEl) {
+                const rawVal = data.qbot_stop !== undefined ? data.qbot_stop : (data.qbotstop !== undefined ? data.qbotstop : false);
+                const active = !rawVal; // stop 字段为真代表停止，因此取反
+                qbotStopEl.textContent = active ? '🟢 正常' : '🔴 已停止';
+                qbotStopEl.className = active ? 'text-xs font-bold px-2.5 py-1 rounded bg-emerald-950/60 text-emerald-300' : 'text-xs font-bold px-2.5 py-1 rounded bg-rose-950/60 text-rose-300';
             }
         }
     } catch (e) {

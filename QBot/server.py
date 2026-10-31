@@ -276,6 +276,10 @@ def start_http_servers(client_instance):
             if path_part == "/push":
                 return self._dispatch_push({}, query_params)
 
+            if path_part == "/ping" or path_part == "/bot/ping":
+                self._send_json({"status": "success", "message": True})
+                return
+
             # 【免密状态查询】提供 /bot/status/get 查询接口供外部获取机器人统计信息
             if path_part == "/bot/status/get":
                 if hasattr(client_instance, "save_bot_stats"):

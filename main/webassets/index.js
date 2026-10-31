@@ -378,17 +378,35 @@ async function initNavigation() {
 
                             <!-- 状态指示网格 -->
                             <div id="indexServiceStatus" class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+                                <!-- HandlePush 状态 -->
                                 <div class="bg-slate-100/60 dark:bg-slate-900/60 p-3 rounded-xl border border-slate-200/60 dark:border-slate-800 flex items-center justify-between">
                                     <span class="text-xs text-slate-500 dark:text-slate-400 font-medium">HandlePush 状态</span>
                                     <span id="indexSvHandlepush" class="text-xs font-bold px-2 py-0.5 rounded bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300">检查中...</span>
                                 </div>
+                                <!-- MuMu 进程状态 -->
                                 <div class="bg-slate-100/60 dark:bg-slate-900/60 p-3 rounded-xl border border-slate-200/60 dark:border-slate-800 flex items-center justify-between">
                                     <span class="text-xs text-slate-500 dark:text-slate-400 font-medium">MuMu 进程状态</span>
                                     <span id="indexSvMumu" class="text-xs font-bold px-2 py-0.5 rounded bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300">检查中...</span>
                                 </div>
+                                <!-- Alas 进程状态 -->
                                 <div class="bg-slate-100/60 dark:bg-slate-900/60 p-3 rounded-xl border border-slate-200/60 dark:border-slate-800 flex items-center justify-between">
                                     <span class="text-xs text-slate-500 dark:text-slate-400 font-medium">Alas 进程状态</span>
                                     <span id="indexSvAlas" class="text-xs font-bold px-2 py-0.5 rounded bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300">检查中...</span>
+                                </div>
+                                <!-- ForceStop 状态 -->
+                                <div class="bg-slate-100/60 dark:bg-slate-900/60 p-3 rounded-xl border border-slate-200/60 dark:border-slate-800 flex items-center justify-between">
+                                    <span class="text-xs text-slate-500 dark:text-slate-400 font-medium">ForceStop 状态</span>
+                                    <span id="indexSvForcestop" class="text-xs font-bold px-2 py-0.5 rounded bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300">检查中...</span>
+                                </div>
+                                <!-- QBot 状态 -->
+                                <div class="bg-slate-100/60 dark:bg-slate-900/60 p-3 rounded-xl border border-slate-200/60 dark:border-slate-800 flex items-center justify-between">
+                                    <span class="text-xs text-slate-500 dark:text-slate-400 font-medium">QBot 状态</span>
+                                    <span id="indexSvQbot" class="text-xs font-bold px-2 py-0.5 rounded bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300">检查中...</span>
+                                </div>
+                                <!-- QBotStop 状态 -->
+                                <div class="bg-slate-100/60 dark:bg-slate-900/60 p-3 rounded-xl border border-slate-200/60 dark:border-slate-800 flex items-center justify-between">
+                                    <span class="text-xs text-slate-500 dark:text-slate-400 font-medium">QBotStop 状态</span>
+                                    <span id="indexSvQbotstop" class="text-xs font-bold px-2 py-0.5 rounded bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300">检查中...</span>
                                 </div>
                             </div>
 
@@ -576,21 +594,41 @@ async function loadIndexSystemStatusAndDashboard() {
                 const hpEl = document.getElementById('indexSvHandlepush');
                 const mumuEl = document.getElementById('indexSvMumu');
                 const alasEl = document.getElementById('indexSvAlas');
+                const fsEl = document.getElementById('indexSvForcestop');
+                const qbotEl = document.getElementById('indexSvQbot');
+                const qbotStopEl = document.getElementById('indexSvQbotstop');
 
                 if (hpEl) {
-                const active = data.handlepush !== undefined ? data.handlepush : true;
-                hpEl.textContent = active ? '🟢 运行中' : '🔴 已暂停';
-                hpEl.className = active ? 'text-xs font-bold px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300' : 'text-xs font-bold px-2 py-0.5 rounded bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300';
+                    const active = data.handlepush !== undefined ? data.handlepush : true;
+                    hpEl.textContent = active ? '🟢 运行中' : '🔴 已暂停';
+                    hpEl.className = active ? 'text-xs font-bold px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300' : 'text-xs font-bold px-2 py-0.5 rounded bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300';
                 }
                 if (mumuEl) {
-                const active = data.mumu_running !== undefined ? data.mumu_running : true;
-                mumuEl.textContent = active ? '🟢 运行中' : '⚪ 未运行';
-                mumuEl.className = active ? 'text-xs font-bold px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300' : 'text-xs font-bold px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400';
+                    const active = data.mumu_running !== undefined ? data.mumu_running : true;
+                    mumuEl.textContent = active ? '🟢 运行中' : '⚪ 未运行';
+                    mumuEl.className = active ? 'text-xs font-bold px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300' : 'text-xs font-bold px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400';
                 }
                 if (alasEl) {
-                const active = data.alas_running !== undefined ? data.alas_running : true;
-                alasEl.textContent = active ? '🟢 运行中' : '⚪ 未运行';
-                alasEl.className = active ? 'text-xs font-bold px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300' : 'text-xs font-bold px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400';
+                    const active = data.alas_running !== undefined ? data.alas_running : true;
+                    alasEl.textContent = active ? '🟢 运行中' : '⚪ 未运行';
+                    alasEl.className = active ? 'text-xs font-bold px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300' : 'text-xs font-bold px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400';
+                }
+                if (fsEl) {
+                    // force_stop 为 true 时代表停止，因此取反作为激活状态
+                    const active = data.force_stop !== undefined ? !data.force_stop : true;
+                    fsEl.textContent = active ? '🟢 正常' : '🔴 已强制停止';
+                    fsEl.className = active ? 'text-xs font-bold px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300' : 'text-xs font-bold px-2 py-0.5 rounded bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300';
+                }
+                if (qbotEl) {
+                    const active = data.bot_running !== undefined ? data.bot_running : true;
+                    qbotEl.textContent = active ? '🟢 运行中' : '⚪ 未运行';
+                    qbotEl.className = active ? 'text-xs font-bold px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300' : 'text-xs font-bold px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400';
+                }
+                if (qbotStopEl) {
+                    // qbot_stop 为 true 时代表停止，因此取反作为激活状态
+                    const active = data.qbot_stop !== undefined ? !data.qbot_stop : true;
+                    qbotStopEl.textContent = active ? '🟢 正常' : '🔴 已停止';
+                    qbotStopEl.className = active ? 'text-xs font-bold px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300' : 'text-xs font-bold px-2 py-0.5 rounded bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300';
                 }
             }
         } catch (eSv) {

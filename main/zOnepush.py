@@ -38,6 +38,8 @@ from zCodeStatusApi import codestatus_bp
 from zAnsApi import ans_bp
 
 app = Flask(__name__)
+# 配置请求大小限制
+app.config['MAX_CONTENT_LENGTH'] = 2 * 1024 * 1024
 app.register_blueprint(lk_bp)
 app.register_blueprint(inovel_bp)
 app.register_blueprint(lk_cache_viewer_bp)
@@ -1238,7 +1240,7 @@ def handle_main_stats_get():
     try:
         
         req = urllib.request.Request("http://127.0.0.1:25567/bot/status/get", method="GET")
-        with urllib.request.urlopen(req, timeout=1.5) as resp:
+        with urllib.request.urlopen(req, timeout=0.2) as resp:
             if resp.status == 200:
                 body = resp.read().decode("utf-8")
                 bot_data = json.loads(body)
@@ -1248,7 +1250,7 @@ def handle_main_stats_get():
         try:
             
             req = urllib.request.Request("http://127.0.0.1:25567/bot/api/stats", method="GET")
-            with urllib.request.urlopen(req, timeout=1.5) as resp:
+            with urllib.request.urlopen(req, timeout=0.2) as resp:
                 if resp.status == 200:
                     body = resp.read().decode("utf-8")
                     bot_data = json.loads(body)
@@ -1262,6 +1264,9 @@ def handle_main_stats_get():
         "handlepush": HANDLEPUSH,
         "mumu_running": zMumu.is_mumu_running(),
         "alas_running": zAlas.is_process_running(),
+        "bot_running":is_bot_online(),
+        "force_stop": FORCESTOP,
+        "qbot_stop": QBOTSTOP,
         "zOnepush": {
             "auto_check_count": stats["auto_check_count"],
             "push_handle_count": stats["push_handle_count"],
@@ -1277,7 +1282,7 @@ def handle_main_bot_get():
     try:
         
         req = urllib.request.Request("http://127.0.0.1:25567/bot/status/get", method="GET")
-        with urllib.request.urlopen(req, timeout=2.0) as resp:
+        with urllib.request.urlopen(req, timeout=0.2) as resp:
             body = resp.read().decode("utf-8")
             data = json.loads(body)
             return format_response(data, resp.status)
@@ -1365,6 +1370,17 @@ def read_clipboard_cache():
         "images": images,
         "files": files
     }
+
+def is_bot_online():
+    try:
+        response = requests.get("http://127.0.0.1:25567/ping", timeout=0.1)
+        if response.status_code == 200:
+            data = response.json()
+            # 严格判断 message 字段是否为 True
+            return data.get("message") is True
+    except Exception:
+        pass
+    return False
 
 @app.route("/clipboard/file/<path:filename>", methods=["GET"])
 def serve_clipboard_file(filename):
@@ -1822,6 +1838,7 @@ def handle_ping():
     return format_response({"handlepush": HANDLEPUSH,
         "mumu_running": zMumu.is_mumu_running(),
         "alas_running": zAlas.is_process_running(),
+        "bot_running":is_bot_online(),
         "force_stop": FORCESTOP,
         "qbot_stop": QBOTSTOP}, 200)
 
