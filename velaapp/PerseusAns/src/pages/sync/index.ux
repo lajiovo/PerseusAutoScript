@@ -34,6 +34,105 @@ export default {
     const cleaned = rawData.trim().replace(/^\uFEFF/, '');
     return JSON.parse(cleaned);
   },
+
+  /**
+   * 递归规范化后端传来的题目 AST 数据，确保符合极简 AST 节点对照表
+   */
+  normalizeItemAst(node) {
+    if (!node) return null;
+    if (Array.isArray(node)) {
+      const tag = node[0];
+      switch (tag) {
+        case 't':
+          return ['t', String(node[1] || '')];
+        case 'r':
+          return ['r', (node[1] || []).map(n => this.normalizeItemAst(n))];
+        case 'f':
+          return ['f', this.normalizeItemAst(node[1]), this.normalizeItemAst(node[2])];
+        case 'sq':
+          return ['sq', this.normalizeItemAst(node[1])];
+        case 'sup_g':
+          return ['sup_g', this.normalizeItemAst(node[1]), this.normalizeItemAst(node[2])];
+        case 'sub_g':
+          return ['sub_g', this.normalizeItemAst(node[1]), this.normalizeItemAst(node[2])];
+        case 'vec':
+          return ['vec', this.normalizeItemAst(node[1])];
+        case 'chem_seq':
+          return ['chem_seq', (node[1] || []).map(n => this.normalizeItemAst(n))];
+        case 'chem_a':
+          return ['chem_a', node[1], this.normalizeItemAst(node[2]), this.normalizeItemAst(node[3])];
+        case 'm':
+        case 'paragraph':
+          return ['m', ...node.slice(1).map(n => this.normalizeItemAst(n))];
+        case 'txt':
+          return ['t', String(node[1] || '')];
+        default:
+          return ['t', String(node[1] || '')];
+      }
+    } else if (typeof node === 'object') {
+      // 兼容旧版对象嵌套结构转换为极简数组 AST
+      const blockType = node.block_type || node.type;
+      if (blockType === 'h1' || blockType === 'h2' || blockType === 'h3') {
+        return [blockType, node.raw || node.value || ''];
+      }
+      if (blockType === 'paragraph' || blockType === 'block_math' || blockType === 'm') {
+        const children = node.content || node.children || [];
+        return ['m', ...children.map(c => this.normalizeItemAst(c))];
+      }
+      if (blockType === 'fraction') {
+        return ['f', this.normalizeItemAst(node.numerator), this.normalizeItemAst(node.denominator)];
+      }
+      if (blockType === 'sqrt') {
+        return ['sq', this.normalizeItemAst(node.content)];
+      }
+      if (blockType === 'sup') {
+        return ['sup_g', this.normalizeItemAst(node.base), this.normalizeItemAst(node.value)];
+      }
+      if (blockType === 'sub') {
+        return ['sub_g', this.normalizeItemAst(node.base), this.normalizeItemAst(node.value)];
+      }
+      if (blockType === 'text') {
+        return ['t', node.value || ''];
+      }
+      if (blockType === 'bold') {
+        return ['t', node.value || '']; // 或者保留标记，根据reader支持情况
+      }
+      return ['t', node.raw || node.value || ''];
+    }
+    return ['t', String(node)];
+  },
+
+  /**
+   * 清洗整篇题目的多页/多区块数据
+   */
+  processAnsItemData(ansItem) {
+    if (!ansItem.id && ansItem.ans_id) {
+      ansItem.id = ansItem.ans_id;
+    }
+    // 适配并清洗 pages 数据结构
+    if (ansItem.pages && Array.isArray(ansItem.pages)) {
+      ansItem.pages = ansItem.pages.map(page => {
+        let rawBlocks = page.blocks || page;
+        if (!Array.isArray(rawBlocks)) rawBlocks = [rawBlocks];
+        return {
+          blocks: rawBlocks.map(block => {
+            // 如果已经是数组且符合极简规范，直接标准化内部；如果是对象则转换
+            return this.normalizeItemAst(block);
+          })
+        };
+      });
+    } else {
+      // 容灾：如果没有pages，默认包装一页
+      ansItem.pages = [{
+        blocks: [
+          ['h1', ansItem.title || '题目解析'],
+          ['m', ['t', ansItem.content || '暂无详细内容']]
+        ]
+      }];
+    }
+    ansItem.total_pages = ansItem.pages.length;
+    return ansItem;
+  },
   
   startSync() {
     if (this.isSyncing) {
@@ -103,10 +202,11 @@ export default {
             let resJson = this.safeParseJson(res.data);
             if (resJson.status === "success" && resJson.data) {
               let ansItem = resJson.data;
-              if (!ansItem.id && ansItem.ans_id) {
-                ansItem.id = ansItem.ans_id;
-              }
-              console.log(`[Sync] [任务 ${index + 1}] 题目数据正常，准备写入本地存储:`, ansItem.id);
+              
+              // 关键：对下载的题目数据应用极简 AST 规范解析清洗，使其能够被 reader.ux 完美读取
+              ansItem = this.processAnsItemData(ansItem);
+
+              console.log(`[Sync] [任务 ${index + 1}] 题目数据解析清洗完毕，准备写入本地存储:`, ansItem.id);
               
               // 保存本地成功后 ACK 并推进队列
               this.saveAndAckTask(taskId, ansItem, () => {
@@ -120,7 +220,6 @@ export default {
             }
           } catch(e) {
             console.error(`[Sync] [任务 ${index + 1}] 详情解析 JSON 失败 Error:`, e.message, "原始文本:", res.data);
-            // 避免卡死队列，异常时同样 ACK 跳过
             this.sendAck(taskId, () => {
               this.processTaskQueue(tasks, index + 1);
             });
@@ -155,7 +254,6 @@ export default {
           }
         }
         
-        // 使用 String() 统一转换类型，解决类型不匹配导致无法去重的问题
         const targetId = String(ansItem.id);
         const originalLen = list.length;
         list = list.filter(i => String(i.id || i.ans_id) !== targetId);

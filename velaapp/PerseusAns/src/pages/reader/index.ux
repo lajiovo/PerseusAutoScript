@@ -9,41 +9,93 @@
     <!-- Main Content Container with Horizontal Scroll Support -->
     <scroll class="reader-scroll" scroll-x="true" scroll-y="true">
       <div class="content-body" id="contentBody">
-        <!-- Rendered paragraphs and AST nodes -->
+        <!-- Rendered paragraphs and AST nodes based on minimalist AST mapping -->
         <block for="{{pageNodes}}">
-          <text class="h1" if="{{$item.block_type === 'h1' || $item.type === 'h1'}}">{{$item.raw || $item.value}}</text>
-          <text class="h2" if="{{$item.block_type === 'h2' || $item.type === 'h2'}}">{{$item.raw || $item.value}}</text>
-          <text class="h3" if="{{$item.block_type === 'h3' || $item.type === 'h3'}}">{{$item.raw || $item.value}}</text>
-          <div class="paragraph" if="{{$item.block_type === 'paragraph' || $item.block_type === 'block_math' || $item.type === 'paragraph'}}">
-            <block for="{{$item.content || $item.children}}">
-              <text class="text" if="{{$item.type === 'text'}}">{{$item.value}}</text>
+          <!-- Headings -->
+          <text class="h1" if="{{$item.type === 'h1'}}">{{$item.value}}</text>
+          <text class="h2" if="{{$item.type === 'h2'}}">{{$item.value}}</text>
+          <text class="h3" if="{{$item.type === 'h3'}}">{{$item.value}}</text>
+
+          <!-- Paragraph / Container (m / paragraph) -->
+          <div class="paragraph" if="{{$item.type === 'm' || $item.type === 'paragraph'}}">
+            <block for="{{$item.children}}">
+              <!-- Text node ['t', 'text'][cite: 1] -->
+              <text class="text" if="{{$item.type === 't'}}">{{$item.value}}</text>
               <text class="bold-text" if="{{$item.type === 'bold'}}">{{$item.value}}</text>
-              
-              <!-- Formula / AST rendering -->
-              <div class="ast-wrapper" if="{{$item.type === 'inline_math' || $item.type === 'formula_inline'}}">
-                <!-- Fraction -->
-                <div class="ast-fraction" if="{{($item.ast && $item.ast.type === 'fraction')}}">
-                  <text class="ast-num">{{$item.ast.numerator.value || $item.ast.numerator}}</text>
-                  <div class="ast-line"></div>
-                  <text class="ast-den">{{$item.ast.denominator.value || $item.ast.denominator}}</text>
-                </div>
-                <!-- Sqrt -->
-                <div class="ast-sqrt" if="{{($item.ast && $item.ast.type === 'sqrt')}}">
-                  <text class="ast-symbol">√</text>
-                  <text class="ast-sqrt-text">{{$item.ast.content.value || $item.ast.content}}</text>
-                </div>
-                <!-- Sup -->
-                <div class="ast-sup-wrap" if="{{($item.ast && $item.ast.type === 'sup')}}">
-                  <text class="text">{{$item.ast.base.value || $item.ast.base}}</text>
-                  <text class="ast-sup">{{$item.ast.value.value || $item.ast.value}}</text>
-                </div>
-                <!-- Sub -->
-                <div class="ast-sub-wrap" if="{{($item.ast && $item.ast.type === 'sub')}}">
-                  <text class="text">{{$item.ast.base.value || $item.ast.base}}</text>
-                  <text class="ast-sub">{{$item.ast.value.value || $item.ast.value}}</text>
-                </div>
-                <!-- Generic math fallback -->
-                <text class="formula-text" if="{{!$item.ast || ($item.ast.type !== 'fraction' && $item.ast.type !== 'sqrt' && $item.ast.type !== 'sup' && $item.ast.type !== 'sub')}}">{{$item.raw || $item.value || '[公式]'}}</text>
+
+              <!-- Horizontal combination ['r', ...][cite: 1] -->
+              <div class="ast-horizontal" if="{{$item.type === 'r'}}">
+                <block for="{{$item.children}}">
+                  <text class="text" if="{{$item.type === 't'}}">{{$item.value}}</text>
+                  <text class="bold-text" if="{{$item.type === 'bold'}}">{{$item.value}}</text>
+                  <!-- Nested fraction in horizontal -->
+                  <div class="ast-fraction" if="{{$item.type === 'f'}}">
+                    <text class="ast-num">{{$item.num.value || $item.num}}</text>
+                    <div class="ast-line"></div>
+                    <text class="ast-den">{{$item.den.value || $item.den}}</text>
+                  </div>
+                  <!-- Nested sup in horizontal -->
+                  <div class="ast-sup-wrap" if="{{$item.type === 'sup_g'}}">
+                    <text class="text">{{$item.base.value || $item.base}}</text>
+                    <text class="ast-sup">{{$item.sup.value || $item.sup}}</text>
+                  </div>
+                  <!-- Nested sub in horizontal -->
+                  <div class="ast-sub-wrap" if="{{$item.type === 'sub_g'}}">
+                    <text class="text">{{$item.base.value || $item.base}}</text>
+                    <text class="ast-sub">{{$item.sub.value || $item.sub}}</text>
+                  </div>
+                </block>
+              </div>
+
+              <!-- Fraction ['f', num, den][cite: 1] -->
+              <div class="ast-fraction" if="{{$item.type === 'f'}}">
+                <text class="ast-num">{{$item.num.value || $item.num}}</text>
+                <div class="ast-line"></div>
+                <text class="ast-den">{{$item.den.value || $item.den}}</text>
+              </div>
+
+              <!-- Square root ['sq', content][cite: 1] -->
+              <div class="ast-sqrt" if="{{$item.type === 'sq'}}">
+                <text class="ast-symbol">√</text>
+                <text class="ast-sqrt-text">{{$item.content.value || $item.content}}</text>
+              </div>
+
+              <!-- Superscript combination ['sup_g', base, sup][cite: 1] -->
+              <div class="ast-sup-wrap" if="{{$item.type === 'sup_g'}}">
+                <text class="text">{{$item.base.value || $item.base}}</text>
+                <text class="ast-sup">{{$item.sup.value || $item.sup}}</text>
+              </div>
+
+              <!-- Subscript combination ['sub_g', base, sub][cite: 1] -->
+              <div class="ast-sub-wrap" if="{{$item.type === 'sub_g'}}">
+                <text class="text">{{$item.base.value || $item.base}}</text>
+                <text class="ast-sub">{{$item.sub.value || $item.sub}}</text>
+              </div>
+
+              <!-- Vector ['vec', content][cite: 1] -->
+              <div class="ast-vec-wrap" if="{{$item.type === 'vec'}}">
+                <text class="ast-vec-arrow">→name</text>
+                <text class="text">{{$item.content.value || $item.content}}</text>
+              </div>
+
+              <!-- Chemical Equation Sequence ['chem_seq', [nodes]][cite: 1] -->
+              <div class="chem-seq-container" if="{{$item.type === 'chem_seq'}}">
+                <block for="{{$item.children}}">
+                  <text class="text" if="{{$item.type === 't'}}">{{$item.value}}</text>
+                  <!-- Chemical reaction arrow ['chem_a', symbol, top, bot][cite: 1] -->
+                  <div class="chem-arrow-box" if="{{$item.type === 'chem_a'}}">
+                    <text class="chem-arrow-top">{{$item.top ? ($item.top.value || $item.top) : ''}}</text>
+                    <text class="chem-arrow-symbol">{{$item.symbol || '→'}}</text>
+                    <text class="chem-arrow-bot">{{$item.bot ? ($item.bot.value || $item.bot) : ''}}</text>
+                  </div>
+                </block>
+              </div>
+
+              <!-- Chemical Reaction Arrow standalone -->
+              <div class="chem-arrow-box" if="{{$item.type === 'chem_a'}}">
+                <text class="chem-arrow-top">{{$item.top ? ($item.top.value || $item.top) : ''}}</text>
+                <text class="chem-arrow-symbol">{{$item.symbol || '→'}}</text>
+                <text class="chem-arrow-bot">{{$item.bot ? ($item.bot.value || $item.bot) : ''}}</text>
               </div>
             </block>
           </div>
@@ -97,10 +149,59 @@ export default {
       }
     });
   },
+  // 核心：根据极简 AST 节点对照表将数组结构转换为视图渲染对象[cite: 1]
+  normalizeAst(node) {
+    if (!node) return null;
+    if (Array.isArray(node)) {
+      const tag = node[0];
+      switch (tag) {
+        case 't':
+          return { type: 't', value: node[1] };
+        case 'r':
+          return { type: 'r', children: (node[1] || []).map(n => this.normalizeAst(n)) };
+        case 'f':
+          return { type: 'f', num: this.normalizeAst(node[1]), den: this.normalizeAst(node[2]) };
+        case 'sq':
+          return { type: 'sq', content: this.normalizeAst(node[1]) };
+        case 'sup_g':
+          return { type: 'sup_g', base: this.normalizeAst(node[1]), sup: this.normalizeAst(node[2]) };
+        case 'sub_g':
+          return { type: 'sub_g', base: this.normalizeAst(node[1]), sub: this.normalizeAst(node[2]) };
+        case 'vec':
+          return { type: 'vec', content: this.normalizeAst(node[1]) };
+        case 'chem_seq':
+          return { type: 'chem_seq', children: (node[1] || []).map(n => this.normalizeAst(n)) };
+        case 'chem_a':
+          return { type: 'chem_a', symbol: node[1], top: this.normalizeAst(node[2]), bot: this.normalizeAst(node[3]) };
+        case 'm':
+        case 'paragraph':
+          return { type: 'm', children: node.slice(1).map(n => this.normalizeAst(n)) };
+        case 'txt':
+          return { type: 't', value: node[1] };
+        default:
+          return { type: 't', value: String(node[1] || '') };
+      }
+    } else if (typeof node === 'object') {
+      return {
+        type: node.block_type || node.type || 't',
+        value: node.value || node.raw || '',
+        children: (node.content || node.children || []).map(n => this.normalizeAst(n)),
+        num: node.numerator ? this.normalizeAst(node.numerator) : null,
+        den: node.denominator ? this.normalizeAst(node.denominator) : null,
+        base: node.base ? this.normalizeAst(node.base) : null,
+        sup: node.value ? this.normalizeAst(node.value) : null,
+        sub: node.value ? this.normalizeAst(node.value) : null,
+        content: node.content ? this.normalizeAst(node.content) : null
+      };
+    }
+    return { type: 't', value: String(node) };
+  },
   updatePageContent() {
     if (this.pagesData && this.pagesData.length > this.currentPage) {
       let currentPageObj = this.pagesData[this.currentPage];
-      this.pageNodes = currentPageObj.blocks || currentPageObj || [];
+      let rawBlocks = currentPageObj.blocks || currentPageObj || [];
+      // 对当前页面的所有区块应用极简 AST 归一化处理
+      this.pageNodes = rawBlocks.map(block => this.normalizeAst(block));
     }
   },
   prevPage() {
@@ -205,6 +306,7 @@ export default {
   flex-direction: row;
   flex-wrap: wrap;
   margin-bottom: 6px;
+  align-items: center;
 }
 .text {
   font-size: 13px;
@@ -215,7 +317,7 @@ export default {
   color: #ffcc00;
   font-weight: bold;
 }
-.ast-wrapper {
+.ast-horizontal {
   flex-direction: row;
   align-items: center;
   margin: 0 2px;
@@ -272,13 +374,40 @@ export default {
   align-items: flex-end;
 }
 .ast-sub {
-  font-size: 9px;
+  font-size: 19px;
   color: #38bdf8;
   margin-left: 1px;
 }
-.formula-text {
+.ast-vec-wrap {
+  flex-direction: row;
+  align-items: center;
+  position: relative;
+}
+.ast-vec-arrow {
+  font-size: 9px;
+  color: #ff5722;
+}
+.chem-seq-container {
+  flex-direction: row;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.chem-arrow-box {
+  flex-direction: column;
+  align-items: center;
+  margin: 0 4px;
+}
+.chem-arrow-top {
+  font-size: 8px;
+  color: #a855f7;
+}
+.chem-arrow-symbol {
   font-size: 12px;
-  color: #00e5ff;
+  color: #a855f7;
+}
+.chem-arrow-bot {
+  font-size: 8px;
+  color: #a855f7;
 }
 .bottom-bar {
   flex-direction: row;

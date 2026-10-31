@@ -2,18 +2,22 @@
   <div class="container">
     <text class="title">系统设置与存储</text>
     
+    <!-- Data Sync Menu -->
     <div class="menu-item" onclick="gotoSync">
       <text class="menu-text">数据增量同步</text>
     </div>
     
+    <!-- Clear Cache Menu -->
     <div class="menu-item" onclick="clearCache">
       <text class="menu-text">一键清空本地题目缓存</text>
     </div>
 
-    <div class="menu-item">
-      <text class="menu-text">公式字号调整 (当前: 14px)</text>
+    <!-- Font Size Adjustment Menu -->
+    <div class="menu-item" onclick="changeFontSize">
+      <text class="menu-text">公式字号调整 (当前: {{fontSize}}px)</text>
     </div>
 
+    <!-- Back Button -->
     <input class="btn-back" type="button" value="返回" onclick="goBack" />
   </div>
 </template>
@@ -24,22 +28,57 @@ import storage from "@system.storage"
 import prompt from "@system.prompt"
 
 export default {
+  private: {
+    fontSize: 14 // 默认字号
+  },
+  onInit() {
+    this.loadSettings();
+  },
+  loadSettings() {
+    storage.get({
+      key: "reader_font_size",
+      success: (data) => {
+        if (data) {
+          let size = parseInt(data, 10);
+          if (!isNaN(size)) {
+            this.fontSize = size;
+          }
+        }
+      }
+    });
+  },
   gotoSync() {
     router.push({ uri: "/pages/sync" });
+  },
+  changeFontSize() {
+    // 循环切换几种常用字号: 12px -> 14px -> 16px -> 12px
+    const sizes = [12, 14, 16];
+    let nextIndex = (sizes.indexOf(this.fontSize) + 1) % sizes.length;
+    this.fontSize = sizes[nextIndex];
+
+    storage.set({
+      key: "reader_font_size",
+      value: String(this.fontSize),
+      success: () => {
+        prompt.showToast({ message: `字号已设为 ${this.fontSize}px` });
+      }
+    });
   },
   clearCache() {
     prompt.showDialog({
       title: "确认清空",
-      message: "是否清空所有本地存储的题目解析缓存？",
+      message: "是否清空所有本地存储的题目解析缓存及分类状态？",
       buttons: [
         { text: "取消", color: "#666666" },
         { text: "确定", color: "#ff0000" }
       ],
       success: (data) => {
         if (data.index === 1) {
+          // 清空本地题目及分类偏好
           storage.delete({
             key: "local_answers",
             success: () => {
+              storage.delete({ key: "current_category" });
               prompt.showToast({ message: "已清空本地缓存" });
             },
             fail: () => {
@@ -65,31 +104,31 @@ export default {
   padding: 15px;
 }
 .title {
-  font-size: 16px;
+  font-size: 15px;
   color: #ffffff;
   font-weight: bold;
-  margin-bottom: 15px;
+  margin-bottom: 12px;
   text-align: center;
 }
 .menu-item {
-  height: 45px;
+  height: 42px;
   background-color: #1a1a1a;
   border-radius: 6px;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
   justify-content: center;
-  padding-left: 15px;
+  padding-left: 12px;
 }
 .menu-text {
-  font-size: 14px;
+  font-size: 13px;
   color: #ffffff;
 }
 .btn-back {
   width: 100%;
-  height: 38px;
+  height: 35px;
   background-color: #333333;
   color: #ffffff;
-  font-size: 14px;
+  font-size: 13px;
   border-radius: 6px;
-  margin-top: 15px;
+  margin-top: 10px;
 }
 </style>

@@ -2,20 +2,26 @@
   <div class="container">
     <!-- Top Bar -->
     <div class="top-bar">
-      <text class="app-title">Perseus解析 ({{currentCategory}})</text>
-      <input class="settings-btn" type="button" value="设置" onclick="gotoSettings" />
+      <text class="app-title">Perseus ({{currentCategory}})</text>
+      <div class="top-btns">
+        <input class="sync-btn" type="button" value="同步" onclick="gotoSync" />
+        <input class="settings-btn" type="button" value="设置" onclick="gotoSettings" />
+      </div>
     </div>
 
     <!-- Main Content List -->
     <list class="list">
       <list-item type="item" for="{{ansList}}" class="list-item" onclick="gotoReader($item.id)">
-        <text class="item-title">[{{$item.category}}] {{$item.title}}</text>
-        <text class="item-summary">{{$item.summary || '共 ' + ($item.total_pages || 1) + ' 页解析'}}</text>
+        <text class="item-title">[{{$item.category || '数学'}}] {{$item.title || '无标题解析'}}</text>
+        <text class="item-summary">{{$item.summary || ('共 ' + ($item.total_pages || 1) + ' 页解析')}}</text>
       </list-item>
     </list>
 
-    <!-- Floating Category Button -->
-    <input class="fab-btn" type="button" value="分类" onclick="gotoCategory" />
+    <!-- Empty State / Hint if no data -->
+    <div class="empty-box" if="{{ansList.length === 0}}">
+      <text class="empty-text">暂无解析数据，请前往同步中心拉取</text>
+    </div>
+
   </div>
 </template>
 
@@ -62,7 +68,7 @@ export default {
             let list = JSON.parse(cleaned);
             if (!Array.isArray(list)) list = [];
             
-            // 确保每个 item 都有 id 和 category
+            // 确保每个 item 都有 id 和 category，对齐离线存储结构
             list = list.map(item => ({
               ...item,
               id: item.id || item.ans_id,
@@ -91,6 +97,10 @@ export default {
   gotoCategory() {
     router.push({ uri: "/pages/category" });
   },
+  gotoSync() {
+    // 快捷跳转到增量同步中心页面（根据实际项目路径调整，通常为 /pages/sync 或类似）
+    router.push({ uri: "/pages/sync" });
+  },
   gotoReader(id) {
     if (!id) return;
     router.push({ uri: "/pages/reader", params: { ansId: String(id) } });
@@ -115,16 +125,29 @@ export default {
   border-bottom-color: #333333;
 }
 .app-title {
-  font-size: 15px;
+  font-size: 14px;
   color: #ffffff;
   font-weight: bold;
 }
+.top-btns {
+  flex-direction: row;
+  align-items: center;
+}
+.sync-btn {
+  width: 42px;
+  height: 28px;
+  background-color: #007bff;
+  color: #ffffff;
+  font-size: 11px;
+  border-radius: 4px;
+  margin-right: 6px;
+}
 .settings-btn {
-  width: 50px;
-  height: 30px;
+  width: 42px;
+  height: 28px;
   background-color: #333333;
   color: #ffffff;
-  font-size: 12px;
+  font-size: 11px;
   border-radius: 4px;
 }
 .list {
@@ -139,24 +162,34 @@ export default {
   margin-bottom: 8px;
 }
 .item-title {
-  font-size: 15px;
-  color: #ff9900;
+  font-size: 14px;
+  color: #ffaa00;
   font-weight: bold;
 }
 .item-summary {
-  font-size: 12px;
-  color: #cccccc;
+  font-size: 11px;
+  color: #aaaaaa;
   margin-top: 4px;
+}
+.empty-box {
+  flex: 1;
+  justify-content: center;
+  align-items: center;
+}
+.empty-text {
+  font-size: 12px;
+  color: #666666;
+  text-align: center;
 }
 .fab-btn {
   position: fixed;
   right: 15px;
   bottom: 15px;
-  width: 50px;
-  height: 50px;
-  border-radius: 25px;
+  width: 45px;
+  height: 45px;
+  border-radius: 22px;
   background-color: #007bff;
   color: #ffffff;
-  font-size: 14px;
+  font-size: 13px;
 }
 </style>
