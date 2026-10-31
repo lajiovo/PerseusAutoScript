@@ -1694,6 +1694,7 @@ def handle_restart():
 def handle_bot_start():
     """接收 /qbot/start 请求：先杀死旧的 QBot 进程，再用 pythonw 后台无窗口拉起"""
     try:
+        global QBOTSTOP
         QBOTSTOP = False
         start_qbot_process()
         return format_response({
@@ -1709,6 +1710,7 @@ def handle_bot_start():
 
 @app.route("/qbot/forcestop", methods=["GET", "POST"])
 def qbotfstop():
+    global QBOTSTOP
     """接收 /qbot/forcestop 请求"""
     QBOTSTOP = True
     kill_qbot_process()
