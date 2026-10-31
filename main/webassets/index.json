@@ -94,11 +94,11 @@
                 "icon": "fa-solid fa-fire"
             },
             {
-                "title": "WatchApp",
+                "title": "PerseusAns",
                 "tag": "Watch",
                 "description": "手表数据同步",
-                "url": "/main/watch.html",
-                "code": "/main/watch.html",
+                "url": "/main/watchans.html",
+                "code": "/main/watchasns.html",
                 "icon": "fa-solid fa-rotate"
             }
         ]

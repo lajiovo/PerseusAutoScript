@@ -1,437 +1,207 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <meta charset="UTF-8">
-  <title>Vela Watch 答题解析系统 - 专业管理后台与手表模拟器</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #0b0f19; color: #f1f5f9; display: flex; height: 100vh; overflow: hidden; }
-    #app { display: flex; width: 100%; height: 100%; }
-    
-    /* 左侧控制与编辑面板 */
-    .panel-left { width: 48%; padding: 20px; border-right: 1px solid #1e293b; display: flex; flex-direction: column; gap: 14px; overflow-y: auto; background: #0f172a; }
-    .header-title { font-size: 1.25rem; font-weight: bold; color: #38bdf8; display: flex; align-items: center; justify-content: space-between; }
-    .form-group { display: flex; flex-direction: column; gap: 6px; }
-    label { font-size: 0.85rem; color: #94a3b8; font-weight: 500; }
-    input, select, textarea { background: #1e293b; border: 1px solid #334155; color: #fff; padding: 8px 12px; border-radius: 6px; font-size: 0.875rem; outline: none; }
-    input:focus, select:focus, textarea:focus { border-color: #38bdf8; box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.2); }
-    textarea { height: 140px; resize: vertical; font-family: monospace; }
-    
-    .btn { background: #0284c7; color: white; border: none; padding: 8px 14px; border-radius: 6px; cursor: pointer; font-weight: 500; display: inline-flex; justify-content: center; align-items: center; gap: 6px; font-size: 0.85rem; }
-    .btn:hover { background: #0369a1; }
-    .btn-success { background: #10b981; }
-    .btn-success:hover { background: #059669; }
-    .btn-danger { background: #ef4444; }
-    .btn-danger:hover { background: #dc2626; }
-    .btn-secondary { background: #334155; color: #cbd5e1; }
-    .btn-secondary:hover { background: #475569; }
-    
-    /* 选项卡与列表 */
-    .tabs { display: flex; gap: 6px; border-bottom: 1px solid #334155; padding-bottom: 8px; }
-    .tab-btn { background: #1e293b; border: 1px solid #334155; color: #94a3b8; cursor: pointer; padding: 6px 14px; border-radius: 6px; font-weight: 500; font-size: 0.85rem; transition: all 0.2s; }
-    .tab-btn.active { color: #fff; background: #0284c7; border-color: #0284c7; }
-    
-    .list-container { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding-right: 4px; }
-    .card-item { background: #1e293b; padding: 12px; border-radius: 8px; border: 1px solid #334155; display: flex; justify-content: space-between; align-items: center; }
-    .card-info { display: flex; flex-direction: column; gap: 4px; max-width: 65%; }
-    .card-title { font-weight: bold; font-size: 0.95rem; color: #f8fafc; }
-    .card-meta { font-size: 0.75rem; color: #94a3b8; }
-    .card-actions { display: flex; gap: 6px; align-items: center; }
-
-    /* 右侧模拟器 */
-    .panel-right { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #020617; position: relative; padding: 20px; }
-    .watch-wrapper { width: 336px; height: 480px; background: #000; border-radius: 40px; border: 12px solid #1e293b; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7); display: flex; flex-direction: column; overflow: hidden; position: relative; }
-    
-    .watch-header { height: 48px; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; border-bottom: 1px solid #1e293b; font-size: 0.85rem; color: #94a3b8; background: #0f172a; }
-    .watch-body { flex: 1; overflow-y: auto; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; font-size: 14px; line-height: 1.5; color: #f8fafc; }
-    .watch-footer { height: 48px; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; border-top: 1px solid #1e293b; background: #0f172a; }
-    
-    /* 模拟 LVGL 节点渲染 */
-    .lv-h1 { font-size: 18px; font-weight: bold; color: #ffffff; margin-top: 6px; border-bottom: 1px solid #334155; padding-bottom: 4px; }
-    .lv-h2 { font-size: 16px; font-weight: bold; color: #38bdf8; }
-    .lv-h3 { font-size: 15px; font-weight: bold; color: #cbd5e1; }
-    .lv-para { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
-    .lv-bold { font-weight: bold; color: #facc15; }
-    
-    /* AST 复杂公式与化学方程式渲染 */
-    .ast-container { display: inline-flex; align-items: center; overflow-x: auto; max-width: 100%; padding: 4px 2px; }
-    .ast-fraction { display: inline-flex; flex-direction: column; align-items: center; margin: 0 4px; vertical-align: middle; }
-    .ast-frac-num, .ast-frac-den { padding: 0 4px; font-size: 0.85em; color: #38bdf8; text-align: center; }
-    .ast-frac-line { width: 100%; height: 1px; background: #38bdf8; margin: 2px 0; }
-    .ast-sqrt { display: inline-flex; align-items: center; margin: 0 4px; border-top: 1px solid #c084fc; padding-top: 1px; color: #c084fc; }
-    .ast-sqrt::before { content: "√"; font-size: 1.1em; margin-right: 2px; }
-    .ast-sup { font-size: 0.7em; vertical-align: super; line-height: 0; color: #38bdf8; }
-    .ast-sub { font-size: 0.7em; vertical-align: sub; line-height: 0; color: #38bdf8; }
-    .ast-abs { display: inline-flex; align-items: center; border-left: 1px solid #fff; border-right: 1px solid #fff; padding: 0 4px; margin: 0 2px; }
-    .ast-chemical { font-family: monospace; color: #34d399; background: rgba(52, 211, 153, 0.1); padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(52, 211, 153, 0.2); }
-  </style>
+    <meta charset="UTF-8">
+    <title>WatchAns 管理控制台 (Perseus AST)</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; padding: 20px; background: #f0f2f5; color: #333; }
+        .container { max-width: 1200px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); margin-bottom: 20px; }
+        h2 { margin-top: 0; font-size: 1.2rem; border-bottom: 2px solid #007bff; padding-bottom: 8px; }
+        .form-group { margin-bottom: 12px; }
+        label { display: block; margin-bottom: 4px; font-weight: 600; font-size: 0.9rem; }
+        input, select, textarea { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; font-size: 0.9rem; }
+        textarea { height: 120px; resize: vertical; font-family: monospace; }
+        button { background: #007bff; color: white; border: none; padding: 10px 16px; border-radius: 4px; cursor: pointer; font-weight: 600; }
+        button:hover { background: #0056b3; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.85rem; }
+        th, td { border: 1px solid #ddd; padding: 6px 8px; text-align: left; }
+        th { background: #f8f9fa; }
+        .badge { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; font-weight: bold; }
+        .badge.synced { background: #d4edda; color: #155724; }
+        .badge.pending { background: #fff3cd; color: #856404; }
+        .full-width { grid-column: span 2; }
+        .log-box { background: #1e1e1e; color: #dcdcdc; padding: 10px; border-radius: 4px; font-family: monospace; height: 180px; overflow-y: auto; font-size: 0.8rem; }
+    </style>
 </head>
 <body>
-  <div id="app">
-    <!-- 左侧控制面板 -->
-    <div class="panel-left">
-      <div class="header-title">
-        <span>Vela Watch 答题解析管理中心</span>
-        <button class="btn btn-secondary" style="padding: 4px 10px; font-size: 0.75rem;" onclick="loadAllData()">全局刷新</button>
-      </div>
+    <div class="container">
+        <!-- 左侧：输入与上传 -->
+        <div>
+            <div class="card">
+                <h2>📥 新增题目 / 解析文本 (AST)</h2>
+                <div class="form-group">
+                    <label>题目名称</label>
+                    <input type="text" id="titleInput" placeholder="例如：二次函数极值求解">
+                </div>
+                <div class="form-group">
+                    <label>题目分类</label>
+                    <select id="categorySelect">
+                        <option value="数学">数学</option>
+                        <option value="物理">物理</option>
+                        <option value="化学">化学</option>
+                        <option value="综合">综合</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Markdown / LaTeX 原始文本</label>
+                    <textarea id="rawTextInput" placeholder="支持 \frac{a}{b}, \sqrt{x}, \ce{H2O}, 等..."></textarea>
+                </div>
+                <button onclick="uploadAns()">处理并同步到手表</button>
+            </div>
 
-      <div class="tabs">
-        <button class="tab-btn active" onclick="switchTab('upload')">解析录入</button>
-        <button class="tab-btn" onclick="switchTab('cache')">本地缓存</button>
-        <button class="tab-btn" onclick="switchTab('tasks')">同步队列</button>
-      </div>
-
-      <!-- 选项卡 1：解析录入 -->
-      <div id="tab-upload" class="tab-content">
-        <div style="display: flex; flex-direction: column; gap: 12px;">
-          <div class="form-group">
-            <label>题目标题</label>
-            <input type="text" id="ans-title" placeholder="如：高等数学/化学方程式汇总">
-          </div>
-          <div class="form-group">
-            <label>科目分类</label>
-            <select id="ans-category">
-              <option value="数学">数学</option>
-              <option value="物理">物理</option>
-              <option value="化学">化学</option>
-              <option value="生物">生物</option>
-              <option value="语文">语文</option>
-              <option value="英语">英语</option>
-              <option value="综合">综合</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>Markdown & LaTeX / 化学方程式内容</label>
-            <textarea id="ans-text" placeholder="支持公式：$x=\dfrac{-b\pm\sqrt{b^2-4ac}}{2a}$
-支持化学方程式：\ce{2H2 + O2 ->[点燃] 2H2O}"></textarea>
-          </div>
-          <button class="btn btn-success" style="width: 100%; padding: 10px;" onclick="uploadContent()">解析并自动加入同步队列</button>
+            <div class="card">
+                <h2>📡 最近手表 API 请求日志</h2>
+                <button onclick="loadLogs()" style="margin-bottom: 10px; padding: 4px 8px; font-size: 0.8rem;">刷新日志</button>
+                <div class="log-box" id="logBox">暂无日志...</div>
+            </div>
         </div>
-      </div>
 
-      <!-- 选项卡 2：本地缓存 -->
-      <div id="tab-cache" class="tab-content" style="display: none; height: 100%;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-          <span style="font-size: 0.85rem; color: #94a3b8;">已持久化缓存的题目库 (可随时重新同步)</span>
-          <button class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.75rem;" onclick="loadCacheList()">刷新</button>
-        </div>
-        <div id="cache-list" class="list-container"></div>
-      </div>
+        <!-- 右侧：列表与同步状态 -->
+        <div>
+            <div class="card">
+                <h2>📋 题目列表与同步状态</h2>
+                <button onclick="loadStatus()" style="margin-bottom: 10px; padding: 4px 8px; font-size: 0.8rem;">刷新列表</button>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>标题</th>
+                            <th>分类</th>
+                            <th>状态</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="statusTableBody">
+                        <!-- 动态加载 -->
+                    </tbody>
+                </table>
+            </div>
 
-      <!-- 选项卡 3：同步队列管理 -->
-      <div id="tab-tasks" class="tab-content" style="display: none; height: 100%;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-          <span style="font-size: 0.85rem; color: #94a3b8;">手表端待同步任务队列 (断点续传)</span>
-          <div style="display: flex; gap: 6px;">
-            <button class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.75rem;" onclick="loadTasks()">刷新</button>
-            <button class="btn btn-danger" style="padding: 4px 8px; font-size: 0.75rem;" onclick="clearTasks()">清空队列</button>
-          </div>
+            <div class="card">
+                <h2>⚡ 当前同步队列 (Tasks)</h2>
+                <button onclick="loadTasks()" style="margin-bottom: 10px; padding: 4px 8px; font-size: 0.8rem;">刷新队列</button>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Task ID</th>
+                            <th>Ans ID</th>
+                            <th>标题</th>
+                            <th>分类</th>
+                        </tr>
+                    </thead>
+                    <tbody id="taskTableBody">
+                        <!-- 动态加载 -->
+                    </tbody>
+                </table>
+            </div>
         </div>
-        <div id="task-list" class="list-container"></div>
-      </div>
     </div>
 
-    <!-- 右侧：Redmi Watch 6 1:1 模拟渲染器 -->
-    <div class="panel-right">
-      <div class="watch-wrapper">
-        <div class="watch-header">
-          <span id="watch-title" style="font-weight: bold; color: #38bdf8;">未加载题目</span>
-          <span id="watch-page-num" style="color: #cbd5e1; font-weight: bold;">1/1</span>
-        </div>
-        <div class="watch-body" id="watch-body">
-          <div style="color: #64748b; text-align: center; margin-top: 120px;">暂无解析内容<br>请在左侧选择题目预览或上传新解析</div>
-        </div>
-        <div class="watch-footer">
-          <button class="btn btn-secondary" style="padding: 4px 12px; font-size: 0.75rem;" onclick="prevPage()">上一页</button>
-          <span id="watch-cat-tag" style="font-size: 0.75rem; color: #94a3b8;">分类: -</span>
-          <button class="btn btn-secondary" style="padding: 4px 12px; font-size: 0.75rem;" onclick="nextPage()">下一页</button>
-        </div>
-      </div>
-      <div style="margin-top: 14px; color: #64748b; font-size: 0.8rem;">
-        Redmi Watch 6 模拟器 (336×480) · 支持高级公式与化学方程式手搓排版
-      </div>
-    </div>
-  </div>
+    <script>
+        const API_BASE = '/watch/pans';
 
-  <script>
-    let currentSolution = null;
-    let currentPageIndex = 0;
+        async function uploadAns() {
+            const title = document.getElementById('titleInput').value;
+            const category = document.getElementById('categorySelect').value;
+            const raw_text = document.getElementById('rawTextInput').value;
 
-    function switchTab(tab) {
-      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-      document.querySelectorAll('.tab-content').forEach(c => c.style.display = 'none');
-      event.target.classList.add('active');
-      document.getElementById('tab-' + tab).style.display = 'block';
-      if (tab === 'cache') loadCacheList();
-      if (tab === 'tasks') loadTasks();
-    }
-
-    function loadAllData() {
-      loadCacheList();
-      loadTasks();
-    }
-
-    async function uploadContent() {
-      const title = document.getElementById('ans-title').value;
-      const category = document.getElementById('ans-category').value;
-      const raw_text = document.getElementById('ans-text').value;
-      if (!raw_text.trim()) return alert("请输入解析内容！");
-
-      const res = await fetch('/watch/ans/upload', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, category, raw_text })
-      });
-      const data = await res.json();
-      if (data.status === 'success') {
-        alert("解析成功并已自动加入同步队列！");
-        renderSolution(data.result);
-        loadTasks();
-        loadCacheList();
-      } else {
-        alert("错误: " + data.message);
-      }
-    }
-
-    async function loadCacheList() {
-      const res = await fetch('/watch/ans/list');
-      const data = await res.json();
-      const container = document.getElementById('cache-list');
-      container.innerHTML = '';
-      if (!data.items || data.items.length === 0) {
-        container.innerHTML = '<div style="color: #64748b; text-align: center; margin-top: 20px;">暂无本地缓存解析</div>';
-        return;
-      }
-      data.items.forEach(item => {
-        const div = document.createElement('div');
-        div.className = 'card-item';
-        div.innerHTML = `
-          <div class="card-info">
-            <span class="card-title">${item.title}</span>
-            <span class="card-meta">[${item.category}] · ${item.total_pages} 页 · ID: ${item.ans_id}</span>
-          </div>
-          <div class="card-actions">
-            <button class="btn btn-success" style="padding: 4px 8px; font-size: 0.75rem;" onclick="syncAns('${item.ans_id}')">同步</button>
-            <button class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.75rem;" onclick="loadAnsDetail('${item.ans_id}')">预览</button>
-            <button class="btn btn-danger" style="padding: 4px 8px; font-size: 0.75rem;" onclick="deleteAns('${item.ans_id}')">删除</button>
-          </div>
-        `;
-        container.appendChild(div);
-      });
-    }
-
-    async function syncAns(ans_id) {
-      const res = await fetch(`/watch/ans/manage/sync/${ans_id}`, { method: 'POST' });
-      const data = await res.json();
-      if (data.status === 'success') {
-        alert(data.message);
-        switchTab('tasks');
-        document.querySelectorAll('.tab-btn')[2].classList.add('active');
-        document.querySelectorAll('.tab-btn')[0].classList.remove('active');
-        document.querySelectorAll('.tab-btn')[1].classList.remove('active');
-        document.getElementById('tab-tasks').style.display = 'block';
-        document.getElementById('tab-cache').style.display = 'none';
-        document.getElementById('tab-upload').style.display = 'none';
-        loadTasks();
-      } else {
-        alert("同步操作失败: " + data.message);
-      }
-    }
-
-    async function deleteAns(ans_id) {
-      if (!confirm("确定彻底删除该题目解析吗？")) return;
-      await fetch(`/watch/ans/manage/delete/${ans_id}`, { method: 'POST' });
-      loadCacheList();
-      loadTasks();
-    }
-
-    async function loadAnsDetail(ans_id) {
-      const res = await fetch(`/watch/ans/get/${ans_id}`);
-      const data = await res.json();
-      if (data.status === 'success') {
-        renderSolution(data.data);
-      }
-    }
-
-    async function loadTasks() {
-      const res = await fetch('/watch/ans/tasks');
-      const data = await res.json();
-      const container = document.getElementById('task-list');
-      container.innerHTML = '';
-      const tasks = data.tasks || [];
-      if (tasks.length === 0) {
-        container.innerHTML = '<div style="color: #64748b; text-align: center; margin-top: 20px;">当前任务队列为空</div>';
-        return;
-      }
-      tasks.forEach(t => {
-        const div = document.createElement('div');
-        div.className = 'card-item';
-        div.innerHTML = `
-          <div class="card-info">
-            <span class="card-title">${t.title || t.ans_id}</span>
-            <span class="card-meta">动作: ${t.action} · 关联ID: ${t.ans_id}</span>
-          </div>
-          <button class="btn btn-danger" style="padding: 4px 8px; font-size: 0.75rem;" onclick="deleteTask('${t.id || t.task_id}')">移除</button>
-        `;
-        container.appendChild(div);
-      });
-    }
-
-    async function deleteTask(taskId) {
-      await fetch(`/watch/ans/manage/tasks/delete/${taskId}`, { method: 'POST' });
-      loadTasks();
-    }
-
-    async function clearTasks() {
-      if (!confirm("确定清空所有待同步任务吗？")) return;
-      await fetch('/watch/ans/manage/tasks/clear', { method: 'POST' });
-      loadTasks();
-    }
-
-    /* 手表端 1:1 渲染逻辑 */
-    function renderSolution(solution) {
-      currentSolution = solution;
-      currentPageIndex = 0;
-      updateWatchPage();
-    }
-
-    function prevPage() {
-      if (currentPageIndex > 0) {
-        currentPageIndex--;
-        updateWatchPage();
-      }
-    }
-
-    function nextPage() {
-      if (currentSolution && currentPageIndex < currentSolution.pages.length - 1) {
-        currentPageIndex++;
-        updateWatchPage();
-      }
-    }
-
-    function updateWatchPage() {
-      if (!currentSolution) return;
-      document.getElementById('watch-title').innerText = currentSolution.title || "解析";
-      document.getElementById('watch-page-num').innerText = `${currentPageIndex + 1}/${currentSolution.pages.length}`;
-      document.getElementById('watch-cat-tag').innerText = `分类: ${currentSolution.category || '综合'}`;
-      
-      const body = document.getElementById('watch-body');
-      body.innerHTML = '';
-      const page = currentSolution.pages[currentPageIndex];
-      if (!page || !page.blocks) return;
-
-      page.blocks.forEach(block => {
-        const blockEl = document.createElement('div');
-        if (block.block_type === 'h1') blockEl.className = 'lv-h1';
-        else if (block.block_type === 'h2') blockEl.className = 'lv-h2';
-        else if (block.block_type === 'h3') blockEl.className = 'lv-h3';
-        else blockEl.className = 'lv-para';
-
-        if (block.content && block.content.length > 0) {
-          block.content.forEach(token => {
-            if (token.type === 'text') {
-              const span = document.createElement('span');
-              span.innerText = token.value;
-              blockEl.appendChild(span);
-            } else if (token.type === 'bold') {
-              const span = document.createElement('span');
-              span.className = 'lv-bold';
-              span.innerText = token.value;
-              blockEl.appendChild(span);
-            } else if (token.type === 'inline_math') {
-              const wrap = document.createElement('div');
-              wrap.className = 'ast-container';
-              wrap.appendChild(renderASTDOM(token.ast));
-              blockEl.appendChild(wrap);
+            if (!raw_text) {
+                alert('请输入原始文本');
+                return;
             }
-          });
-        } else {
-          blockEl.innerText = block.raw;
-        }
-        body.appendChild(blockEl);
-      });
-    }
 
-    function renderASTDOM(node) {
-      if (!node) return document.createTextNode('');
-      if (node.type === 'text') {
-        const span = document.createElement('span');
-        span.innerText = node.value;
-        return span;
-      }
-      if (node.type === 'chemical') {
-        const span = document.createElement('span');
-        span.className = 'ast-chemical';
-        span.innerText = node.value;
-        return span;
-      }
-      if (node.type === 'fraction') {
-        const frac = document.createElement('div');
-        frac.className = 'ast-fraction';
-        const num = document.createElement('div');
-        num.className = 'ast-frac-num';
-        num.appendChild(renderASTDOM(node.numerator));
-        const line = document.createElement('div');
-        line.className = 'ast-frac-line';
-        const den = document.createElement('div');
-        den.className = 'ast-frac-den';
-        den.appendChild(renderASTDOM(node.denominator));
-        frac.appendChild(num);
-        frac.appendChild(line);
-        frac.appendChild(den);
-        return frac;
-      }
-      if (node.type === 'sqrt') {
-        const sqrt = document.createElement('div');
-        sqrt.className = 'ast-sqrt';
-        sqrt.appendChild(renderASTDOM(node.content));
-        return sqrt;
-      }
-      if (node.type === 'sup') {
-        const wrap = document.createElement('span');
-        wrap.appendChild(renderASTDOM(node.base));
-        const sup = document.createElement('sup');
-        sup.className = 'ast-sup';
-        sup.appendChild(renderASTDOM(node.value));
-        wrap.appendChild(sup);
-        return wrap;
-      }
-      if (node.type === 'sub') {
-        const wrap = document.createElement('span');
-        wrap.appendChild(renderASTDOM(node.base));
-        const sub = document.createElement('sub');
-        sub.className = 'ast-sub';
-        sub.appendChild(renderASTDOM(node.value));
-        wrap.appendChild(sub);
-        return wrap;
-      }
-      if (node.type === 'abs') {
-        const abs = document.createElement('div');
-        abs.className = 'ast-abs';
-        abs.appendChild(renderASTDOM(node.content));
-        return abs;
-      }
-      if (node.type === 'equation_chain') {
-        const chain = document.createElement('div');
-        chain.className = 'ast-container';
-        node.parts.forEach((p, idx) => {
-          if (idx > 0) {
-            const eq = document.createElement('span');
-            eq.innerText = ' = ';
-            chain.appendChild(eq);
-          }
-          chain.appendChild(renderASTDOM(p));
-        });
-        return chain;
-      }
-      if (node.type === 'limit' || node.type === 'integral' || node.type === 'summation') {
-        const span = document.createElement('span');
-        span.className = 'ast-chemical';
-        span.innerText = node.value || node.raw || '';
-        return span;
-      }
-      return document.createTextNode(node.value || node.raw || '');
-    }
-  </script>
+            try {
+                const res = await fetch(`${API_BASE}/upload`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title, category, raw_text })
+                });
+                const data = await res.json();
+                if (data.status === 'success') {
+                    alert('处理成功并已加入同步队列！ID: ' + data.ans_id);
+                    document.getElementById('rawTextInput').value = '';
+                    loadStatus();
+                    loadTasks();
+                    loadLogs();
+                } else {
+                    alert('处理失败: ' + data.message);
+                }
+            } catch (e) {
+                alert('请求异常: ' + e);
+            }
+        }
+
+        async function loadStatus() {
+            try {
+                const res = await fetch(`${API_BASE}/sync_status`);
+                const data = await res.json();
+                if (data.status === 'success') {
+                    const tbody = document.getElementById('statusTableBody');
+                    tbody.innerHTML = '';
+                    data.items.forEach(item => {
+                        const tr = document.createElement('tr');
+                        tr.innerHTML = `
+                            <td>${item.ans_id}</td>
+                            <td>${item.title}</td>
+                            <td>${item.category}</td>
+                            <td>${item.synced ? '<span class="badge synced">已同步</span>' : '<span class="badge pending">待同步</span>'}</td>
+                            <td>-</td>
+                        `;
+                        tbody.appendChild(tr);
+                    });
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        async function loadTasks() {
+            try {
+                const res = await fetch(`${API_BASE}/tasks`);
+                const data = await res.json();
+                if (data.status === 'success') {
+                    const tbody = document.getElementById('taskTableBody');
+                    tbody.innerHTML = '';
+                    data.tasks.forEach(t => {
+                        const tr = document.createElement('tr');
+                        tr.innerHTML = `
+                            <td>${t.task_id || t.id}</td>
+                            <td>${t.ans_id}</td>
+                            <td>${t.title}</td>
+                            <td>${t.category}</td>
+                        `;
+                        tbody.appendChild(tr);
+                    });
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        async function loadLogs() {
+            try {
+                const res = await fetch(`${API_BASE}/logs`);
+                const data = await res.json();
+                if (data.status === 'success') {
+                    const logBox = document.getElementById('logBox');
+                    logBox.innerHTML = data.logs.map(l => `[${l.time}] ${l.endpoint} -> ${JSON.stringify(l.data)}`).join('\n');
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        window.onload = () => {
+            loadStatus();
+            loadTasks();
+            loadLogs();
+            setInterval(() => {
+                loadStatus();
+                loadTasks();
+                loadLogs();
+            }, 5000);
+        };
+    </script>
 </body>
 </html>
