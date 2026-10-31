@@ -12,11 +12,17 @@
       </div>
     </div>
 
+    <!-- Debug Log Panel -->
+    <div class="debug-panel" if="{{debugMode}}">
+      <text class="debug-title">[Index Debug Log]</text>
+      <text class="debug-text">{{debugLog}}</text>
+    </div>
+
     <!-- Main Content List -->
     <list class="list">
       <list-item type="item" for="{{ansList}}" class="list-item" onclick="gotoReader($item.id)">
         <text class="item-title">[{{$item.category || '数学'}}] {{$item.title || '无标题解析'}}</text>
-        <text class="item-summary">{{$item.summary || ('共 ' + ($item.total_pages || 1) + ' 页解析')}}</text>
+        <text class="item-summary">{{$item.summary || ('共 ' + ($item.total_pages || 1) + ' 页解析 | ID: ' + $item.id)}}</text>
       </list-item>
     </list>
 
@@ -37,13 +43,34 @@ export default {
   private: {
     currentCategory: "全部",
     categories: ["全部", "数学", "物理", "化学", "综合"],
-    ansList: []
+    ansList: [],
+    debugMode: false,
+    debugLog: "初始化加载..."
   },
   onInit() {
-    this.loadData();
+    this.checkDebugAndLoad();
   },
   onShow() {
-    this.loadData();
+    this.checkDebugAndLoad();
+  },
+  checkDebugAndLoad() {
+    storage.get({
+      key: "debug_mode",
+      success: (data) => {
+        this.debugMode = (data === "true" || data === true);
+        this.loadData();
+      },
+      fail: () => {
+        this.debugMode = false;
+        this.loadData();
+      }
+    });
+  },
+  logDebug(msg) {
+    console.log("[IndexDebug] " + msg);
+    if (this.debugMode) {
+      this.debugLog = msg + "\n" + (this.debugLog || "");
+    }
   },
   loadData() {
     storage.get({
@@ -63,6 +90,7 @@ export default {
     });
   },
   loadLocalAnswers() {
+    this.logDebug(`开始加载本地缓存 [当前分类: ${this.currentCategory}]`);
     storage.get({
       key: "local_answers",
       success: (data) => {
@@ -72,6 +100,8 @@ export default {
             let list = JSON.parse(cleaned);
             if (!Array.isArray(list)) list = [];
             
+            this.logDebug(`成功读取 local_answers，原始条数: ${list.length}`);
+
             list = list.map(item => ({
               ...item,
               id: item.id || item.ans_id,
@@ -79,17 +109,24 @@ export default {
             }));
 
             if (this.currentCategory !== "全部") {
+              const beforeCount = list.length;
               list = list.filter(item => String(item.category).trim() === String(this.currentCategory).trim());
+              this.logDebug(`分类过滤 [${this.currentCategory}]: 过滤前 ${beforeCount} 条 -> 过滤后 ${list.length} 条`);
             }
+
             this.ansList = list;
+            this.logDebug(`渲染列表成功，最终条数: ${this.ansList.length}`);
           } catch(e) {
+            this.logDebug(`解析 local_answers JSON 失败: ${e.message}`);
             this.ansList = [];
           }
         } else {
+          this.logDebug("local_answers 存储为空");
           this.ansList = [];
         }
       },
-      fail: () => {
+      fail: (data, code) => {
+        this.logDebug(`读取 local_answers 失败 code:${code}`);
         this.ansList = [];
       }
     });
@@ -99,7 +136,6 @@ export default {
     this.loadData();
   },
   switchCategory() {
-    // 循环切换分类：全部 -> 数学 -> 物理 -> 化学 -> 综合 -> 全部
     const idx = this.categories.indexOf(this.currentCategory);
     const nextIdx = (idx + 1) % this.categories.length;
     this.currentCategory = this.categories[nextIdx];
@@ -173,9 +209,27 @@ export default {
   font-size: 11px;
   border-radius: 4px;
 }
+.debug-panel {
+  width: 100%;
+  height: 80px;
+  background-color: #1a1a1a;
+  border-radius: 4px;
+  padding: 6px;
+  margin-top: 6px;
+  flex-direction: column;
+}
+.debug-title {
+  font-size: 10px;
+  color: #ffaa00;
+  font-weight: bold;
+}
+.debug-text {
+  font-size: 9px;
+  color: #cccccc;
+}
 .list {
   flex: 1;
-  margin-top: 10px;
+  margin-top: 8px;
 }
 .list-item {
   flex-direction: column;

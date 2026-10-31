@@ -1,12 +1,22 @@
 <template>
   <div class="container">
-    <text class="title">系统设置与存储</text>
+    <text class="title">系统设置与存储 (Debug)</text>
     
     <!-- Data Sync Menu -->
     <div class="menu-item" onclick="gotoSync">
       <text class="menu-text">数据增量同步</text>
     </div>
     
+    <!-- Debug Mode Toggle -->
+    <div class="menu-item" onclick="toggleDebug">
+      <text class="menu-text">Debug 模式: {{debugMode ? '已开启' : '已关闭'}}</text>
+    </div>
+
+    <!-- View Local Database (Storage Viewer) -->
+    <div class="menu-item" onclick="viewDatabase">
+      <text class="menu-text">查看本地数据库 (local_answers)</text>
+    </div>
+
     <!-- Clear Cache Menu -->
     <div class="menu-item" onclick="clearCache">
       <text class="menu-text">一键清空本地题目缓存</text>
@@ -29,7 +39,8 @@ import prompt from "@system.prompt"
 
 export default {
   private: {
-    fontSize: 14 // 默认字号
+    fontSize: 14,
+    debugMode: false
   },
   onInit() {
     this.loadSettings();
@@ -46,12 +57,57 @@ export default {
         }
       }
     });
+    storage.get({
+      key: "debug_mode",
+      success: (data) => {
+        this.debugMode = (data === "true" || data === true);
+      }
+    });
+  },
+  toggleDebug() {
+    this.debugMode = !this.debugMode;
+    storage.set({
+      key: "debug_mode",
+      value: String(this.debugMode),
+      success: () => {
+        prompt.showToast({ message: `Debug 模式已${this.debugMode ? '开启' : '关闭'}` });
+      }
+    });
+  },
+  viewDatabase() {
+    storage.get({
+      key: "local_answers",
+      success: (data) => {
+        if (!data) {
+          prompt.showToast({ message: "本地数据库为空" });
+          return;
+        }
+        try {
+          let parsed = JSON.parse(data);
+          let count = Array.isArray(parsed) ? parsed.length : 0;
+          let titles = Array.isArray(parsed) ? parsed.map(i => i.title || i.ans_id).join(', ') : "非数组数据";
+          prompt.showDialog({
+            title: "本地数据库查看",
+            message: `题目总数: ${count}\n\n题目列表: ${titles}`,
+            buttons: [{ text: "确定", color: "#007bff" }]
+          });
+        } catch(e) {
+          prompt.showDialog({
+            title: "数据库解析错误",
+            message: String(data).substring(0, 200),
+            buttons: [{ text: "确定", color: "#ff0000" }]
+          });
+        }
+      },
+      fail: () => {
+        prompt.showToast({ message: "读取本地数据库失败" });
+      }
+    });
   },
   gotoSync() {
     router.push({ uri: "/pages/sync" });
   },
   changeFontSize() {
-    // 循环切换几种常用字号: 12px -> 14px -> 16px -> 12px
     const sizes = [12, 14, 16];
     let nextIndex = (sizes.indexOf(this.fontSize) + 1) % sizes.length;
     this.fontSize = sizes[nextIndex];
@@ -74,7 +130,6 @@ export default {
       ],
       success: (data) => {
         if (data.index === 1) {
-          // 清空本地题目及分类偏好
           storage.delete({
             key: "local_answers",
             success: () => {
