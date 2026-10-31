@@ -109,6 +109,10 @@ export default {
     if (!ansItem.id && ansItem.ans_id) {
       ansItem.id = ansItem.ans_id;
     }
+    // 确保分类存在，默认数学
+    if (!ansItem.category) {
+      ansItem.category = "数学";
+    }
     // 适配并清洗 pages 数据结构
     if (ansItem.pages && Array.isArray(ansItem.pages)) {
       ansItem.pages = ansItem.pages.map(page => {
@@ -116,7 +120,10 @@ export default {
         if (!Array.isArray(rawBlocks)) rawBlocks = [rawBlocks];
         return {
           blocks: rawBlocks.map(block => {
-            // 如果已经是数组且符合极简规范，直接标准化内部；如果是对象则转换
+            // 如果已经是后端生成的带有 ast 字段的对象，优先提取其 ast，否则直接标准化 block
+            if (block && typeof block === 'object' && block.ast) {
+              return this.normalizeItemAst(block.ast);
+            }
             return this.normalizeItemAst(block);
           })
         };

@@ -2,7 +2,9 @@
   <div class="container">
     <!-- Top Bar -->
     <div class="top-bar">
-      <text class="app-title" onclick="switchCategory">{{currentCategory === '全部' ? '全部 ▼' : (currentCategory + ' ▼')}}</text>
+      <div class="category-box" onclick="switchCategory">
+        <text class="app-title">分类: {{currentCategory}} ▼</text>
+      </div>
       <div class="top-btns">
         <input class="sync-btn" type="button" value="刷新" onclick="reloadLocal" />
         <input class="sync-btn" type="button" value="同步" onclick="gotoSync" />
@@ -140,8 +142,13 @@ export default {
   border-bottom-width: 1px;
   border-bottom-color: #333333;
 }
+.category-box {
+  flex: 1;
+  height: 40px;
+  justify-content: center;
+}
 .app-title {
-  font-size: 13px;
+  font-size: 12px;
   color: #ffaa00;
   font-weight: bold;
 }
