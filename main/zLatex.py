@@ -71,8 +71,8 @@ class LaTeXASTParser:
             
         return tokens
 
-    def parse_latex(self, latex_str: str) -> dict:
-        """主解析入口"""
+    def parse_latex(self, latex_str: str) -> list:
+        """主解析入口，返回极简 JSON 节点"""
         latex_str = latex_str.strip()
         # 处理 \ce{...} 化学方程式
         if latex_str.startswith(r'\ce{') and latex_str.endswith('}'):
@@ -84,10 +84,10 @@ class LaTeXASTParser:
         
         if len(nodes) == 1:
             return nodes[0]
-        return {"type": "row", "children": nodes}
+        return ["r"] + nodes
 
     def _parse_tokens(self, tokens, index, stop_tokens=None):
-        """递归解析 Token 序列"""
+        """递归解析 Token 序列（精简 AST 格式）"""
         if stop_tokens is None:
             stop_tokens = set()
             
@@ -105,30 +105,29 @@ class LaTeXASTParser:
                 index += 1
                 num, index = self._parse_group(tokens, index)
                 den, index = self._parse_group(tokens, index)
-                children.append({"type": "frac", "num": num, "den": den})
+                children.append(["f", num, den])
                 continue
                 
             elif tok == r'\sqrt':
                 index += 1
                 body, index = self._parse_group(tokens, index)
-                children.append({"type": "sqrt", "content": body})
+                children.append(["sq", body])
                 continue
                 
             elif tok == r'\begin{cases}':
                 index += 1
                 cases_nodes, index = self._parse_cases(tokens, index)
-                children.append({"type": "cases", "items": cases_nodes})
+                children.append(["c"] + cases_nodes)
                 continue
                 
             elif tok == '^':
                 index += 1
                 sup_node, index = self._parse_group(tokens, index)
-                # 如果上一个节点是文字，则转换为上标扩展
                 if children:
                     prev = children.pop()
-                    children.append({"type": "sup_group", "base": prev, "sup": sup_node})
+                    children.append(["sup_g", prev, sup_node])
                 else:
-                    children.append({"type": "sup", "content": sup_node})
+                    children.append(["sup", sup_node])
                 continue
                 
             elif tok == '_':
@@ -136,9 +135,9 @@ class LaTeXASTParser:
                 sub_node, index = self._parse_group(tokens, index)
                 if children:
                     prev = children.pop()
-                    children.append({"type": "sub_group", "base": prev, "sub": sub_node})
+                    children.append(["sub_g", prev, sub_node])
                 else:
-                    children.append({"type": "sub", "content": sub_node})
+                    children.append(["sub", sub_node])
                 continue
                 
             elif tok in ('{', '('):
@@ -148,15 +147,35 @@ class LaTeXASTParser:
                 if index < n and tokens[index] == close_char:
                     index += 1
                 if tok == '(':
-                    children.append({"type": "row", "children": [{"type": "text", "val": "("}] + sub_nodes + [{"type": "text", "val": ")"}]})
+                    children.append(["r", ["t", "("]] + sub_nodes + [["t", ")"]])
                 else:
-                    children.append({"type": "row", "children": sub_nodes})
+                    children.append(["r"] + sub_nodes)
+                continue
+            # 假设这里是处理以 \ 开头的 LaTeX 命令的分支
+            elif tok == r'\vec':
+                index += 1
+                if index < n:
+                    next_tok = tokens[index]
+                    # 检查后面是带大括号 \vec{a} 还是单个字符 \vec a
+                    if next_tok == '{':
+                        index += 1
+                        sub_nodes, index = self._parse_tokens(tokens, index, stop_tokens={'}'})
+                        if index < n and tokens[index] == '}':
+                            index += 1
+                        # 如果大括号里只有一个节点，直接作为 vec 的参数；否则用 ["r", ...] 包装
+                        content = sub_nodes[0] if len(sub_nodes) == 1 else ["r"] + sub_nodes
+                    else:
+                        # 单个 token（例如字母 a）
+                        content = ["t", next_tok]
+                        index += 1
+                    
+                    children.append(["vec", content])
                 continue
                 
             # 符号与文本替换
             val = self.symbol_map.get(tok, tok)
             if val:
-                children.append({"type": "text", "val": val})
+                children.append(["t", val])
             index += 1
             
         return children, index
@@ -164,7 +183,7 @@ class LaTeXASTParser:
     def _parse_group(self, tokens, index):
         """解析单组 {} 或单个字符"""
         if index >= len(tokens):
-            return {"type": "text", "val": ""}, index
+            return ["t", ""], index
             
         if tokens[index] == '{':
             index += 1
@@ -173,11 +192,11 @@ class LaTeXASTParser:
                 index += 1
             if len(nodes) == 1:
                 return nodes[0], index
-            return {"type": "row", "children": nodes}, index
+            return ["r"] + nodes, index
         else:
             tok = tokens[index]
             val = self.symbol_map.get(tok, tok)
-            return {"type": "text", "val": val}, index + 1
+            return ["t", val], index + 1
 
     def _parse_cases(self, tokens, index):
         """解析条件分支 \\begin{cases}"""
@@ -189,41 +208,104 @@ class LaTeXASTParser:
             line_nodes, index = self._parse_tokens(tokens, index, stop_tokens={r'\\', r'\end{cases}'})
             if index < len(tokens) and tokens[index] == r'\\':
                 index += 1
-            cases.append({"type": "row", "children": line_nodes})
+            cases.append(["r"] + line_nodes)
         return cases, index
 
-    def _parse_chemical(self, chem_str: str) -> dict:
-        """解析 \ce{...} 化学方程式与反应条件（增强通用匹配与容错）"""
-        # 修复正则: 避免 \x 被正则解释器误判为十六进制转义
-        pattern = r'(\\xlongequal|\\xleftrightarrow|->|<=>|=)(?:\[(.*?)\])?(?:\[(.*?)\])?'
-        parts = re.split(pattern, chem_str)
+    def _parse_chemical(self, chem_str):
+        import re
         
-        nodes = []
-        i = 0
-        while i < len(parts):
-            chunk = parts[i]
-            if chunk:
-                # 简单解析离子/沉淀/气体符号与上下标
-                cleaned = chunk.replace('^', '↑').replace('v', '↓').strip()
-                nodes.append({"type": "chem_text", "val": cleaned})
+        # 升级版正则：完美兼容 ->[点燃]（单括号在上方）, <=>[高温][催化剂]（双括号上下）, 以及 \xlongequal{\Delta}
+        arrow_pattern = re.compile(
+            r'(\\xlongequal|\\xleftrightarrow|->|<=>|=)'
+            r'(?:'
+                r'\{([^}]*)\}'                  # 大括号形式，如 \xlongequal{\Delta} -> top
+                r'(?:\[([^]]*)\])?'             # 后续可选的 [bottom]
+              r'|'
+                r'\[([^]]*)\]'                  # 第一个中括号，如 ->[点燃] -> 默认在 top
+                r'(?:\[([^]]*)\])?'             # 第二个可选的中括号，如 [bottom]
+            r')?'
+        )
+        
+        parts = []
+        last_idx = 0
+        for match in arrow_pattern.finditer(chem_str):
+            start, end = match.span()
+            if start > last_idx:
+                parts.append(chem_str[last_idx:start].strip())
             
-            # 如果匹配到了化学反应箭头/等号
-            if i + 1 < len(parts) and parts[i+1] in ('->', '<=>', '=', r'\xlongequal', r'\xleftrightarrow'):
-                arrow_type = parts[i+1]
-                cond1 = parts[i+2] if i+2 < len(parts) else None
-                cond2 = parts[i+3] if i+3 < len(parts) else None
+            arrow_type = match.group(1)
+            
+            # 精准解析上下条件
+            top_c, bot_c = None, None
+            if match.group(2) is not None:  # 匹配到 {top}
+                top_c = match.group(2)
+                bot_c = match.group(3)
+            elif match.group(4) is not None:  # 匹配到 [bracket1] -> 对应 top
+                top_c = match.group(4)
+                bot_c = match.group(5)      # 可选的第二个中括号对应 bottom
+            
+            # 标准化箭头符号
+            arrow_symbol = "→"
+            if "<=>" in arrow_type or "\\xleftrightarrow" in arrow_type:
+                arrow_symbol = "⇌"
+            elif "=" in arrow_type:
+                arrow_symbol = "＝"
+            elif "\\xlongequal" in arrow_type:
+                arrow_symbol = "══"
                 
-                arrow_symbol = "⇄" if arrow_type in ('<=>', r'\xleftrightarrow') else ("=" if arrow_type == '=' else "→")
-                nodes.append({
-                    "type": "chem_arrow",
-                    "arrow": arrow_symbol,
-                    "top_condition": cond1,
-                    "bottom_condition": cond2
-                })
-                i += 3
-            i += 1
+            parts.append({
+                "type": "chem_arrow_full",
+                "symbol": arrow_symbol,
+                "top": top_c,
+                "bottom": bot_c
+            })
+            last_idx = end
             
-        return {"type": "chem_equation", "children": nodes}
+        if last_idx < len(chem_str):
+            parts.append(chem_str[last_idx:].strip())
+            
+        seq_nodes = []
+        for p in parts:
+            if isinstance(p, dict):
+                top_node = self.parse_latex(p["top"]) if p["top"] else None
+                bot_node = self.parse_latex(p["bottom"]) if p["bottom"] else None
+                seq_nodes.append(["chem_a", p["symbol"], top_node, bot_node])
+            elif p:
+                seq_nodes.extend(self._parse_chem_formula_tokens(p))
+                
+        return ["chem_seq", seq_nodes]
+
+    def _parse_chem_formula_tokens(self, formula_str):
+        """严谨的化学式分词：仅按两边带空格的 ' + ' 分割反应物，保留离子电荷如 H+、Cu^{2+}"""
+        tokens = []
+        import re
+        
+        # 仅按“两侧有空白”的加号进行切分（例如 "A + B"），绝不切分 "H+" 或 "Fe3+"
+        raw_parts = re.split(r'\s+\+\s+', formula_str)
+        
+        for i, part in enumerate(raw_parts):
+            part = part.strip()
+            if not part:
+                continue
+            
+            # 如果不是第一项，说明中间有一个反应物分隔的 " + "
+            if i > 0:
+                tokens.append(["t", " + "])
+                
+            # 替换气体/沉淀符号
+            t_clean = part.replace('^', '↑').replace('v', '↓')
+            
+            # 检查是否包含大括号或上下标（如 Fe^{3+}, SO4^{2-} 等）
+            if '{' in t_clean or '^' in t_clean or '_' in t_clean:
+                sub_ast = self.parse_latex(f"${t_clean}$")
+                if sub_ast[0] == "t":
+                    tokens.append(["t", t_clean])
+                else:
+                    tokens.append(sub_ast)
+            else:
+                tokens.append(["t", t_clean])
+                
+        return tokens
 
     def parse_markdown(self, md_text: str) -> list:
         """从 Markdown 中剥离并解析所有的文本段落与 LaTeX 公式"""
@@ -251,10 +333,10 @@ class LaTeXASTParser:
                     raw_latex = tok_strip
                     
                 ast_node = self.parse_latex(raw_latex)
-                current_page_nodes.append({"kind": "math", "ast": ast_node, "raw": raw_latex})
+                current_page_nodes.append(["m", ast_node])
                 current_char_count += 30
             else:
-                current_page_nodes.append({"kind": "text", "content": tok})
+                current_page_nodes.append(["txt", tok])
                 current_char_count += len(tok)
                 
             if current_char_count >= 400:
@@ -379,17 +461,17 @@ class ASTRendererTk(tk.Frame):
         """遍历页节点进行混合渲染"""
         for page in page_data:
             for item in page:
-                kind = item.get("kind")
-                if kind == "text":
-                    text_val = item["content"].strip()
+                kind = item[0]
+                if kind == "txt":
+                    text_val = item[1].strip()
                     if text_val:
                         lbl = tk.Label(
                             self.scroll_frame, text=text_val, fg="#e0e0e0", bg="#181818",
                             font=self.font_main, justify="left", wraplength=340
                         )
                         lbl.pack(anchor="w", pady=2, padx=5)
-                elif kind == "math":
-                    ast = item["ast"]
+                elif kind == "m":
+                    ast = item[1]
                     c_widget = tk.Canvas(self.scroll_frame, bg="#222222", highlightthickness=1, highlightbackground="#444444")
                     c_widget.pack(anchor="w", pady=6, padx=8)
                     
@@ -401,32 +483,35 @@ class ASTRendererTk(tk.Frame):
                         c_widget.config(width=bbox[2] + 8, height=bbox[3] + 8)
 
     def _draw_ast_node(self, cv, node, x, y):
-        """递归绘制 AST 节点并返回占用的 (width, height)"""
-        ntype = node.get("type")
+        """递归绘制极简 AST 节点并返回占用的 (width, height)"""
+        if not node or not isinstance(node, list):
+            return 0, 18
 
-        # 1. 普通文本 / 符号
-        if ntype == "text":
-            val = node.get("val", "")
+        ntype = node[0]
+
+        # 1. 普通文本 ["t", "val"]
+        if ntype == "t":
+            val = node[1] if len(node) > 1 else ""
             item_id = cv.create_text(x, y, text=val, fill="#4fc3f7", font=self.font_main, anchor="nw")
             bbox = cv.bbox(item_id)
             if not bbox:
                 return 0, 18
             return bbox[2] - bbox[0], bbox[3] - bbox[1]
 
-        # 2. 横向排列 (row)
-        elif ntype == "row":
+        # 2. 横向排列 ["r", child1, child2, ...]
+        elif ntype == "r":
             curr_x = x
             max_h = 0
-            for child in node.get("children", []):
+            for child in node[1:]:
                 w, h = self._draw_ast_node(cv, child, curr_x, y)
                 curr_x += w + 2
                 max_h = max(max_h, h)
             return curr_x - x, max_h
 
-        # 3. 分式 (frac)
-        elif ntype == "frac":
-            num_node = node.get("num")
-            den_node = node.get("den")
+        # 3. 分式 ["f", num_node, den_node]
+        elif ntype == "f":
+            num_node = node[1]
+            den_node = node[2]
 
             w_num, h_num = self._measure_node(cv, num_node)
             w_den, h_den = self._measure_node(cv, den_node)
@@ -440,9 +525,9 @@ class ASTRendererTk(tk.Frame):
 
             return width, h_num + h_den + 8
 
-        # 4. 根号 (sqrt)
-        elif ntype == "sqrt":
-            content = node.get("content")
+        # 4. 根号 ["sq", content_node]
+        elif ntype == "sq":
+            content = node[1]
             w_in, h_in = self._measure_node(cv, content)
 
             cv.create_text(x, y, text="√", fill="#ffb74d", font=self.font_main, anchor="nw")
@@ -451,60 +536,101 @@ class ASTRendererTk(tk.Frame):
 
             return w_in + 14, h_in + 4
 
-        # 5. 上标 / 下标组合
-        elif ntype in ("sup_group", "sub_group"):
-            base = node.get("base")
+        # 5. 上标 / 下标 ["sup_g", base, sup] / ["sub_g", base, sub]
+        elif ntype in ("sup_group", "sub_group", "sup_g", "sub_g"):
+            base = node[1]
             w_b, h_b = self._draw_ast_node(cv, base, x, y)
 
-            if ntype == "sup_group":
-                target = node.get("sup")
-                w_s, h_s = self._draw_ast_node_subfont(cv, target, x + w_b, y - 4)
+            target = node[2] if len(node) > 2 else None
+            if not target:
+                return w_b, h_b
+
+            if ntype in ("sup_group", "sup_g"):
+                w_s, h_s = self._draw_ast_node_subfont(cv, target, x + w_b, y - 6)
             else:
-                target = node.get("sub")
-                w_s, h_s = self._draw_ast_node_subfont(cv, target, x + w_b, y + h_b - 8)
+                w_s, h_s = self._draw_ast_node_subfont(cv, target, x + w_b, y + h_b - 6)
 
             return w_b + w_s, max(h_b, h_s)
 
-        # 6. 化学反应式 (chem_equation)
-        elif ntype == "chem_equation":
+        # 6. 化学方程式序列 ["chem_seq", ...] 或 ["chem_eq", ...]
+        elif ntype in ("chem_seq", "chem_eq"):
             curr_x = x
-            for child in node.get("children", []):
-                ctype = child.get("type")
-                if ctype == "chem_text":
-                    item_id = cv.create_text(curr_x, y, text=child["val"], fill="#81c784", font=self.font_main, anchor="nw")
+            max_h = 18
+            for child in node[1:]:
+                if not isinstance(child, list):
+                    continue
+                c_type = child[0]
+                
+                # 如果是带条件的化学箭头: ["chem_a", symbol, top_node, bot_node]
+                if c_type == "chem_a":
+                    symbol = child[1]
+                    top_node = child[2] if len(child) > 2 else None
+                    bot_node = child[3] if len(child) > 3 else None
+
+                    # 渲染上方条件 (如 \Delta)
+                    top_w = 0
+                    if top_node:
+                        tw, th = self._draw_ast_node_subfont(cv, top_node, curr_x + 4, y - 12)
+                        top_w = tw
+
+                    # 渲染箭头符号
+                    item_id = cv.create_text(curr_x, y, text=f" {symbol} ", fill="#ffb74d", font=self.font_main, anchor="nw")
                     bbox = cv.bbox(item_id)
-                    w = (bbox[2] - bbox[0]) if bbox else 10
-                    curr_x += w + 4
-                elif ctype == "chem_arrow":
-                    top_cond = child.get("top_condition") or ""
-                    arrow_str = f"── {child['arrow']} ──"
-                    if top_cond:
-                        cv.create_text(curr_x + 5, y - 10, text=top_cond, fill="#ff8a65", font=self.font_sub, anchor="nw")
-                    cv.create_text(curr_x, y, text=arrow_str, fill="#ffb74d", font=self.font_main, anchor="nw")
-                    curr_x += 65
-            return curr_x - x, 24
+                    w = (bbox[2] - bbox[0]) if bbox else 30
+
+                    # 渲染下方条件
+                    if bot_node:
+                        self._draw_ast_node_subfont(cv, bot_node, curr_x + 4, y + 16)
+
+                    curr_x += max(w, top_w) + 6
+                    max_h = max(max_h, 26)
+                else:
+                    # 普通化学式片段（如分子式、离子、加号等）
+                    w, h = self._draw_ast_node(cv, child, curr_x, y)
+                    curr_x += w + 2
+                    max_h = max(max_h, h)
+            return curr_x - x, max_h
+
+        # 7. 向量符号: ["vec", content_node]
+        elif ntype == "vec":
+            content = node[1]
+            # 递归绘制内部的主体（如 a 或 \vec{a})
+            w_in, h_in = self._draw_ast_node(cv, content, x, y + 4)
+            
+            # 在上方画一个小箭头顶杠
+            cv.create_line(x, y, x + w_in, y, fill="#ffb74d", width=1.5)
+            # 画箭头的小尖角
+            cv.create_line(x + w_in - 3, y - 2, x + w_in, y, fill="#ffb74d", width=1.5)
+            cv.create_line(x + w_in - 3, y + 2, x + w_in, y, fill="#ffb74d", width=1.5)
+            
+            return w_in, h_in + 4
 
         return 10, 18
 
     def _draw_ast_node_subfont(self, cv, node, x, y):
         """小字号渲染上下标"""
-        if node.get("type") == "text":
-            item_id = cv.create_text(x, y, text=node.get("val", ""), fill="#e0e0e0", font=self.font_sub, anchor="nw")
+        if isinstance(node, list) and node[0] == "t":
+            item_id = cv.create_text(x, y, text=node[1], fill="#e0e0e0", font=self.font_sub, anchor="nw")
             bbox = cv.bbox(item_id)
             return (bbox[2] - bbox[0], bbox[3] - bbox[1]) if bbox else (0, 10)
         return self._draw_ast_node(cv, node, x, y)
 
     def _measure_node(self, cv, node):
-        """测量节点尺寸"""
+        """测量极简节点尺寸"""
         dummy_x, dummy_y = -1000, -1000
-        if node.get("type") == "text":
-            item_id = cv.create_text(dummy_x, dummy_y, text=node.get("val", ""), font=self.font_main, anchor="nw")
+        if not node or not isinstance(node, list):
+            return 20, 18
+            
+        ntype = node[0]
+        if ntype == "t":
+            val = node[1] if len(node) > 1 else ""
+            item_id = cv.create_text(dummy_x, dummy_y, text=val, font=self.font_main, anchor="nw")
             bbox = cv.bbox(item_id)
             cv.delete(item_id)
             return (bbox[2] - bbox[0], bbox[3] - bbox[1]) if bbox else (10, 18)
-        elif node.get("type") == "row":
+        elif ntype == "r":
             total_w, max_h = 0, 0
-            for c in node.get("children", []):
+            for c in node[1:]:
                 w, h = self._measure_node(cv, c)
                 total_w += w + 2
                 max_h = max(max_h, h)
