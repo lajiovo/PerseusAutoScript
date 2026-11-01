@@ -55,6 +55,7 @@
 *   🔌 **云崽 Bot 接入**：支持基于 `WebSocket` 与 `OneBot v11` 协议链接云崽 Bot（Yunzai-bot），并支持 `phi-plugin` 等插件扩展
 *   🎮 **附加玩法**：内置钓鱼、拆弹专家、21 点、算术 24 点、战力排行榜等养成与互动玩法
 *   🖥️ **网页后端**：提供带密码验证的 WebUI 管理后台，可以收发消息，支持备注
+*   🤖 **询问AI**：向AI询问，调用Api，默认只支持gemini
 
 ### 3. 📚 轻小说管理 (LK & iNovel)
 *   🕵️ **轻之国度爬虫**：
@@ -70,6 +71,10 @@
     *   **EPUB生成**：自动打包成epub
     *   **TKgui**：提供独立的Tkinter GUI桌面程序进行可视化管理
     *   **WEBui**：提供的后端网页入口进行可视化管理
+*   📖 **Rar转Epub**：(特殊用法)
+    *   **自动解压**：支持rar解压，解压后将自动销毁缓存
+    *   **解析正文**：支持压缩包内的txt和docx作为正文，自动分章
+    *   **导入插图**：支持读取压缩包内的插图并导入epub
 
 ### 4. 🛠️ 百宝箱工具集 (Addition)
 *   🌐 **完整网页后端**：自带导航网页 [`index.html`](main/webassets/index.html) ，快捷跳转各板块
@@ -106,10 +111,21 @@ Perseus/
 ## 🚀 安装与启动教程 （必看）
 
 ### 1. 依赖包安装
-本项目基于 Python 3.10+ 开发，核心依赖包括 `Flask`, `playwright`, `botpy` (腾讯频道机器人 SDK) 等。
+本项目基于 Python 3.10+ 开发，核心依赖包括 `Flask`, `playwright`, `botpy` 等等。
 ```bash
 # 安装 Python 依赖包
-pip install aiohttp botpy beautifulsoup4 ebooklib flask opencc playwright psutil pynput requests ruamel.yaml urllib3 pywin32 patool pillow python-docx pyautogui
+pip install aiohttp botpy beautifulsoup4 ebooklib flask opencc playwright psutil pynput requests ruamel.yaml urllib3 pywin32 patool pillow python-docx pyautogui pytesseract
+```
+
+安装Tesseract
+安装 [`https://github.com/UB-Mannheim/tesseract/wiki`](https://github.com/UB-Mannheim/tesseract/wiki)
+以及在`C:\Program Files\Tesseract-OCR\tessdata`中手动下载
+```
+files_to_download = {
+    "eng.traineddata": "https://github.com/tesseract-ocr/tessdata/raw/main/eng.traineddata",
+    "chi_sim.traineddata": "https://github.com/tesseract-ocr/tessdata/raw/main/chi_sim.traineddata"
+}
+```
 
 # 安装 Playwright 浏览器内核
 playwright install chromium
