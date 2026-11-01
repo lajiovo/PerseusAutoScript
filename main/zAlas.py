@@ -10,6 +10,7 @@ import win32process
 import win32con
 import psutil
 import pyautogui
+from zAlasOCR import check_and_click_updater
 
 # 导入自定义通知模块
 from zBarkCustom import PerseusErrorMsg, PerseusNotifyMsg
@@ -260,7 +261,7 @@ def cleanup():
 # ---------------------------------------------------------------------------
 # 2. Hide 监控并强制隐藏窗口
 # ---------------------------------------------------------------------------
-def hide(target_count=2):
+def hide(target_count=3):
     """
     智能隐藏 AzurPilot 窗口主逻辑
     :param target_count: 期望隐藏的目标窗口数量（1 或 2）
@@ -336,7 +337,7 @@ def hide(target_count=2):
 # ---------------------------------------------------------------------------
 # 3. Start 启动程序并自动调用 hide()
 # ---------------------------------------------------------------------------
-def start(alas_path=ALAS_PATH, show_window=True,extra:bool=False):
+def start(alas_path=ALAS_PATH, show_window=True,extra:bool=False,target_count:int=3):
     """
     主控启动逻辑：先检测是否已运行，已运行传入 hide(1)，未运行拉起后传入 hide(2)
     返回: [bool, str, str] -> [是否成功, 信息代码, 描述详情]
@@ -359,7 +360,7 @@ def start(alas_path=ALAS_PATH, show_window=True,extra:bool=False):
         target_hide_count = 1
     else:
         # 程序未在运行，需拉起程序，期望捕获后续拉起的 2 个不同阶段/尺寸窗口
-        target_hide_count = 2
+        target_hide_count = target_count
         if not os.path.exists(alas_path):
             err_msg = f"未找到 Alas 可执行文件，路径不存在: {alas_path}"
             print(f"❌ {err_msg}")
