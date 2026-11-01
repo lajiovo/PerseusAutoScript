@@ -336,7 +336,7 @@ def hide(target_count=2):
 # ---------------------------------------------------------------------------
 # 3. Start 启动程序并自动调用 hide()
 # ---------------------------------------------------------------------------
-def start(alas_path=ALAS_PATH, show_window=True):
+def start(alas_path=ALAS_PATH, show_window=True,extra:bool=False):
     """
     主控启动逻辑：先检测是否已运行，已运行传入 hide(1)，未运行拉起后传入 hide(2)
     返回: [bool, str, str] -> [是否成功, 信息代码, 描述详情]
@@ -391,6 +391,15 @@ def start(alas_path=ALAS_PATH, show_window=True):
             except Exception:
                 pass
             return [False, "0008", err_msg]
+
+    if extra :
+        print("正在检查启动器更新")
+        try:
+            response = check_and_click_updater()
+            if not(response or response == 0):
+                print("可能存在异常")
+        except Exception as e:
+            print(f"报错了:{e}")
 
     # 根据运行状态，分别向 hide() 传入 1 或 2 作为目标检测窗口数
     hide_result = hide(target_count=target_hide_count)

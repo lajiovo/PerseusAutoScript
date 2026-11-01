@@ -29,7 +29,7 @@ def run_alas_mumu_check():
     alas_hard_restart_count = 0  # Alas 硬重启 (cleanup + start) 计数
     mumu_restart_count = 0       # MuMu 重启计数
 
-    max_hard_restarts = 2
+    max_hard_restarts = 3
     max_mumu_restarts = 2
     print("[Info] 开始执行 Alas & MuMu 状态自动化检查流程...")
     zMumu.once_hidemumu()
@@ -65,7 +65,10 @@ def run_alas_mumu_check():
             return False
         if not zAlas.is_process_running():
             zAlas.cleanup()
-            reponse = zAlas.start()[0]
+            if alas_hard_restart_count >= 1:
+                reponse = zAlas.start(extra=True)[0]
+            else:
+                reponse = zAlas.start()[0]
             alas_hard_restart_count += 1
             if reponse :
                 print("[Info]Alas重启成功")

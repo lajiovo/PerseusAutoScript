@@ -220,11 +220,45 @@ def check_and_click_updater(trigger_keyword="发现新版本", button_keyword="�
         real_right = int(right * DPI_SCALE)
         real_bottom = int(bottom * DPI_SCALE)
 
-        # 截图并进行 OCR
-        screenshot = ImageGrab.grab(bbox=(real_left, real_top, real_right, real_bottom))
-        data = pytesseract.image_to_data(screenshot, lang='chi_sim+eng', output_type=pytesseract.Output.DICT)
+        # 进行 OCR 截屏识别与校验（包含 AzurPilot 缺失重试逻辑）
+        azur_attempts = 0
+        merged_lines = []
+        while azur_attempts < 2:
+            azur_attempts += 1
+            # 截图并进行 OCR
+            screenshot = ImageGrab.grab(bbox=(real_left, real_top, real_right, real_bottom))
+            data = pytesseract.image_to_data(screenshot, lang='chi_sim+eng', output_type=pytesseract.Output.DICT)
+            merged_lines = parse_and_merge_ocr_data(data)
 
-        merged_lines = parse_and_merge_ocr_data(data)
+            # 1. 如果结果中包含“正在准备运行环境”，直接返回 True
+            if any("正在准备运行环境" in line['text'] for line in merged_lines):
+                print(f"✅ 窗口 [{win['title']}] 检测到 '正在准备运行环境'，直接返回 True")
+                return True
+
+            # 检查是否有 AzurPilot 文本
+            has_azurpilot = any("azurpilot" in line['text'].lower() for line in merged_lines)
+            if has_azurpilot:
+                break
+            else:
+                print(f"⚠️ 第 {azur_attempts}/2 次未在 OCR 结果中检测到 'AzurPilot'")
+                if azur_attempts < 2:
+                    print("  🔄 尝试重新置顶窗口并再次识别...")
+                    try:
+                        if win32gui.IsWindow(hwnd):
+                            win32gui.SetForegroundWindow(hwnd)
+                            time.sleep(0.5)
+                            left, top, right, bottom = win32gui.GetWindowRect(hwnd)
+                            real_left = int(left * DPI_SCALE)
+                            real_top = int(top * DPI_SCALE)
+                            real_right = int(right * DPI_SCALE)
+                            real_bottom = int(bottom * DPI_SCALE)
+                    except Exception as e:
+                        print(f"  ❌ 重置窗口失败: {e}")
+
+        # 如果尝试 2 次后仍未检测到 AzurPilot，返回 0
+        if not any("azurpilot" in line['text'].lower() for line in merged_lines):
+            print(f"❌ 尝试 2 次后仍未在 OCR 结果中检索到 'AzurPilot'，失败返回 0")
+            return 0
 
         # 检查所有文本行中是否出现了更新提示
         has_update_notice = any(trigger_keyword in line['text'] for line in merged_lines)
@@ -233,58 +267,67 @@ def check_and_click_updater(trigger_keyword="发现新版本", button_keyword="�
             print(f"⚠️ 窗口 [{win['title']}] 检测到更新提示（匹配词: '{trigger_keyword}'）")
 
             # 寻找符合点击条件的按钮（可能包含噪声字符如 "C更新启动器"）
+            btn_line = None
             for line in merged_lines:
                 if button_keyword in line['text']:
-                    print(f"🎯 找到匹配按钮文本行: 【{line['text']}】")
+                    btn_line = line
+                    break
 
-                    # 计算在截图图片上的逻辑像素中心点
-                    btn_center_x_ocr = line['x'] + line['w'] / 2
-                    btn_center_y_ocr = line['y'] + line['h'] / 2
+            if not btn_line:
+                print(f"❌ 检测到更新提示，但未找到对应的按钮关键词: '{button_keyword}'")
+                return False
 
-                    # 换算为屏幕真实物理像素坐标（先加屏幕左上偏移，再除以 DPI 缩放回到物理屏幕点）
-                    screen_click_x = (real_left + btn_center_x_ocr) / DPI_SCALE
-                    screen_click_y = (real_top + btn_center_y_ocr) / DPI_SCALE
+            print(f"🎯 找到匹配按钮文本行: 【{btn_line['text']}】")
 
-                    # 首次触发点击
-                    click_at(screen_click_x, screen_click_y)
-                    total_clicked += 1
-                    time.sleep(1.0)  # 等待更新状态响应与界面刷新
+            # 计算在截图图片上的逻辑像素中心点
+            btn_center_x_ocr = btn_line['x'] + btn_line['w'] / 2
+            btn_center_y_ocr = btn_line['y'] + btn_line['h'] / 2
 
-                    # 再次截屏校验是否在更新中
-                    try:
-                        if win32gui.IsWindow(hwnd):
-                            left, top, right, bottom = win32gui.GetWindowRect(hwnd)
-                            real_left = int(left * DPI_SCALE)
-                            real_top = int(top * DPI_SCALE)
-                            real_right = int(right * DPI_SCALE)
-                            real_bottom = int(bottom * DPI_SCALE)
-                            
-                            screenshot_retry = ImageGrab.grab(bbox=(real_left, real_top, real_right, real_bottom))
-                            data_retry = pytesseract.image_to_data(screenshot_retry, lang='chi_sim+eng', output_type=pytesseract.Output.DICT)
-                            merged_lines_retry = parse_and_merge_ocr_data(data_retry)
+            # 换算为屏幕真实物理像素坐标（先加屏幕左上偏移，再除以 DPI 缩放回到物理屏幕点）
+            screen_click_x = (real_left + btn_center_x_ocr) / DPI_SCALE
+            screen_click_y = (real_top + btn_center_y_ocr) / DPI_SCALE
 
-                            # 判断是否存在“启动器更新中”
-                            is_updating = any("启动器更新中" in l['text'] for l in merged_lines_retry)
+            # 重试最多3次点击
+            max_retries = 3
+            for attempt in range(1, max_retries + 1):
+                print(f"  👉 第 {attempt}/{max_retries} 次尝试点击...")
+                click_at(screen_click_x, screen_click_y)
+                total_clicked += 1
+                time.sleep(1.0)  # 等待更新状态响应与界面刷新
 
-                            if is_updating:
-                                print(f"⏳ 检测到 '启动器更新中'，正在最小化窗口...")
-                                win32gui.ShowWindow(hwnd, win32con.SW_MINIMIZE)
-                            else:
-                                print(f"⚠️ 未检测到 '启动器更新中'，准备再次点击按钮...")
-                                click_at(screen_click_x, screen_click_y)
-                    except Exception as e:
-                        print(f"  ❌ 状态校验与重试逻辑异常: {e}")
+                # 再次截屏校验是否在更新中
+                try:
+                    if win32gui.IsWindow(hwnd):
+                        left, top, right, bottom = win32gui.GetWindowRect(hwnd)
+                        real_left = int(left * DPI_SCALE)
+                        real_top = int(top * DPI_SCALE)
+                        real_right = int(right * DPI_SCALE)
+                        real_bottom = int(bottom * DPI_SCALE)
+                        
+                        screenshot_retry = ImageGrab.grab(bbox=(real_left, real_top, real_right, real_bottom))
+                        data_retry = pytesseract.image_to_data(screenshot_retry, lang='chi_sim+eng', output_type=pytesseract.Output.DICT)
+                        merged_lines_retry = parse_and_merge_ocr_data(data_retry)
 
-                    time.sleep(0.5)
+                        # 判断是否存在“启动器更新中”
+                        is_updating = any("启动器更新中" in l['text'] for l in merged_lines_retry)
+
+                        if is_updating:
+                            print(f"⏳ 检测到 '启动器更新中'，正在最小化窗口...")
+                            win32gui.ShowWindow(hwnd, win32con.SW_MINIMIZE)
+                            return True
+                        else:
+                            print(f"⚠️ 未检测到 '启动器更新中'。")
+                except Exception as e:
+                    print(f"  ❌ 状态校验异常: {e}")
+
+            # 3次点击后仍未识别到“启动器更新中”
+            print(f"❌ 已达到最大重试次数 ({max_retries} 次)，仍未能进入更新状态。")
+            return False
         else:
             print(f"ℹ️ 窗口 [{win['title']}] 未检测到更新提示信息。")
+            return True
 
-    return total_clicked
-
-
-# 兼容之前的调用方式
-def find_and_ocr_target_windows():
-    return check_and_click_updater()
+    return True
 
 
 if __name__ == "__main__":
