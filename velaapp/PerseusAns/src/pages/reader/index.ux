@@ -1,101 +1,77 @@
 <template>
   <div class="container">
-    <!-- Top Fixed Bar -->
     <div class="top-bar">
       <text class="title">{{ansTitle}}</text>
       <text class="page-indicator">{{currentPage + 1}}/{{totalPages}}</text>
     </div>
 
-    <!-- Main Content Container with Horizontal Scroll Support -->
     <scroll class="reader-scroll" scroll-x="true" scroll-y="true">
-      <div class="content-body" id="contentBody">
-        <!-- Rendered paragraphs and AST nodes based on minimalist AST mapping -->
+      <div class="content-body">
         <block for="{{pageNodes}}">
-          <!-- Headings -->
           <text class="h1" if="{{$item.type === 'h1'}}">{{$item.value}}</text>
           <text class="h2" if="{{$item.type === 'h2'}}">{{$item.value}}</text>
           <text class="h3" if="{{$item.type === 'h3'}}">{{$item.value}}</text>
 
-          <!-- Paragraph / Container (m / paragraph) -->
           <div class="paragraph" if="{{$item.type === 'm' || $item.type === 'paragraph'}}">
             <block for="{{$item.children}}">
-              <!-- Text node ['t', 'text'][cite: 1] -->
               <text class="text" if="{{$item.type === 't'}}">{{$item.value}}</text>
               <text class="bold-text" if="{{$item.type === 'bold'}}">{{$item.value}}</text>
 
-              <!-- Horizontal combination ['r', ...][cite: 1] -->
               <div class="ast-horizontal" if="{{$item.type === 'r'}}">
                 <block for="{{$item.children}}">
                   <text class="text" if="{{$item.type === 't'}}">{{$item.value}}</text>
                   <text class="bold-text" if="{{$item.type === 'bold'}}">{{$item.value}}</text>
-                  <!-- Nested fraction in horizontal -->
                   <div class="ast-fraction" if="{{$item.type === 'f'}}">
-                    <text class="ast-num">{{$item.num.value || $item.num}}</text>
+                    <text class="ast-num">{{$item.numText}}</text>
                     <div class="ast-line"></div>
-                    <text class="ast-den">{{$item.den.value || $item.den}}</text>
+                    <text class="ast-den">{{$item.denText}}</text>
                   </div>
-                  <!-- Nested sup in horizontal -->
                   <div class="ast-sup-wrap" if="{{$item.type === 'sup_g'}}">
-                    <text class="text">{{$item.base.value || $item.base}}</text>
-                    <text class="ast-sup">{{$item.sup.value || $item.sup}}</text>
+                    <text class="text">{{$item.baseText}}</text>
+                    <text class="ast-sup">{{$item.supText}}</text>
                   </div>
-                  <!-- Nested sub in horizontal -->
                   <div class="ast-sub-wrap" if="{{$item.type === 'sub_g'}}">
-                    <text class="text">{{$item.base.value || $item.base}}</text>
-                    <text class="ast-sub">{{$item.sub.value || $item.sub}}</text>
+                    <text class="text">{{$item.baseText}}</text>
+                    <text class="ast-sub">{{$item.subText}}</text>
                   </div>
                 </block>
               </div>
 
-              <!-- Fraction ['f', num, den][cite: 1] -->
               <div class="ast-fraction" if="{{$item.type === 'f'}}">
-                <text class="ast-num">{{$item.num.value || $item.num}}</text>
+                <text class="ast-num">{{$item.numText}}</text>
                 <div class="ast-line"></div>
-                <text class="ast-den">{{$item.den.value || $item.den}}</text>
+                <text class="ast-den">{{$item.denText}}</text>
               </div>
 
-              <!-- Square root ['sq', content][cite: 1] -->
               <div class="ast-sqrt" if="{{$item.type === 'sq'}}">
                 <text class="ast-symbol">√</text>
-                <text class="ast-sqrt-text">{{$item.content.value || $item.content}}</text>
+                <text class="ast-sqrt-text">{{$item.contentText}}</text>
               </div>
 
-              <!-- Superscript combination ['sup_g', base, sup][cite: 1] -->
               <div class="ast-sup-wrap" if="{{$item.type === 'sup_g'}}">
-                <text class="text">{{$item.base.value || $item.base}}</text>
-                <text class="ast-sup">{{$item.sup.value || $item.sup}}</text>
+                <text class="text">{{$item.baseText}}</text>
+                <text class="ast-sup">{{$item.supText}}</text>
               </div>
 
-              <!-- Subscript combination ['sub_g', base, sub][cite: 1] -->
               <div class="ast-sub-wrap" if="{{$item.type === 'sub_g'}}">
-                <text class="text">{{$item.base.value || $item.base}}</text>
-                <text class="ast-sub">{{$item.sub.value || $item.sub}}</text>
+                <text class="text">{{$item.baseText}}</text>
+                <text class="ast-sub">{{$item.subText}}</text>
               </div>
 
-              <!-- Vector ['vec', content][cite: 1] -->
               <div class="ast-vec-wrap" if="{{$item.type === 'vec'}}">
-                <text class="ast-vec-arrow">→name</text>
-                <text class="text">{{$item.content.value || $item.content}}</text>
+                <text class="ast-vec-arrow">→</text>
+                <text class="text">{{$item.contentText}}</text>
               </div>
 
-              <!-- Chemical Equation Sequence ['chem_seq', [nodes]][cite: 1] -->
               <div class="chem-seq-container" if="{{$item.type === 'chem_seq'}}">
                 <block for="{{$item.children}}">
                   <text class="text" if="{{$item.type === 't'}}">{{$item.value}}</text>
-                  <!-- Chemical reaction arrow ['chem_a', symbol, top, bot][cite: 1] -->
                   <div class="chem-arrow-box" if="{{$item.type === 'chem_a'}}">
-                    <text class="chem-arrow-top">{{$item.top ? ($item.top.value || $item.top) : ''}}</text>
-                    <text class="chem-arrow-symbol">{{$item.symbol || '→'}}</text>
-                    <text class="chem-arrow-bot">{{$item.bot ? ($item.bot.value || $item.bot) : ''}}</text>
+                    <text class="chem-arrow-top">{{$item.topText}}</text>
+                    <text class="chem-arrow-symbol">{{$item.symbol}}</text>
+                    <text class="chem-arrow-bot">{{$item.botText}}</text>
                   </div>
                 </block>
-              </div>
-
-              <!-- Chemical Reaction Arrow standalone -->
-              <div class="chem-arrow-box" if="{{$item.type === 'chem_a'}}">
-                <text class="chem-arrow-top">{{$item.top ? ($item.top.value || $item.top) : ''}}</text>
-                <text class="chem-arrow-symbol">{{$item.symbol || '→'}}</text>
-                <text class="chem-arrow-bot">{{$item.bot ? ($item.bot.value || $item.bot) : ''}}</text>
               </div>
             </block>
           </div>
@@ -103,7 +79,6 @@
       </div>
     </scroll>
 
-    <!-- Bottom Fixed Bar -->
     <div class="bottom-bar">
       <input class="btn" type="button" value="上一页" onclick="prevPage" />
       <input class="btn" type="button" value="下一页" onclick="nextPage" />
@@ -114,8 +89,8 @@
 
 <script>
 import router from "@system.router"
-import storage from "@system.storage"
 import prompt from "@system.prompt"
+import store from "../../common/ansstore.js"
 
 export default {
   private: {
@@ -124,128 +99,158 @@ export default {
     totalPages: 1,
     currentPage: 0,
     pagesData: [],
-    pageNodes: []
+    pageNodes: [],
+    fontSize: 14
   },
   onInit(params) {
-    this.ansId = params.ansId;
-    this.loadAnswerData();
+    const p = params || this
+    this.ansId = p.ansId || p.ans_id
+    store.storageGet("reader_font_size", (data) => {
+      const size = parseInt(data, 10)
+      if (!isNaN(size)) this.fontSize = size
+    })
+    this.loadAnswerData()
   },
   loadAnswerData() {
-    storage.get({
-      key: "local_answers",
-      success: (data) => {
-        if (data) {
-          try {
-            let list = JSON.parse(data);
-            let item = list.find(i => String(i.id) === String(this.ansId) || String(i.ans_id) === String(this.ansId));
-            if (item) {
-              this.ansTitle = item.title;
-              this.totalPages = item.total_pages || (item.pages ? item.pages.length : 1);
-              this.pagesData = item.pages || [];
-              this.updatePageContent();
-            }
-          } catch(e) {}
+    store.loadItem(this.ansId, (item) => {
+      if (!item) {
+        this.ansTitle = "未找到题目"
+        this.pageNodes = [{ type: "m", children: [{ type: "t", value: "本地无此题，请重新同步" }] }]
+        return
+      }
+      this.ansTitle = item.title || "解析"
+      this.pagesData = item.pages || []
+      this.totalPages = item.total_pages || this.pagesData.length || 1
+      this.updatePageContent()
+    })
+  },
+  nodeText(node) {
+    if (!node) return ""
+    if (typeof node === "string" || typeof node === "number") return String(node)
+    if (node.type === "t" || node.type === "bold") return node.value || ""
+    if (node.value) return String(node.value)
+    return store.astText(node)
+  },
+  normalizeAst(node) {
+    if (node === undefined || node === null) return { type: "t", value: "" }
+    if (typeof node === "string" || typeof node === "number") {
+      return { type: "t", value: String(node) }
+    }
+    if (Array.isArray(node)) {
+      const tag = node[0]
+      if (tag === "t" || tag === "txt") return { type: "t", value: String(node[1] || "") }
+      if (tag === "r") {
+        return { type: "r", children: store.rowChildren(node).map((n) => this.normalizeAst(n)) }
+      }
+      if (tag === "f") {
+        const num = this.normalizeAst(node[1])
+        const den = this.normalizeAst(node[2])
+        return { type: "f", num: num, den: den, numText: this.nodeText(num), denText: this.nodeText(den) }
+      }
+      if (tag === "sq") {
+        const content = this.normalizeAst(node[1])
+        return { type: "sq", content: content, contentText: this.nodeText(content) }
+      }
+      if (tag === "sup_g" || tag === "sup") {
+        const base = tag === "sup" ? { type: "t", value: "" } : this.normalizeAst(node[1])
+        const sup = this.normalizeAst(tag === "sup" ? node[1] : node[2])
+        return { type: "sup_g", base: base, sup: sup, baseText: this.nodeText(base), supText: this.nodeText(sup) }
+      }
+      if (tag === "sub_g" || tag === "sub") {
+        const base = tag === "sub" ? { type: "t", value: "" } : this.normalizeAst(node[1])
+        const sub = this.normalizeAst(tag === "sub" ? node[1] : node[2])
+        return { type: "sub_g", base: base, sub: sub, baseText: this.nodeText(base), subText: this.nodeText(sub) }
+      }
+      if (tag === "vec") {
+        const content = this.normalizeAst(node[1])
+        return { type: "vec", content: content, contentText: this.nodeText(content) }
+      }
+      if (tag === "chem_seq") {
+        const kids = Array.isArray(node[1]) ? node[1] : node.slice(1)
+        return { type: "chem_seq", children: kids.map((n) => this.normalizeAst(n)) }
+      }
+      if (tag === "chem_a") {
+        const top = this.normalizeAst(node[2])
+        const bot = this.normalizeAst(node[3])
+        return {
+          type: "chem_a",
+          symbol: node[1] || "→",
+          top: top,
+          bot: bot,
+          topText: this.nodeText(top),
+          botText: this.nodeText(bot)
         }
       }
-    });
-  },
-  // 核心：根据极简 AST 节点对照表将数组结构转换为视图渲染对象[cite: 1]
-  normalizeAst(node) {
-    if (!node) return null;
-    if (Array.isArray(node)) {
-      const tag = node[0];
-      switch (tag) {
-        case 't':
-          return { type: 't', value: node[1] };
-        case 'r':
-          return { type: 'r', children: (node[1] || []).map(n => this.normalizeAst(n)) };
-        case 'f':
-          return { type: 'f', num: this.normalizeAst(node[1]), den: this.normalizeAst(node[2]) };
-        case 'sq':
-          return { type: 'sq', content: this.normalizeAst(node[1]) };
-        case 'sup_g':
-          return { type: 'sup_g', base: this.normalizeAst(node[1]), sup: this.normalizeAst(node[2]) };
-        case 'sub_g':
-          return { type: 'sub_g', base: this.normalizeAst(node[1]), sub: this.normalizeAst(node[2]) };
-        case 'vec':
-          return { type: 'vec', content: this.normalizeAst(node[1]) };
-        case 'chem_seq':
-          return { type: 'chem_seq', children: (node[1] || []).map(n => this.normalizeAst(n)) };
-        case 'chem_a':
-          return { type: 'chem_a', symbol: node[1], top: this.normalizeAst(node[2]), bot: this.normalizeAst(node[3]) };
-        case 'm':
-        case 'paragraph':
-          return { type: 'm', children: node.slice(1).map(n => this.normalizeAst(n)) };
-        case 'txt':
-          return { type: 't', value: node[1] };
-        default:
-          return { type: 't', value: String(node[1] || '') };
+      if (tag === "h1" || tag === "h2" || tag === "h3") {
+        return { type: tag, value: String(node[1] || "") }
       }
-    } else if (typeof node === 'object') {
-      return {
-        type: node.block_type || node.type || 't',
-        value: node.value || node.raw || '',
-        children: (node.content || node.children || []).map(n => this.normalizeAst(n)),
-        num: node.numerator ? this.normalizeAst(node.numerator) : null,
-        den: node.denominator ? this.normalizeAst(node.denominator) : null,
-        base: node.base ? this.normalizeAst(node.base) : null,
-        sup: node.value ? this.normalizeAst(node.value) : null,
-        sub: node.value ? this.normalizeAst(node.value) : null,
-        content: node.content ? this.normalizeAst(node.content) : null
-      };
+      if (tag === "m" || tag === "paragraph") {
+        return { type: "m", children: node.slice(1).map((n) => this.normalizeAst(n)) }
+      }
+      return { type: "t", value: store.astText(node) }
     }
-    return { type: 't', value: String(node) };
+    if (typeof node === "object") {
+      const blockType = node.block_type || node.type
+      if (blockType === "h1" || blockType === "h2" || blockType === "h3") {
+        return { type: blockType, value: node.raw || node.value || store.astText(node.ast) }
+      }
+      const source = node.ast || node.content || node.children
+      let children = []
+      if (Array.isArray(source) && source.length && source[0] === "r") {
+        children = store.rowChildren(source).map((n) => this.normalizeAst(n))
+      } else if (Array.isArray(source) && source.length && typeof source[0] === "string") {
+        children = [this.normalizeAst(source)]
+      } else if (Array.isArray(source)) {
+        children = source.map((n) => this.normalizeAst(n))
+      } else if (source) {
+        children = [this.normalizeAst(source)]
+      } else if (node.raw || node.value) {
+        children = [{ type: "t", value: node.raw || node.value }]
+      }
+      return { type: "m", children: children }
+    }
+    return { type: "t", value: String(node) }
   },
   updatePageContent() {
-    if (this.pagesData && this.pagesData.length > this.currentPage) {
-      let currentPageObj = this.pagesData[this.currentPage];
-      let rawBlocks = currentPageObj.blocks || currentPageObj || [];
-      // 对当前页面的所有区块应用极简 AST 归一化处理
-      this.pageNodes = rawBlocks.map(block => this.normalizeAst(block));
+    if (!this.pagesData || this.pagesData.length <= this.currentPage) {
+      this.pageNodes = [{ type: "m", children: [{ type: "t", value: "本页为空" }] }]
+      return
     }
+    const currentPageObj = this.pagesData[this.currentPage]
+    let rawBlocks = []
+    if (currentPageObj && currentPageObj.blocks) rawBlocks = currentPageObj.blocks
+    else if (Array.isArray(currentPageObj)) rawBlocks = currentPageObj
+    this.pageNodes = rawBlocks.map((block) => this.normalizeAst(block))
   },
   prevPage() {
     if (this.currentPage > 0) {
-      this.currentPage--;
-      this.updatePageContent();
+      this.currentPage--
+      this.updatePageContent()
     }
   },
   nextPage() {
     if (this.currentPage < this.totalPages - 1) {
-      this.currentPage++;
-      this.updatePageContent();
+      this.currentPage++
+      this.updatePageContent()
     }
   },
   confirmDelete() {
     prompt.showDialog({
       title: "确认删除",
-      message: "是否删除该题目解析？",
+      message: "删除本机这道题？",
       buttons: [
-        { text: "取消", color: "#666666" },
-        { text: "删除", color: "#ff0000" }
+        { text: "取消", color: "#888888" },
+        { text: "删除", color: "#ef4444" }
       ],
       success: (data) => {
-        if (data.index === 1) {
-          storage.get({
-            key: "local_answers",
-            success: (sData) => {
-              if (sData) {
-                let list = JSON.parse(sData);
-                list = list.filter(i => String(i.id) !== String(this.ansId));
-                storage.set({
-                  key: "local_answers",
-                  value: JSON.stringify(list),
-                  success: () => {
-                    prompt.showToast({ message: "已删除" });
-                    router.back();
-                  }
-                });
-              }
-            }
-          });
-        }
+        const idx = data && (data.index !== undefined ? data.index : (data.data && data.data.index))
+        if (Number(idx) !== 1) return
+        store.deleteAnswer(this.ansId, () => {
+          prompt.showToast({ message: "已删除" })
+          router.back()
+        })
       }
-    });
+    })
   }
 }
 </script>
@@ -253,7 +258,7 @@ export default {
 <style>
 .container {
   flex-direction: column;
-  background-color: #000000;
+  background-color: #0b0d12;
   width: 100%;
   height: 100%;
   padding: 8px;
@@ -262,44 +267,48 @@ export default {
   flex-direction: row;
   justify-content: space-between;
   align-items: center;
-  height: 35px;
+  height: 32px;
   border-bottom-width: 1px;
-  border-bottom-color: #333333;
+  border-bottom-color: #243044;
 }
 .title {
-  font-size: 14px;
-  color: #ffaa00;
+  font-size: 13px;
+  color: #f5c15d;
   font-weight: bold;
+  flex: 1;
+  lines: 1;
+  text-overflow: ellipsis;
 }
 .page-indicator {
-  font-size: 12px;
-  color: #aaaaaa;
+  font-size: 11px;
+  color: #9aa3b5;
+  margin-left: 6px;
 }
 .reader-scroll {
   flex: 1;
-  margin-top: 5px;
-  margin-bottom: 5px;
+  margin-top: 6px;
+  margin-bottom: 6px;
 }
 .content-body {
   flex-direction: column;
-  padding: 5px;
+  padding: 4px;
 }
 .h1 {
-  font-size: 18px;
+  font-size: 17px;
   font-weight: bold;
   color: #ffffff;
   margin-bottom: 6px;
 }
 .h2 {
-  font-size: 16px;
+  font-size: 15px;
   font-weight: bold;
-  color: #ffffff;
+  color: #e5e7eb;
   margin-bottom: 5px;
 }
 .h3 {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: bold;
-  color: #ffffff;
+  color: #d1d5db;
   margin-bottom: 4px;
 }
 .paragraph {
@@ -310,54 +319,52 @@ export default {
 }
 .text {
   font-size: 13px;
-  color: #e0e0e0;
+  color: #e5e7eb;
 }
 .bold-text {
   font-size: 13px;
-  color: #ffcc00;
+  color: #f5c15d;
   font-weight: bold;
 }
 .ast-horizontal {
   flex-direction: row;
   align-items: center;
-  margin: 0 2px;
+  margin: 0px 2px;
 }
 .ast-fraction {
   flex-direction: column;
   align-items: center;
-  margin: 0 4px;
+  margin: 0px 4px;
 }
 .ast-num {
   font-size: 11px;
-  color: #00ffff;
-  border-bottom-width: 1px;
-  border-bottom-color: #00ffff;
+  color: #67e8f9;
   padding-bottom: 1px;
 }
 .ast-line {
   width: 100%;
   height: 1px;
-  background-color: #00ffff;
+  background-color: #67e8f9;
 }
 .ast-den {
   font-size: 11px;
-  color: #00ffff;
+  color: #67e8f9;
   padding-top: 1px;
 }
 .ast-sqrt {
   flex-direction: row;
   align-items: center;
-  margin: 0 4px;
+  margin: 0px 4px;
 }
 .ast-symbol {
   font-size: 14px;
-  color: #ff00ff;
+  color: #e879f9;
 }
 .ast-sqrt-text {
   font-size: 12px;
-  color: #ff00ff;
+  color: #e879f9;
   border-top-width: 1px;
-  border-top-color: #ff00ff;
+  border-top-color: #e879f9;
   padding-top: 1px;
 }
 .ast-sup-wrap {
@@ -374,18 +381,17 @@ export default {
   align-items: flex-end;
 }
 .ast-sub {
-  font-size: 19px;
+  font-size: 9px;
   color: #38bdf8;
   margin-left: 1px;
 }
 .ast-vec-wrap {
   flex-direction: row;
   align-items: center;
-  position: relative;
 }
 .ast-vec-arrow {
   font-size: 9px;
-  color: #ff5722;
+  color: #fb923c;
 }
 .chem-seq-container {
   flex-direction: row;
@@ -395,40 +401,40 @@ export default {
 .chem-arrow-box {
   flex-direction: column;
   align-items: center;
-  margin: 0 4px;
+  margin: 0px 4px;
 }
 .chem-arrow-top {
   font-size: 8px;
-  color: #a855f7;
+  color: #c4b5fd;
 }
 .chem-arrow-symbol {
   font-size: 12px;
-  color: #a855f7;
+  color: #c4b5fd;
 }
 .chem-arrow-bot {
   font-size: 8px;
-  color: #a855f7;
+  color: #c4b5fd;
 }
 .bottom-bar {
   flex-direction: row;
   justify-content: space-between;
-  height: 35px;
+  height: 34px;
   align-items: center;
 }
 .btn {
-  width: 90px;
-  height: 30px;
-  background-color: #333333;
+  width: 86px;
+  height: 28px;
+  background-color: #243044;
   color: #ffffff;
-  font-size: 12px;
-  border-radius: 4px;
+  font-size: 11px;
+  border-radius: 14px;
 }
 .btn-danger {
-  width: 70px;
-  height: 30px;
-  background-color: #aa0000;
+  width: 64px;
+  height: 28px;
+  background-color: #7f1d1d;
   color: #ffffff;
-  font-size: 12px;
-  border-radius: 4px;
+  font-size: 11px;
+  border-radius: 14px;
 }
 </style>

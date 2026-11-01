@@ -1,151 +1,127 @@
 <template>
   <div class="container">
-    <text class="title">系统设置与存储 (Debug)</text>
-    
-    <!-- Data Sync Menu -->
+    <text class="title">设置</text>
+
     <div class="menu-item" onclick="gotoSync">
-      <text class="menu-text">数据增量同步</text>
+      <text class="menu-k">数据同步</text>
+      <text class="menu-v">增量 / 全量</text>
     </div>
-    
-    <!-- Debug Mode Toggle -->
+
     <div class="menu-item" onclick="toggleDebug">
-      <text class="menu-text">Debug 模式: {{debugMode ? '已开启' : '已关闭'}}</text>
+      <text class="menu-k">Debug 模式</text>
+      <text class="menu-v">{{debugMode ? '开' : '关'}}</text>
     </div>
 
-    <!-- View Local Database (Storage Viewer) -->
-    <div class="menu-item" onclick="viewDatabase">
-      <text class="menu-text">查看本地数据库 (local_answers)</text>
+    <div class="menu-item" onclick="gotoStorage">
+      <text class="menu-k">本地存储检查</text>
+      <text class="menu-v">看空/非空</text>
     </div>
 
-    <!-- Clear Cache Menu -->
-    <div class="menu-item" onclick="clearCache">
-      <text class="menu-text">一键清空本地题目缓存</text>
+    <div class="menu-item danger" onclick="clearCache">
+      <text class="menu-k">清空题目数据</text>
+      <text class="menu-v">索引+正文</text>
     </div>
 
-    <!-- Font Size Adjustment Menu -->
     <div class="menu-item" onclick="changeFontSize">
-      <text class="menu-text">公式字号调整 (当前: {{fontSize}}px)</text>
+      <text class="menu-k">公式字号</text>
+      <text class="menu-v">{{fontSize}}px</text>
     </div>
 
-    <!-- Back Button -->
+    <div class="menu-item" onclick="editHost">
+      <text class="menu-k">服务地址</text>
+      <text class="menu-v small">{{serverHost}}</text>
+    </div>
+
     <input class="btn-back" type="button" value="返回" onclick="goBack" />
   </div>
 </template>
 
 <script>
 import router from "@system.router"
-import storage from "@system.storage"
 import prompt from "@system.prompt"
+import store from "../../common/ansstore.js"
 
 export default {
   private: {
     fontSize: 14,
-    debugMode: false
+    debugMode: false,
+    serverHost: ""
   },
   onInit() {
-    this.loadSettings();
+    this.loadSettings()
+  },
+  onShow() {
+    this.loadSettings()
   },
   loadSettings() {
-    storage.get({
-      key: "reader_font_size",
-      success: (data) => {
-        if (data) {
-          let size = parseInt(data, 10);
-          if (!isNaN(size)) {
-            this.fontSize = size;
-          }
-        }
-      }
-    });
-    storage.get({
-      key: "debug_mode",
-      success: (data) => {
-        this.debugMode = (data === "true" || data === true);
-      }
-    });
+    store.storageGet("reader_font_size", (data) => {
+      const size = parseInt(data, 10)
+      if (!isNaN(size)) this.fontSize = size
+    })
+    store.storageGet("debug_mode", (data) => {
+      this.debugMode = (data === "true" || data === true)
+    })
+    store.getServerHost((host) => {
+      this.serverHost = host
+    })
   },
   toggleDebug() {
-    this.debugMode = !this.debugMode;
-    storage.set({
-      key: "debug_mode",
-      value: String(this.debugMode),
-      success: () => {
-        prompt.showToast({ message: `Debug 模式已${this.debugMode ? '开启' : '关闭'}` });
-      }
-    });
+    this.debugMode = !this.debugMode
+    store.storageSet("debug_mode", String(this.debugMode), () => {
+      prompt.showToast({ message: this.debugMode ? "Debug 已开" : "Debug 已关" })
+    })
   },
-  viewDatabase() {
-    storage.get({
-      key: "local_answers",
-      success: (data) => {
-        if (!data) {
-          prompt.showToast({ message: "本地数据库为空" });
-          return;
-        }
-        try {
-          let parsed = JSON.parse(data);
-          let count = Array.isArray(parsed) ? parsed.length : 0;
-          let titles = Array.isArray(parsed) ? parsed.map(i => i.title || i.ans_id).join(', ') : "非数组数据";
-          prompt.showDialog({
-            title: "本地数据库查看",
-            message: `题目总数: ${count}\n\n题目列表: ${titles}`,
-            buttons: [{ text: "确定", color: "#007bff" }]
-          });
-        } catch(e) {
-          prompt.showDialog({
-            title: "数据库解析错误",
-            message: String(data).substring(0, 200),
-            buttons: [{ text: "确定", color: "#ff0000" }]
-          });
-        }
-      },
-      fail: () => {
-        prompt.showToast({ message: "读取本地数据库失败" });
-      }
-    });
+  gotoStorage() {
+    router.push({ uri: "/pages/storage" })
   },
   gotoSync() {
-    router.push({ uri: "/pages/sync" });
+    router.push({ uri: "/pages/sync" })
   },
   changeFontSize() {
-    const sizes = [12, 14, 16];
-    let nextIndex = (sizes.indexOf(this.fontSize) + 1) % sizes.length;
-    this.fontSize = sizes[nextIndex];
-
-    storage.set({
-      key: "reader_font_size",
-      value: String(this.fontSize),
-      success: () => {
-        prompt.showToast({ message: `字号已设为 ${this.fontSize}px` });
+    const sizes = [12, 14, 16]
+    const nextIndex = (sizes.indexOf(this.fontSize) + 1) % sizes.length
+    this.fontSize = sizes[nextIndex]
+    store.storageSet("reader_font_size", String(this.fontSize), () => {
+      prompt.showToast({ message: this.fontSize + "px" })
+    })
+  },
+  editHost() {
+    prompt.showPrompt({
+      title: "服务地址",
+      message: this.serverHost,
+      success: (data) => {
+        const val = data && (data.value || data.text || data)
+        if (!val || typeof val !== "string") return
+        store.storageSet("server_host", val.replace(/\/$/, ""), () => {
+          this.serverHost = val.replace(/\/$/, "")
+          prompt.showToast({ message: "已保存地址" })
+        })
       }
-    });
+    })
+  },
+  dialogConfirmed(data) {
+    if (!data) return false
+    const idx = data.index !== undefined ? data.index : (data.data && data.data.index)
+    return Number(idx) === 1
   },
   clearCache() {
     prompt.showDialog({
       title: "确认清空",
-      message: "是否清空所有本地存储的题目解析缓存及分类状态？",
+      message: "将删除题目索引、每题正文和旧版 local_answers。设置项保留。",
       buttons: [
-        { text: "取消", color: "#666666" },
-        { text: "确定", color: "#ff0000" }
+        { text: "取消", color: "#888888" },
+        { text: "确定清空", color: "#ef4444" }
       ],
       success: (data) => {
-        if (data.index === 1) {
-          storage.delete({
-            key: "local_answers",
-            success: () => {
-              storage.delete({ key: "current_category" });
-              prompt.showToast({ message: "已清空本地缓存" });
-            },
-            fail: () => {
-              prompt.showToast({ message: "清空失败" });
-            }
-          });
-        }
+        if (!this.dialogConfirmed(data)) return
+        store.clearAnswers(() => {
+          prompt.showToast({ message: "题目数据已清空" })
+        })
       }
-    });
+    })
   },
   goBack() {
-    router.back();
+    router.back()
   }
 }
 </script>
@@ -153,37 +129,51 @@ export default {
 <style>
 .container {
   flex-direction: column;
-  background-color: #000000;
+  background-color: #0b0d12;
   width: 100%;
   height: 100%;
-  padding: 15px;
+  padding: 12px;
 }
 .title {
-  font-size: 15px;
-  color: #ffffff;
+  font-size: 16px;
+  color: #f3f5f8;
   font-weight: bold;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
   text-align: center;
 }
 .menu-item {
-  height: 42px;
-  background-color: #1a1a1a;
-  border-radius: 6px;
+  height: 44px;
+  background-color: #151a24;
+  border-radius: 10px;
   margin-bottom: 8px;
-  justify-content: center;
   padding-left: 12px;
+  padding-right: 12px;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
 }
-.menu-text {
+.danger {
+  background-color: #2a1518;
+}
+.menu-k {
   font-size: 13px;
-  color: #ffffff;
+  color: #f3f5f8;
+}
+.menu-v {
+  font-size: 11px;
+  color: #f5c15d;
+}
+.small {
+  font-size: 9px;
+  color: #93c5fd;
 }
 .btn-back {
   width: 100%;
-  height: 35px;
-  background-color: #333333;
+  height: 32px;
+  background-color: #1a1f2b;
   color: #ffffff;
   font-size: 13px;
-  border-radius: 6px;
-  margin-top: 10px;
+  border-radius: 16px;
+  margin-top: 8px;
 }
 </style>

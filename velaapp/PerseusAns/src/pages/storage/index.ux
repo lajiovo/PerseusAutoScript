@@ -1,0 +1,151 @@
+<template>
+  <div class="container">
+    <div class="top-bar">
+      <text class="title">本地存储</text>
+      <input class="icon-btn" type="button" value="刷新" onclick="reloadDump" />
+    </div>
+    <text class="hint">{{hint}}</text>
+
+    <scroll class="scroll" scroll-y="true">
+      <div class="card" for="{{(item, idx) in rows}}">
+        <div class="row-head">
+          <text class="key">{{item.key}}</text>
+          <text class="badge empty" if="{{item.empty}}">空</text>
+          <text class="badge ok" if="{{!item.empty}}">有内容</text>
+        </div>
+        <text class="meta">长度 {{item.length}} {{item.missing ? ' · 读取失败/不存在' : ''}}</text>
+        <text class="note">{{item.note}}</text>
+        <text class="preview">{{item.preview}}</text>
+      </div>
+    </scroll>
+
+    <input class="btn-back" type="button" value="返回" onclick="goBack" />
+  </div>
+</template>
+
+<script>
+import router from "@system.router"
+import store from "../../common/ansstore.js"
+
+export default {
+  private: {
+    rows: [],
+    hint: "正在读取..."
+  },
+  onInit() {
+    this.reloadDump()
+  },
+  onShow() {
+    this.reloadDump()
+  },
+  reloadDump() {
+    this.hint = "正在读取全部 key..."
+    store.dumpStorage((dump) => {
+      this.rows = dump.rows || []
+      let emptyCount = 0
+      for (let i = 0; i < this.rows.length; i++) {
+        if (this.rows[i].empty) emptyCount += 1
+      }
+      this.hint = "索引 " + dump.indexCount + " 题 · " + this.rows.length + " 个 key · 空 " + emptyCount
+    })
+  },
+  goBack() {
+    router.back()
+  }
+}
+</script>
+
+<style>
+.container {
+  flex-direction: column;
+  background-color: #0b0d12;
+  width: 100%;
+  height: 100%;
+  padding: 10px;
+}
+.top-bar {
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  height: 28px;
+  margin-bottom: 4px;
+}
+.title {
+  font-size: 14px;
+  color: #f3f5f8;
+  font-weight: bold;
+}
+.icon-btn {
+  width: 40px;
+  height: 24px;
+  background-color: #243044;
+  color: #ffffff;
+  font-size: 10px;
+  border-radius: 12px;
+}
+.hint {
+  font-size: 10px;
+  color: #9aa3b5;
+  margin-bottom: 6px;
+}
+.scroll {
+  flex: 1;
+}
+.card {
+  background-color: #151a24;
+  border-radius: 8px;
+  padding: 8px;
+  margin-bottom: 8px;
+  flex-direction: column;
+}
+.row-head {
+  flex-direction: row;
+  align-items: center;
+  margin-bottom: 3px;
+}
+.key {
+  font-size: 11px;
+  color: #93c5fd;
+  font-weight: bold;
+  flex: 1;
+}
+.badge {
+  font-size: 10px;
+  border-radius: 8px;
+  padding: 1px 6px;
+  margin-left: 4px;
+}
+.empty {
+  color: #fecaca;
+  background-color: #7f1d1d;
+}
+.ok {
+  color: #bbf7d0;
+  background-color: #14532d;
+}
+.meta {
+  font-size: 9px;
+  color: #6b7280;
+}
+.note {
+  font-size: 11px;
+  color: #f5c15d;
+  margin-top: 2px;
+}
+.preview {
+  font-size: 9px;
+  color: #9aa3b5;
+  margin-top: 4px;
+  lines: 4;
+  text-overflow: ellipsis;
+}
+.btn-back {
+  width: 100%;
+  height: 30px;
+  background-color: #1a1f2b;
+  color: #ffffff;
+  font-size: 12px;
+  border-radius: 15px;
+  margin-top: 6px;
+}
+</style>

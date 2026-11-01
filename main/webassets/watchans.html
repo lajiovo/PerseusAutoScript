@@ -97,6 +97,7 @@
                             <th>ID</th>
                             <th>标题</th>
                             <th>分类</th>
+                            <th>内容</th>
                             <th>状态</th>
                             <th>操作</th>
                         </tr>
@@ -209,8 +210,9 @@
                         const tr = document.createElement('tr');
                         tr.innerHTML = `
                             <td>${item.ans_id}</td>
-                            <td>${item.title}</td>
+                            <td>${item.title}${item.summary ? `<div style="color:#888;font-size:0.75rem;">${item.summary}</div>` : ''}</td>
                             <td>${item.category}</td>
+                            <td>${item.pages_empty || item.blocks_empty ? '<span class="badge pending">页/块为空</span>' : (item.raw_empty ? '<span class="badge pending">原文空</span>' : `<span class="badge synced">${item.block_count || 0}块</span>`)}</td>
                             <td>${item.synced ? '<span class="badge synced">已同步</span>' : '<span class="badge pending">待同步</span>'}</td>
                             <td>
                                 <div class="action-btns">

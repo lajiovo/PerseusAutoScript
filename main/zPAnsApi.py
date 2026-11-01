@@ -53,6 +53,51 @@ def log_api_request(endpoint, data):
     with open(LOGS_FILE, 'w', encoding='utf-8') as f:
         json.dump(logs, f, ensure_ascii=False, indent=2)
 
+AST_TAGS = {"t", "txt", "r", "f", "sq", "sup_g", "sub_g", "sup", "sub", "vec", "chem_seq", "chem_a", "m", "paragraph", "h1", "h2", "h3", "c"}
+
+
+def ast_to_content(ast_nodes):
+    """把 zLatex 的 ['r', n1, n2] / 单节点 转成手表端可遍历的 children 列表。"""
+    if ast_nodes is None:
+        return []
+    if isinstance(ast_nodes, list) and ast_nodes:
+        head = ast_nodes[0]
+        if head == "r":
+            if len(ast_nodes) == 2 and isinstance(ast_nodes[1], list):
+                inner = ast_nodes[1]
+                if inner and isinstance(inner[0], str) and inner[0] in AST_TAGS:
+                    return [inner]
+                return inner
+            return ast_nodes[1:]
+        if isinstance(head, str) and head in AST_TAGS:
+            return [ast_nodes]
+        return ast_nodes
+    return [ast_nodes]
+
+
+def inspect_pages(pages):
+    page_count = len(pages or [])
+    block_count = 0
+    ast_chars = 0
+    for page in pages or []:
+        blocks = page.get("blocks") if isinstance(page, dict) else page
+        if not isinstance(blocks, list):
+            continue
+        block_count += len(blocks)
+        for block in blocks:
+            if isinstance(block, dict):
+                ast_chars += len(str(block.get("raw") or ""))
+            elif isinstance(block, list):
+                ast_chars += 1
+    return {
+        "page_count": page_count,
+        "block_count": block_count,
+        "pages_empty": page_count == 0,
+        "blocks_empty": block_count == 0,
+        "ast_empty": ast_chars == 0,
+    }
+
+
 class PAnsProcessor:
     @staticmethod
     def process_content(raw_text, title="", category="数学"):
@@ -80,10 +125,15 @@ class PAnsProcessor:
                 line = line[2:-2].strip()
 
             ast_nodes = parser.parse_latex(line)
+            content = ast_to_content(ast_nodes)
             blocks.append({
                 "block_type": block_type,
+                "type": block_type,
                 "raw": line,
+                "value": line,
                 "ast": ast_nodes,
+                "content": content,
+                "children": content,
                 "length": len(line)
             })
 
@@ -115,16 +165,48 @@ class PAnsProcessor:
             pages.append({"page_index": 1, "blocks": []})
 
         ans_id = hashlib.md5(raw_text.encode('utf-8')).hexdigest()[:8]
+        summary = ""
+        for block in blocks:
+            if block.get("raw"):
+                summary = block["raw"].replace("\n", " ").strip()[:24]
+                break
+        flags = inspect_pages(pages)
         result = {
             "ans_id": ans_id,
             "id": ans_id,
             "title": title or "未命名解析",
             "category": category,
+            "summary": summary,
             "total_pages": len(pages),
             "pages": pages,
-            "raw_text": raw_text
+            "raw_text": raw_text,
+            "pages_empty": flags["pages_empty"],
+            "blocks_empty": flags["blocks_empty"],
+            "raw_empty": not bool((raw_text or "").strip()),
+            "block_count": flags["block_count"]
         }
         return result
+
+
+def compact_ans_payload(data, ans_id):
+    pages = data.get("pages") or []
+    flags = inspect_pages(pages)
+    summary = data.get("summary") or (data.get("raw_text") or "").replace("\n", " ").strip()[:24]
+    return {
+        "ans_id": data.get("ans_id") or ans_id,
+        "id": data.get("id") or data.get("ans_id") or ans_id,
+        "title": data.get("title") or "未命名解析",
+        "category": data.get("category") or "数学",
+        "summary": summary,
+        "total_pages": data.get("total_pages") or len(pages),
+        "pages": pages,
+        "pages_empty": flags["pages_empty"],
+        "blocks_empty": flags["blocks_empty"],
+        "raw_empty": not bool((data.get("raw_text") or "").strip()),
+        "ast_empty": flags["ast_empty"],
+        "block_count": flags["block_count"],
+        "has_raw": bool((data.get("raw_text") or "").strip())
+    }
 
 @p_ans_bp.route("/watch/pans/tasks", methods=["GET"])
 def get_pans_tasks():
@@ -151,7 +233,11 @@ def get_pans_ans(ans_id):
             data = json.load(f)
             if "id" not in data:
                 data["id"] = ans_id
-            return jsonify({"status": "success", "source": "cache", "data": data})
+            if "ans_id" not in data:
+                data["ans_id"] = ans_id
+            compact = str(request.args.get("compact", "")).lower() in ("1", "true", "yes")
+            payload = compact_ans_payload(data, ans_id) if compact else data
+            return jsonify({"status": "success", "source": "cache", "data": payload})
     return jsonify({"status": "error", "message": "Solution not found"}), 404
 
 @p_ans_bp.route("/watch/pans/upload", methods=["POST"])
@@ -198,12 +284,18 @@ def list_pans_ans():
                 try:
                     with open(fpath, 'r', encoding='utf-8') as f:
                         d = json.load(f)
+                        flags = inspect_pages(d.get("pages") or [])
                         items.append({
                             "ans_id": d.get("ans_id"),
-                            "id": d.get("ans_id"),
+                            "id": d.get("ans_id") or d.get("id"),
                             "title": d.get("title"),
                             "category": d.get("category", "数学"),
-                            "total_pages": d.get("total_pages")
+                            "total_pages": d.get("total_pages"),
+                            "summary": d.get("summary") or "",
+                            "pages_empty": flags["pages_empty"],
+                            "blocks_empty": flags["blocks_empty"],
+                            "raw_empty": not bool((d.get("raw_text") or "").strip()),
+                            "block_count": flags["block_count"]
                         })
                 except:
                     pass
@@ -281,11 +373,17 @@ def get_sync_status():
                         d = json.load(f)
                         ans_id = d.get("ans_id")
                         is_synced = not any(t.get("ans_id") == ans_id for t in tasks)
+                        flags = inspect_pages(d.get("pages") or [])
                         items.append({
                             "ans_id": ans_id,
                             "title": d.get("title"),
                             "category": d.get("category", "数学"),
-                            "synced": is_synced
+                            "synced": is_synced,
+                            "summary": d.get("summary") or "",
+                            "pages_empty": flags["pages_empty"],
+                            "blocks_empty": flags["blocks_empty"],
+                            "raw_empty": not bool((d.get("raw_text") or "").strip()),
+                            "block_count": flags["block_count"]
                         })
                 except:
                     pass

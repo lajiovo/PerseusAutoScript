@@ -40,6 +40,9 @@
       },
       "pages/sync": {
         "component": "index"
+      },
+      "pages/storage": {
+        "component": "index"
       }
     }
   }

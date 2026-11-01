@@ -72,7 +72,13 @@ class LaTeXASTParser:
         return tokens
 
     def parse_latex(self, latex_str: str) -> list:
-        """主解析入口，返回极简 JSON 节点"""
+        """主解析入口，返回极简 JSON 节点。
+
+        约定（手表端必须按此解析，不要把 children 再包一层数组）：
+        - 多个并列节点: ["r", n1, n2, ...]
+        - 化学序列: ["chem_seq", [n1, n2, ...]]  （第二项才是数组）
+        - 单个节点: ["t", "x"] / ["f", num, den] 等
+        """
         latex_str = latex_str.strip()
         # 处理 \ce{...} 化学方程式
         if latex_str.startswith(r'\ce{') and latex_str.endswith('}'):

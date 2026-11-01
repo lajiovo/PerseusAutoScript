@@ -1,12 +1,15 @@
 <template>
   <div class="container">
-    <text class="title">增量同步中心</text>
-    <text class="status-text">{{syncStatus}}</text>
+    <text class="title">同步中心</text>
+    <text class="sub">{{hostHint}}</text>
+    <div class="status-card">
+      <text class="status-text">{{syncStatus}}</text>
+      <text class="progress-text" if="{{totalTasks > 0}}">{{doneTasks}}/{{totalTasks}}</text>
+    </div>
 
-    <!-- Debug 模式下展示详细日志排查面板（支持全屏/滚动切换） -->
     <div class="debug-panel {{isFullScreenLog ? 'debug-fullscreen' : ''}}" if="{{debugMode}}">
       <div class="debug-header">
-        <text class="debug-title">[Sync Debug Log]</text>
+        <text class="debug-title">Sync 日志</text>
         <input class="debug-toggle-btn" type="button" value="{{isFullScreenLog ? '收起' : '全屏'}}" onclick="toggleFullScreenLog" />
       </div>
       <scroll class="debug-scroll" scroll-y="true">
@@ -14,340 +17,226 @@
       </scroll>
     </div>
 
-    <input class="btn" if="{{!isFullScreenLog}}" type="button" value="开始同步" onclick="startSync" />
-    <input class="btn-back" if="{{!isFullScreenLog}}" type="button" value="返回" onclick="goBack" />
+    <input class="btn accent" if="{{!isFullScreenLog}}" type="button" value="增量同步" onclick="startSync" />
+    <input class="btn" if="{{!isFullScreenLog}}" type="button" value="全量拉取" onclick="startFullPull" />
+    <input class="btn ghost" if="{{!isFullScreenLog}}" type="button" value="返回" onclick="goBack" />
   </div>
 </template>
 
 <script>
 import router from "@system.router"
-import storage from "@system.storage"
 import fetch from "@system.fetch"
 import prompt from "@system.prompt"
+import store from "../../common/ansstore.js"
 
 export default {
   private: {
-    syncStatus: "点击下方按钮开始同步任务队列...",
+    syncStatus: "增量=只拉队列；全量=按服务端题目列表重拉",
+    hostHint: "",
     isSyncing: false,
     debugMode: false,
-    debugLog: "等待同步...",
-    isFullScreenLog: false
+    debugLog: "等待同步",
+    isFullScreenLog: false,
+    serverHost: "",
+    totalTasks: 0,
+    doneTasks: 0
   },
   onInit() {
-    this.checkDebugMode();
+    this.prepare()
   },
   onShow() {
-    this.checkDebugMode();
+    this.prepare()
   },
-  checkDebugMode() {
-    storage.get({
-      key: "debug_mode",
-      success: (data) => {
-        this.debugMode = (data === "true" || data === true);
-      }
-    });
+  prepare() {
+    store.storageGet("debug_mode", (raw) => {
+      this.debugMode = (raw === "true" || raw === true)
+    })
+    store.getServerHost((host) => {
+      this.serverHost = host
+      this.hostHint = host
+    })
   },
   logDebug(msg) {
-    console.log("[SyncDebug] " + msg);
+    console.log("[SyncDebug] " + msg)
     if (this.debugMode) {
-      this.debugLog = msg + "\n" + (this.debugLog || "");
+      this.debugLog = msg + "\n" + (this.debugLog || "")
     }
   },
   toggleFullScreenLog() {
-    this.isFullScreenLog = !this.isFullScreenLog;
+    this.isFullScreenLog = !this.isFullScreenLog
   },
-
-  safeParseJson(rawData) {
-    if (typeof rawData === 'object' && rawData !== null) {
-      return rawData;
-    }
-    if (typeof rawData !== 'string') {
-      throw new Error(`Invalid data type: ${typeof rawData}`);
-    }
-    const cleaned = rawData.trim().replace(/^\uFEFF/, '');
-    return JSON.parse(cleaned);
-  },
-
-  normalizeItemAst(node) {
-    if (!node) return null;
-    if (Array.isArray(node)) {
-      const tag = node[0];
-      switch (tag) {
-        case 't':
-          return ['t', String(node[1] || '')];
-        case 'r':
-          return ['r', (node[1] || []).map(n => this.normalizeItemAst(n))];
-        case 'f':
-          return ['f', this.normalizeItemAst(node[1]), this.normalizeItemAst(node[2])];
-        case 'sq':
-          return ['sq', this.normalizeItemAst(node[1])];
-        case 'sup_g':
-          return ['sup_g', this.normalizeItemAst(node[1]), this.normalizeItemAst(node[2])];
-        case 'sub_g':
-          return ['sub_g', this.normalizeItemAst(node[1]), this.normalizeItemAst(node[2])];
-        case 'vec':
-          return ['vec', this.normalizeItemAst(node[1])];
-        case 'chem_seq':
-          return ['chem_seq', (node[1] || []).map(n => this.normalizeItemAst(n))];
-        case 'chem_a':
-          return ['chem_a', node[1], this.normalizeItemAst(node[2]), this.normalizeItemAst(node[3])];
-        case 'm':
-        case 'paragraph':
-          return ['m', ...node.slice(1).map(n => this.normalizeItemAst(n))];
-        case 'txt':
-          return ['t', String(node[1] || '')];
-        default:
-          return ['t', String(node[1] || '')];
-      }
-    } else if (typeof node === 'object') {
-      const blockType = node.block_type || node.type;
-      if (blockType === 'h1' || blockType === 'h2' || blockType === 'h3') {
-        return [blockType, node.raw || node.value || ''];
-      }
-      if (blockType === 'paragraph' || blockType === 'block_math' || blockType === 'm') {
-        const children = node.content || node.children || [];
-        return ['m', ...children.map(c => this.normalizeItemAst(c))];
-      }
-      if (blockType === 'fraction') {
-        return ['f', this.normalizeItemAst(node.numerator), this.normalizeItemAst(node.denominator)];
-      }
-      if (blockType === 'sqrt') {
-        return ['sq', this.normalizeItemAst(node.content)];
-      }
-      if (blockType === 'sup') {
-        return ['sup_g', this.normalizeItemAst(node.base), this.normalizeItemAst(node.value)];
-      }
-      if (blockType === 'sub') {
-        return ['sub_g', this.normalizeItemAst(node.base), this.normalizeItemAst(node.value)];
-      }
-      if (blockType === 'text') {
-        return ['t', node.value || ''];
-      }
-      if (blockType === 'bold') {
-        return ['t', node.value || ''];
-      }
-      return ['t', node.raw || node.value || ''];
-    }
-    return ['t', String(node)];
-  },
-
-  processAnsItemData(ansItem) {
-    if (!ansItem.id && ansItem.ans_id) {
-      ansItem.id = ansItem.ans_id;
-    }
-    if (!ansItem.category) {
-      ansItem.category = "数学";
-    }
-    if (ansItem.pages && Array.isArray(ansItem.pages)) {
-      ansItem.pages = ansItem.pages.map(page => {
-        let rawBlocks = page.blocks || page;
-        if (!Array.isArray(rawBlocks)) rawBlocks = [rawBlocks];
-        return {
-          blocks: rawBlocks.map(block => {
-            if (block && typeof block === 'object' && block.ast) {
-              return this.normalizeItemAst(block.ast);
-            }
-            return this.normalizeItemAst(block);
-          })
-        };
-      });
-    } else {
-      ansItem.pages = [{
-        blocks: [
-          ['h1', ansItem.title || '题目解析'],
-          ['m', ['t', ansItem.content || '暂无详细内容']]
-        ]
-      }];
-    }
-    ansItem.total_pages = ansItem.pages.length;
-    return ansItem;
-  },
-  
-  startSync() {
-    if (this.isSyncing) {
-      this.logDebug("正在同步中，忽略重复触发");
-      prompt.showToast({ message: "正在同步中，请稍候..." });
-      return;
-    }
-
-    this.isSyncing = true;
-    this.syncStatus = "正在获取同步任务队列...";
-    this.logDebug("=== 开始同步任务队列 ===");
-    
-    fetch.fetch({
-      url: "http://192.168.10.3:25566/watch/pans/tasks",
-      success: (response) => {
-        this.logDebug("获取任务队列成功响应");
-        try {
-          let data = this.safeParseJson(response.data);
-          let tasks = data.tasks || [];
-          this.logDebug(`解析任务队列成功，任务数量: ${tasks.length}`);
-
-          if (tasks.length === 0) {
-            this.syncStatus = "当前没有待同步任务";
-            prompt.showToast({ message: "已经是最新状态" });
-            this.isSyncing = false;
-            return;
-          }
-          this.syncStatus = `获取到 ${tasks.length} 个任务，开始依次执行...`;
-          this.processTaskQueue(tasks, 0, []);
-        } catch(e) {
-          this.logDebug(`解析任务队列失败: ${e.message}`);
-          this.syncStatus = `解析任务队列失败: ${e.message}`;
-          this.isSyncing = false;
+  fetchJson(url, options, onOk, onFail) {
+    const req = options || {}
+    req.url = url
+    req.success = (response) => {
+      try {
+        const body = response && response.data !== undefined ? response.data : response
+        const json = store.parseJson(body, null)
+        if (!json) {
+          throw new Error("响应不是 JSON")
         }
-      },
-      fail: (data, code) => {
-        this.logDebug(`获取任务队列网络失败 code:${code}`);
-        this.syncStatus = "连接服务端失败，请检查网络";
-        this.isSyncing = false;
+        onOk(json)
+      } catch (e) {
+        this.logDebug("解析失败 " + url + " " + e.message)
+        if (onFail) onFail(e.message)
       }
-    });
+    }
+    req.fail = (data, code) => {
+      this.logDebug("网络失败 " + url + " code:" + code)
+      if (onFail) onFail("code:" + code)
+    }
+    fetch.fetch(req)
   },
-
+  normalizeAnswer(ansItem, fallbackTitle, fallbackCategory) {
+    const item = ansItem || {}
+    if (!item.id && item.ans_id) item.id = item.ans_id
+    if (!item.ans_id && item.id) item.ans_id = item.id
+    if (!item.title) item.title = fallbackTitle || "未命名解析"
+    if (!item.category) item.category = fallbackCategory || "数学"
+    if (!item.pages || !Array.isArray(item.pages) || item.pages.length === 0) {
+      item.pages = [{
+        page_index: 1,
+        blocks: [{
+          block_type: "paragraph",
+          type: "paragraph",
+          raw: item.raw_text || item.content || "暂无详细内容",
+          value: item.raw_text || item.content || "暂无详细内容",
+          ast: ["t", item.raw_text || item.content || "暂无详细内容"]
+        }]
+      }]
+    }
+    item.total_pages = item.pages.length
+    item.summary = store.buildSummary(item)
+    delete item.raw_text
+    return item
+  },
+  startSync() {
+    this.beginQueue("tasks")
+  },
+  startFullPull() {
+    this.beginQueue("full")
+  },
+  beginQueue(mode) {
+    if (this.isSyncing) {
+      prompt.showToast({ message: "正在同步" })
+      return
+    }
+    this.isSyncing = true
+    this.doneTasks = 0
+    this.totalTasks = 0
+    this.syncStatus = mode === "full" ? "正在获取题目列表..." : "正在获取增量任务..."
+    this.logDebug("=== 开始 " + mode + " ===")
+    store.getServerHost((host) => {
+      this.serverHost = host
+      this.hostHint = host
+      if (mode === "full") {
+        this.fetchJson(host + "/watch/pans/list", { method: "GET" }, (data) => {
+          const items = data.items || []
+          const tasks = []
+          for (let i = 0; i < items.length; i++) {
+            tasks.push({
+              id: "full_" + (items[i].ans_id || items[i].id),
+              action: "download",
+              ans_id: items[i].ans_id || items[i].id,
+              title: items[i].title,
+              category: items[i].category,
+              skipAck: true
+            })
+          }
+          this.runTasks(tasks)
+        }, (err) => {
+          this.failSync("获取列表失败 " + err)
+        })
+      } else {
+        this.fetchJson(host + "/watch/pans/tasks", { method: "GET" }, (data) => {
+          this.runTasks(data.tasks || [])
+        }, (err) => {
+          this.failSync("获取队列失败 " + err)
+        })
+      }
+    })
+  },
+  runTasks(tasks) {
+    if (!tasks.length) {
+      this.syncStatus = "没有待同步题目。可点「全量拉取」"
+      prompt.showToast({ message: "队列为空" })
+      this.isSyncing = false
+      return
+    }
+    this.totalTasks = tasks.length
+    this.syncStatus = "共 " + tasks.length + " 项，开始下载"
+    this.processTaskQueue(tasks, 0, [])
+  },
+  failSync(msg) {
+    this.syncStatus = msg
+    this.isSyncing = false
+  },
   processTaskQueue(tasks, index, syncedTitles) {
     if (index >= tasks.length) {
-      this.logDebug("=== 所有任务同步完成 ===");
-      const summary = syncedTitles.length > 0 ? `同步完成，已同步: ${syncedTitles.join(', ')}` : "所有任务同步完成！";
-      this.syncStatus = summary;
-      prompt.showToast({ message: summary });
-      this.isSyncing = false;
-      return;
+      const summary = syncedTitles.length ? ("完成: " + syncedTitles.join("、")) : "同步完成"
+      this.syncStatus = summary
+      this.doneTasks = tasks.length
+      prompt.showToast({ message: summary })
+      this.isSyncing = false
+      return
     }
+    const task = tasks[index]
+    const taskId = task.id || task.task_id
+    const taskTitle = task.title || task.ans_id || ("任务" + (index + 1))
+    this.doneTasks = index
+    this.syncStatus = "下载 " + (index + 1) + "/" + tasks.length + " " + taskTitle
+    this.logDebug("任务 " + taskTitle + " action=" + task.action)
 
-    let task = tasks[index];
-    const taskId = task.id || task.task_id;
-    const taskTitle = task.title || task.ans_id;
-    this.logDebug(`处理任务 [${index + 1}/${tasks.length}]: ${taskTitle}`);
-    this.syncStatus = `正在同步 (${index + 1}/${tasks.length}): ${taskTitle}`;
-
-    if (task.action === "download") {
-      const downloadUrl = `http://192.168.10.3:25566/watch/pans/get/${task.ans_id}`;
-      this.logDebug(`发起下载: ${downloadUrl}`);
-
-      fetch.fetch({
-        url: downloadUrl,
-        success: (res) => {
-          this.logDebug(`下载接口返回成功`);
-          try {
-            let resJson = this.safeParseJson(res.data);
-            if (resJson.status === "success" && resJson.data) {
-              let ansItem = resJson.data;
-              ansItem = this.processAnsItemData(ansItem);
-              this.logDebug(`清洗题目完毕，写入本地: ${ansItem.id} [分类: ${ansItem.category}]`);
-              
-              syncedTitles.push(ansItem.title || taskTitle);
-
-              this.saveAndAckTask(taskId, ansItem, () => {
-                this.processTaskQueue(tasks, index + 1, syncedTitles);
-              });
-            } else {
-              this.logDebug(`服务端返回非 success，跳过`);
-              syncedTitles.push(taskTitle);
-              this.sendAck(taskId, () => {
-                this.processTaskQueue(tasks, index + 1, syncedTitles);
-              });
-            }
-          } catch(e) {
-            this.logDebug(`详情解析 JSON 失败: ${e.message}`);
-            syncedTitles.push(taskTitle);
-            this.sendAck(taskId, () => {
-              this.processTaskQueue(tasks, index + 1, syncedTitles);
-            });
-          }
-        },
-        fail: (data, code) => {
-          this.logDebug(`获取题目网络失败 code:${code}，重试中`);
-          this.syncStatus = `获取题目详情失败，1.5秒后重试`;
-          setTimeout(() => { 
-            this.processTaskQueue(tasks, index, syncedTitles); 
-          }, 1500);
+    if (task.action === "download" && task.ans_id) {
+      const downloadUrl = this.serverHost + "/watch/pans/get/" + task.ans_id + "?compact=1"
+      this.fetchJson(downloadUrl, { method: "GET" }, (resJson) => {
+        if (resJson.status === "success" && resJson.data) {
+          const ansItem = this.normalizeAnswer(resJson.data, task.title, task.category)
+          this.logDebug("写入 " + ansItem.id + " pages=" + (ansItem.pages ? ansItem.pages.length : 0))
+          store.upsertAnswer(ansItem, (ok, code) => {
+            if (!ok) this.logDebug("存储失败 code:" + code + " 仍写入索引")
+            syncedTitles.push(ansItem.title || taskTitle)
+            this.afterItem(task, taskId, () => {
+              this.processTaskQueue(tasks, index + 1, syncedTitles)
+            })
+          })
+        } else {
+          this.logDebug("服务端无数据，跳过")
+          this.afterItem(task, taskId, () => {
+            this.processTaskQueue(tasks, index + 1, syncedTitles)
+          })
         }
-      });
+      }, () => {
+        this.syncStatus = "下载失败，1.5秒后重试"
+        setTimeout(() => {
+          this.processTaskQueue(tasks, index, syncedTitles)
+        }, 1500)
+      })
     } else {
-      this.logDebug(`非下载动作，直接 ACK`);
-      syncedTitles.push(taskTitle);
-      this.sendAck(taskId, () => {
-        this.processTaskQueue(tasks, index + 1, syncedTitles);
-      });
+      this.afterItem(task, taskId, () => {
+        this.processTaskQueue(tasks, index + 1, syncedTitles)
+      })
     }
   },
-
-  saveAndAckTask(taskId, ansItem, callback) {
-    storage.get({
-      key: "local_answers",
-      success: (data) => {
-        let list = [];
-        if (data) {
-          try {
-            list = this.safeParseJson(data);
-          } catch(e) {
-            this.logDebug(`本地 local_answers 损坏，重置`);
-          }
-        }
-        
-        const targetId = String(ansItem.id);
-        list = list.filter(i => String(i.id || i.ans_id) !== targetId);
-        list.push(ansItem);
-
-        this.logDebug(`写入存储，当前题目总数: ${list.length}`);
-
-        storage.set({
-          key: "local_answers",
-          value: JSON.stringify(list),
-          success: () => {
-            this.logDebug(`写入本地成功，开始 ACK: ${taskId}`);
-            this.sendAck(taskId, callback);
-          },
-          fail: (data, code) => {
-            this.logDebug(`写入本地存储失败 code:${code}`);
-            if (callback) callback();
-          }
-        });
-      },
-      fail: (data, code) => {
-        this.logDebug(`读取 local_answers 失败，新建`);
-        let list = [ansItem];
-        storage.set({
-          key: "local_answers",
-          value: JSON.stringify(list),
-          success: () => {
-            this.sendAck(taskId, callback);
-          },
-          fail: () => {
-            if (callback) callback();
-          }
-        });
-      }
-    });
-  },
-
-  sendAck(taskId, callback) {
-    if (!taskId) {
-      this.logDebug("缺少 taskId，跳过 ACK");
-      if (callback) callback();
-      return;
+  afterItem(task, taskId, callback) {
+    if (task.skipAck || !taskId) {
+      if (callback) callback()
+      return
     }
-    
-    this.logDebug(`发送 ACK 确认: ${taskId}`);
-    fetch.fetch({
-      url: "http://192.168.10.3:25566/watch/pans/task/ack",
+    this.fetchJson(this.serverHost + "/watch/pans/task/ack", {
       method: "POST",
-      data: JSON.stringify({ task_id: taskId }),
       header: { "Content-Type": "application/json" },
-      success: (response) => {
-        this.logDebug(`ACK 成功`);
-        if (callback) callback();
-      },
-      fail: (data, code) => {
-        this.logDebug(`ACK 网络失败 code:${code}`);
-        if (callback) callback();
-      }
-    });
+      data: JSON.stringify({ task_id: taskId })
+    }, () => {
+      this.logDebug("ACK " + taskId)
+      if (callback) callback()
+    }, () => {
+      this.logDebug("ACK 失败仍继续")
+      if (callback) callback()
+    })
   },
-
   goBack() {
-    router.back();
+    router.back()
   }
 }
 </script>
@@ -355,32 +244,50 @@ export default {
 <style>
 .container {
   flex-direction: column;
-  background-color: #000000;
+  background-color: #0b0d12;
   width: 100%;
   height: 100%;
-  padding: 15px;
+  padding: 12px;
   align-items: center;
   justify-content: center;
 }
 .title {
-  font-size: 15px;
-  color: #ffffff;
+  font-size: 16px;
+  color: #f3f5f8;
   font-weight: bold;
+  margin-bottom: 4px;
+}
+.sub {
+  font-size: 9px;
+  color: #6b7280;
+  margin-bottom: 8px;
+  text-align: center;
+}
+.status-card {
+  width: 100%;
+  background-color: #151a24;
+  border-radius: 10px;
+  padding: 10px;
   margin-bottom: 10px;
+  align-items: center;
 }
 .status-text {
   font-size: 12px;
-  color: #00ff00;
-  margin-bottom: 10px;
+  color: #86efac;
   text-align: center;
+}
+.progress-text {
+  font-size: 10px;
+  color: #f5c15d;
+  margin-top: 4px;
 }
 .debug-panel {
   width: 100%;
-  height: 100px;
-  background-color: #1a1a1a;
-  border-radius: 6px;
+  height: 90px;
+  background-color: #141821;
+  border-radius: 8px;
   padding: 8px;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
   flex-direction: column;
 }
 .debug-fullscreen {
@@ -389,7 +296,7 @@ export default {
   top: 0;
   width: 100%;
   height: 90%;
-  background-color: #111111;
+  background-color: #0f1218;
   z-index: 999;
   padding: 10px;
 }
@@ -400,40 +307,38 @@ export default {
   margin-bottom: 4px;
 }
 .debug-title {
-  font-size: 11px;
-  color: #ffaa00;
+  font-size: 10px;
+  color: #f5c15d;
   font-weight: bold;
 }
 .debug-toggle-btn {
   width: 40px;
-  height: 22px;
-  background-color: #dc3545;
+  height: 20px;
+  background-color: #7f1d1d;
   color: #ffffff;
   font-size: 9px;
-  border-radius: 3px;
+  border-radius: 10px;
 }
 .debug-scroll {
   flex: 1;
 }
 .debug-text {
   font-size: 9px;
-  color: #cccccc;
+  color: #b7c0d1;
 }
 .btn {
-  width: 140px;
+  width: 160px;
   height: 32px;
-  background-color: #007bff;
+  background-color: #243044;
   color: #ffffff;
   font-size: 13px;
-  border-radius: 4px;
+  border-radius: 16px;
   margin-bottom: 8px;
 }
-.btn-back {
-  width: 140px;
-  height: 32px;
-  background-color: #333333;
-  color: #ffffff;
-  font-size: 13px;
-  border-radius: 4px;
+.accent {
+  background-color: #d97706;
+}
+.ghost {
+  background-color: #1a1f2b;
 }
 </style>

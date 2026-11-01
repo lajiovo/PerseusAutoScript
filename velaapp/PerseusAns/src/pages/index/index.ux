@@ -1,21 +1,24 @@
 <template>
   <div class="container">
-    <!-- Top Bar -->
     <div class="top-bar">
-      <div class="category-box" onclick="switchCategory">
-        <text class="app-title">分类: {{currentCategory}} ▼</text>
+      <div class="cat-chip" onclick="switchCategory">
+        <text class="cat-label">{{currentCategory}}</text>
+        <text class="cat-arrow">▾</text>
       </div>
       <div class="top-btns">
-        <input class="sync-btn" type="button" value="刷新" onclick="reloadLocal" />
-        <input class="sync-btn" type="button" value="同步" onclick="gotoSync" />
-        <input class="settings-btn" type="button" value="设置" onclick="gotoSettings" />
+        <input class="icon-btn" type="button" value="刷新" onclick="reloadLocal" />
+        <input class="icon-btn accent" type="button" value="同步" onclick="gotoSync" />
+        <input class="icon-btn ghost" type="button" value="设置" onclick="gotoSettings" />
       </div>
     </div>
 
-    <!-- Debug Log Panel (支持滚动或点击切换全屏) -->
+    <div class="stats-row">
+      <text class="stats-text">{{listHint}}</text>
+    </div>
+
     <div class="debug-panel {{isFullScreenLog ? 'debug-fullscreen' : ''}}" if="{{debugMode}}">
       <div class="debug-header">
-        <text class="debug-title">[Index Debug Log]</text>
+        <text class="debug-title">Index 日志</text>
         <input class="debug-toggle-btn" type="button" value="{{isFullScreenLog ? '收起' : '全屏'}}" onclick="toggleFullScreenLog" />
       </div>
       <scroll class="debug-scroll" scroll-y="true">
@@ -23,150 +26,120 @@
       </scroll>
     </div>
 
-    <!-- Main Content List -->
-    <list class="list" if="{{!isFullScreenLog}}">
-      <list-item type="item" for="{{ansList}}" class="list-item" onclick="gotoReader($item.id)">
-        <text class="item-title">[{{$item.category || '数学'}}] {{$item.title || '无标题解析'}}</text>
-        <text class="item-summary">{{$item.summary || ('共 ' + ($item.total_pages || 1) + ' 页解析 | ID: ' + $item.id)}}</text>
+    <list class="list" if="{{ansList.length > 0}}">
+      <list-item type="ans" for="{{(item, idx) in ansList}}" tid="id" class="list-item" onclick="gotoReader" data-id="{{item.id}}">
+        <div class="item-accent"></div>
+        <div class="item-body">
+          <div class="item-head">
+            <text class="item-cat">{{item.category}}</text>
+            <text class="item-flag" if="{{item.pagesEmpty || item.blocksEmpty || !item.stored}}">空</text>
+          </div>
+          <text class="item-title">{{item.title}}</text>
+          <text class="item-summary">{{item.summary}}</text>
+        </div>
       </list-item>
     </list>
 
-    <!-- Empty State / Hint if no data -->
-    <div class="empty-box" if="{{!isFullScreenLog && ansList.length === 0}}">
-      <text class="empty-text">暂无解析数据，请前往同步中心拉取</text>
+    <div class="empty-box" if="{{ansList.length <= 0}}">
+      <text class="empty-title">还没有题目</text>
+      <text class="empty-text">点右上角「同步」从电脑拉取，或在设置里检查本地存储是否为空</text>
     </div>
-
   </div>
 </template>
 
 <script>
 import router from "@system.router"
-import storage from "@system.storage"
 import prompt from "@system.prompt"
+import store from "../../common/ansstore.js"
 
 export default {
   private: {
     currentCategory: "全部",
     categories: ["全部", "数学", "物理", "化学", "综合"],
     ansList: [],
+    listHint: "本地 0 题",
     debugMode: false,
-    debugLog: "初始化加载...",
+    debugLog: "初始化...",
     isFullScreenLog: false
   },
   onInit() {
-    this.checkDebugAndLoad();
+    this.refreshAll()
   },
   onShow() {
-    this.checkDebugAndLoad();
+    this.refreshAll()
   },
-  checkDebugAndLoad() {
-    storage.get({
-      key: "debug_mode",
-      success: (data) => {
-        this.debugMode = (data === "true" || data === true);
-        this.loadData();
-      },
-      fail: () => {
-        this.debugMode = false;
-        this.loadData();
-      }
-    });
+  refreshAll() {
+    store.storageGet("debug_mode", (raw) => {
+      this.debugMode = (raw === "true" || raw === true)
+      store.storageGet("current_category", (cat) => {
+        this.currentCategory = cat || "全部"
+        this.loadLocalAnswers()
+      })
+    })
   },
   logDebug(msg) {
-    console.log("[IndexDebug] " + msg);
+    console.log("[IndexDebug] " + msg)
     if (this.debugMode) {
-      this.debugLog = msg + "\n" + (this.debugLog || "");
+      this.debugLog = msg + "\n" + (this.debugLog || "")
     }
   },
   toggleFullScreenLog() {
-    this.isFullScreenLog = !this.isFullScreenLog;
-  },
-  loadData() {
-    storage.get({
-      key: "current_category",
-      success: (data) => {
-        if (data) {
-          this.currentCategory = data;
-        } else {
-          this.currentCategory = "全部";
-        }
-        this.loadLocalAnswers();
-      },
-      fail: () => {
-        this.currentCategory = "全部";
-        this.loadLocalAnswers();
-      }
-    });
+    this.isFullScreenLog = !this.isFullScreenLog
   },
   loadLocalAnswers() {
-    this.logDebug(`开始加载本地缓存 [当前分类: ${this.currentCategory}]`);
-    storage.get({
-      key: "local_answers",
-      success: (data) => {
-        if (data) {
-          try {
-            let cleaned = data.trim().replace(/^\uFEFF/, '');
-            let list = JSON.parse(cleaned);
-            if (!Array.isArray(list)) list = [];
-            
-            this.logDebug(`成功读取 local_answers，原始条数: ${list.length}`);
-
-            list = list.map(item => ({
-              ...item,
-              id: item.id || item.ans_id,
-              category: item.category || "数学"
-            }));
-
-            if (this.currentCategory !== "全部") {
-              const beforeCount = list.length;
-              list = list.filter(item => String(item.category).trim() === String(this.currentCategory).trim());
-              this.logDebug(`分类过滤 [${this.currentCategory}]: 过滤前 ${beforeCount} 条 -> 过滤后 ${list.length} 条`);
-            }
-
-            this.ansList = list;
-            this.logDebug(`渲染列表成功，最终条数: ${this.ansList.length}`);
-          } catch(e) {
-            this.logDebug(`解析 local_answers JSON 失败: ${e.message}`);
-            this.ansList = [];
-          }
-        } else {
-          this.logDebug("local_answers 存储为空");
-          this.ansList = [];
+    const cat = this.currentCategory
+    this.logDebug("读取索引 current_category=" + cat)
+    store.loadIndex((list) => {
+      if (!Array.isArray(list)) list = []
+      this.logDebug("索引条数 " + list.length)
+      let shown = []
+      for (let i = 0; i < list.length; i++) {
+        const it = list[i] || {}
+        const row = {
+          id: String(it.id || it.ans_id || ""),
+          title: it.title || "无标题解析",
+          category: it.category || "数学",
+          summary: it.summary || ("共 " + (it.total_pages || 1) + " 页 | " + (it.id || "")),
+          total_pages: it.total_pages || 1,
+          stored: it.stored !== false,
+          pagesEmpty: !!it.pagesEmpty,
+          blocksEmpty: !!it.blocksEmpty
         }
-      },
-      fail: (data, code) => {
-        this.logDebug(`读取 local_answers 失败 code:${code}`);
-        this.ansList = [];
+        if (cat === "全部" || String(row.category).trim() === String(cat).trim()) {
+          shown.push(row)
+        }
       }
-    });
+      this.ansList = shown
+      this.listHint = "本地 " + list.length + " 题 · 显示 " + shown.length + " · " + cat
+      this.logDebug("渲染 " + shown.length + " 条")
+    })
   },
   reloadLocal() {
-    prompt.showToast({ message: "正在重新载入本地数据..." });
-    this.loadData();
+    prompt.showToast({ message: "正在载入本地索引" })
+    this.loadLocalAnswers()
   },
   switchCategory() {
-    const idx = this.categories.indexOf(this.currentCategory);
-    const nextIdx = (idx + 1) % this.categories.length;
-    this.currentCategory = this.categories[nextIdx];
-    
-    storage.set({
-      key: "current_category",
-      value: this.currentCategory,
-      success: () => {
-        prompt.showToast({ message: `已切换分类: ${this.currentCategory}` });
-        this.loadLocalAnswers();
-      }
-    });
+    const idx = this.categories.indexOf(this.currentCategory)
+    const nextIdx = (idx + 1) % this.categories.length
+    this.currentCategory = this.categories[nextIdx]
+    store.storageSet("current_category", this.currentCategory, () => {
+      prompt.showToast({ message: this.currentCategory })
+      this.loadLocalAnswers()
+    })
   },
   gotoSettings() {
-    router.push({ uri: "/pages/settings" });
+    router.push({ uri: "/pages/settings" })
   },
   gotoSync() {
-    router.push({ uri: "/pages/sync" });
+    router.push({ uri: "/pages/sync" })
   },
-  gotoReader(id) {
-    if (!id) return;
-    router.push({ uri: "/pages/reader", params: { ansId: String(id) } });
+  gotoReader(e) {
+    let id = e
+    if (e && typeof e === "object") {
+      id = (e.target && e.target.dataset && e.target.dataset.id) || e.ansId || e.id
+    }
+    if (!id) return
+    router.push({ uri: "/pages/reader", params: { ansId: String(id) } })
   }
 }
 </script>
@@ -174,57 +147,70 @@ export default {
 <style>
 .container {
   flex-direction: column;
-  background-color: #000000;
+  background-color: #0b0d12;
   width: 100%;
   height: 100%;
-  padding: 10px;
+  padding: 8px 10px 10px 10px;
 }
 .top-bar {
   flex-direction: row;
   justify-content: space-between;
   align-items: center;
-  height: 40px;
-  border-bottom-width: 1px;
-  border-bottom-color: #333333;
+  height: 36px;
 }
-.category-box {
-  flex: 1;
-  height: 40px;
-  justify-content: center;
+.cat-chip {
+  flex-direction: row;
+  align-items: center;
+  background-color: #1c2330;
+  border-radius: 16px;
+  padding: 4px 10px;
+  height: 28px;
 }
-.app-title {
+.cat-label {
   font-size: 12px;
-  color: #ffaa00;
+  color: #f5c15d;
   font-weight: bold;
+}
+.cat-arrow {
+  font-size: 10px;
+  color: #8b93a7;
+  margin-left: 4px;
 }
 .top-btns {
   flex-direction: row;
   align-items: center;
 }
-.sync-btn {
-  width: 36px;
-  height: 28px;
-  background-color: #007bff;
-  color: #ffffff;
-  font-size: 11px;
-  border-radius: 4px;
-  margin-right: 4px;
+.icon-btn {
+  width: 38px;
+  height: 26px;
+  background-color: #243044;
+  color: #dce3f0;
+  font-size: 10px;
+  border-radius: 13px;
+  margin-left: 4px;
 }
-.settings-btn {
-  width: 36px;
-  height: 28px;
-  background-color: #333333;
+.accent {
+  background-color: #d97706;
   color: #ffffff;
-  font-size: 11px;
-  border-radius: 4px;
+}
+.ghost {
+  background-color: #1a1f2b;
+}
+.stats-row {
+  margin-top: 6px;
+  margin-bottom: 4px;
+}
+.stats-text {
+  font-size: 10px;
+  color: #7d8699;
 }
 .debug-panel {
   width: 100%;
-  height: 80px;
-  background-color: #1a1a1a;
-  border-radius: 4px;
+  height: 72px;
+  background-color: #141821;
+  border-radius: 8px;
   padding: 6px;
-  margin-top: 6px;
+  margin-bottom: 6px;
   flex-direction: column;
 }
 .debug-fullscreen {
@@ -233,7 +219,7 @@ export default {
   top: 40px;
   width: 100%;
   height: 90%;
-  background-color: #111111;
+  background-color: #0f1218;
   z-index: 999;
   padding: 10px;
 }
@@ -245,53 +231,86 @@ export default {
 }
 .debug-title {
   font-size: 10px;
-  color: #ffaa00;
+  color: #f5c15d;
   font-weight: bold;
 }
 .debug-toggle-btn {
   width: 40px;
-  height: 22px;
-  background-color: #dc3545;
+  height: 20px;
+  background-color: #7f1d1d;
   color: #ffffff;
   font-size: 9px;
-  border-radius: 3px;
+  border-radius: 10px;
 }
 .debug-scroll {
   flex: 1;
 }
 .debug-text {
   font-size: 9px;
-  color: #cccccc;
+  color: #b7c0d1;
 }
 .list {
   flex: 1;
-  margin-top: 8px;
+  margin-top: 2px;
 }
 .list-item {
-  flex-direction: column;
-  padding: 10px;
-  background-color: #1a1a1a;
-  border-radius: 6px;
+  flex-direction: row;
+  padding: 0px;
+  background-color: #151a24;
+  border-radius: 10px;
   margin-bottom: 8px;
+}
+.item-accent {
+  width: 4px;
+  background-color: #f5c15d;
+  border-radius: 10px 0px 0px 10px;
+}
+.item-body {
+  flex: 1;
+  flex-direction: column;
+  padding: 8px 10px;
+}
+.item-head {
+  flex-direction: row;
+  align-items: center;
+  margin-bottom: 2px;
+}
+.item-cat {
+  font-size: 9px;
+  color: #93c5fd;
+}
+.item-flag {
+  font-size: 9px;
+  color: #fca5a5;
+  margin-left: 6px;
 }
 .item-title {
   font-size: 14px;
-  color: #ffaa00;
+  color: #f3f5f8;
   font-weight: bold;
 }
 .item-summary {
   font-size: 11px;
-  color: #aaaaaa;
-  margin-top: 4px;
+  color: #9aa3b5;
+  margin-top: 3px;
+  lines: 2;
+  text-overflow: ellipsis;
 }
 .empty-box {
   flex: 1;
   justify-content: center;
   align-items: center;
+  padding: 12px;
+}
+.empty-title {
+  font-size: 14px;
+  color: #e5e7eb;
+  font-weight: bold;
+  margin-bottom: 6px;
 }
 .empty-text {
-  font-size: 12px;
-  color: #666666;
+  font-size: 11px;
+  color: #6b7280;
   text-align: center;
 }
 </style>
