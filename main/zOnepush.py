@@ -613,7 +613,13 @@ def start_alas_mumu_check_timer():
                     timer_counter += 1
                     print(f"已完成常规隐藏任务{timer_counter}")
                 else:
-                    run_alas_mumu_check()
+                    response = run_alas_mumu_check()
+                    if response :
+                        print(f"自动化检查成功，返回为{reponse}")
+                    else: 
+                        global HANDLEPUSH
+                        HANDLEPUSH = False
+                        print(f"自动化检查报错,HANDLEPUSH已设置为{HANDLEPUSH}")
                     timer_counter = 0
                     print(f"已完成完整检查任务{{timer_counter}}")
                     with stats_lock:
@@ -621,6 +627,7 @@ def start_alas_mumu_check_timer():
                         stats["auto_check_count"] += 1
                         _save_stats(stats)
                     print("⏱️ [统计模块] autocheck处理次数+1")
+                    
                     # 1. 运行前检查签到记录文件
                     current_dir = os.path.dirname(os.path.abspath(__file__))
                     log_path = str(os.path.join(current_dir, 'last_checkin.txt'))
@@ -634,12 +641,19 @@ def start_alas_mumu_check_timer():
                     else:
                         with open(log_path, 'r', encoding='utf-8') as f:
                             last_date = f.read().strip()
-
+                    print(f"last_date={last_date},today_str={today_str}")
                     # 如果记录的时间是今天，直接跳过任务并返回 True
                     if last_date == today_str:
-                        print("今日已重启过qbot")
+                        # 此步将检查QBOT是否寄了
+                        if not is_bot_online():
+                            if not QBOTSTOP:
+                                print("bot不在线，将严肃启动")
+                                start_qbot_process()
+                        else:
+                            print("今日已重启过qbot")
                     else:
                         try:
+                            reponse = is_bot_online()
                             if QBOTSTOP :
                                 print("QBOT重启被禁用")
                             else:
