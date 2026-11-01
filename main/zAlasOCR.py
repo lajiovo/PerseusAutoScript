@@ -112,6 +112,7 @@ def check_and_click_updater(trigger_keyword="发现新版本", button_keyword="�
     """
     检查目标窗口中是否出现类似“发现新版本x.x.x,请先更新启动器”的提示，
     如果匹配成功，则自动寻找并点击按钮（如“C更新启动器”、“更新启动器”等）。
+    首次点击后校验是否处于“启动器更新中”，若是则最小化窗口，否则重试点击。
     
     :param trigger_keyword: 提示框中的触发关键词（正则表达式或字符串）
     :param button_keyword: 需要点击的目标按钮文本关键词
@@ -244,9 +245,36 @@ def check_and_click_updater(trigger_keyword="发现新版本", button_keyword="�
                     screen_click_x = (real_left + btn_center_x_ocr) / DPI_SCALE
                     screen_click_y = (real_top + btn_center_y_ocr) / DPI_SCALE
 
-                    # 触发点击
+                    # 首次触发点击
                     click_at(screen_click_x, screen_click_y)
                     total_clicked += 1
+                    time.sleep(1.0)  # 等待更新状态响应与界面刷新
+
+                    # 再次截屏校验是否在更新中
+                    try:
+                        if win32gui.IsWindow(hwnd):
+                            left, top, right, bottom = win32gui.GetWindowRect(hwnd)
+                            real_left = int(left * DPI_SCALE)
+                            real_top = int(top * DPI_SCALE)
+                            real_right = int(right * DPI_SCALE)
+                            real_bottom = int(bottom * DPI_SCALE)
+                            
+                            screenshot_retry = ImageGrab.grab(bbox=(real_left, real_top, real_right, real_bottom))
+                            data_retry = pytesseract.image_to_data(screenshot_retry, lang='chi_sim+eng', output_type=pytesseract.Output.DICT)
+                            merged_lines_retry = parse_and_merge_ocr_data(data_retry)
+
+                            # 判断是否存在“启动器更新中”
+                            is_updating = any("启动器更新中" in l['text'] for l in merged_lines_retry)
+
+                            if is_updating:
+                                print(f"⏳ 检测到 '启动器更新中'，正在最小化窗口...")
+                                win32gui.ShowWindow(hwnd, win32con.SW_MINIMIZE)
+                            else:
+                                print(f"⚠️ 未检测到 '启动器更新中'，准备再次点击按钮...")
+                                click_at(screen_click_x, screen_click_y)
+                    except Exception as e:
+                        print(f"  ❌ 状态校验与重试逻辑异常: {e}")
+
                     time.sleep(0.5)
         else:
             print(f"ℹ️ 窗口 [{win['title']}] 未检测到更新提示信息。")
