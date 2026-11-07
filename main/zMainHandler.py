@@ -66,11 +66,11 @@ def run_alas_mumu_check():
         if not zAlas.is_process_running():
             zAlas.cleanup()
             if alas_hard_restart_count >= 1:
-                reponse = zAlas.start(extra=True)[0]
+                response = zAlas.start(extra=True)[0]
             else:
-                reponse = zAlas.start()[0]
+                response = zAlas.start()[0]
             alas_hard_restart_count += 1
-            if reponse :
+            if response :
                 print("[Info]Alas重启成功")
             else:
                 if not zAlas.is_site_accessible():
@@ -82,8 +82,8 @@ def run_alas_mumu_check():
         if not zMumu.is_mumu_running():
             print("[Info] 检测到mumu不在运行")
             zMumu.mumu_kill()
-            reponse = zMumu.hidemumu()[0]
-            if not reponse :
+            response = zMumu.hidemumu()[0]
+            if not response :
                 print("[Error] mumu未能正常重启，已放弃")
                 mumu_restart_count += 2
             else:

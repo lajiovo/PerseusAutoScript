@@ -615,7 +615,7 @@ def start_alas_mumu_check_timer():
                 else:
                     response = run_alas_mumu_check()
                     if response :
-                        print(f"自动化检查成功，返回为{reponse}")
+                        print(f"自动化检查成功，返回为{response}")
                     else: 
                         global HANDLEPUSH
                         HANDLEPUSH = False
@@ -653,7 +653,7 @@ def start_alas_mumu_check_timer():
                             print("今日已重启过qbot")
                     else:
                         try:
-                            reponse = is_bot_online()
+                            response = is_bot_online()
                             if QBOTSTOP :
                                 print("QBOT重启被禁用")
                             else:
@@ -1910,8 +1910,8 @@ def handle_run():
 @app.route("/pwupdate", methods=["GET", "POST"])
 def run_screeen_shot():
     try:
-        reponse = zPlaywrightNew.main(["home", "instance", "get_resources", "get_tasks","get_screenshot"])
-        return format_response({"status":"ok","message":str(reponse)}, 200)
+        response = zPlaywrightNew.main(["home", "instance", "get_resources", "get_tasks","get_screenshot"])
+        return format_response({"status":"ok","message":str(response)}, 200)
     except Exception: 
         return format_response({"status":"error","message":str(Exception)}, 200)
 
