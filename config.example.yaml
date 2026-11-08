@@ -220,3 +220,11 @@ bnp:
   log_path: "bili_novel.log"
   # 小说文件移动目标文件夹
   output_floder: "D:\\???\\Perseus\\main\\Novels"
+
+ai:
+  gemini:
+    api_key: ""
+    model: "gemini-flash-lite-latest"
+
+dsh:
+  exe: "D:\\???\\DeepSeek Harness.exe"
