@@ -104,6 +104,22 @@
         ]
     },
     {
+        "id": "me",
+        "name": "本机",
+        "icon": "fa-solid fa-network-wired",
+        "type": "grid",
+        "cards": [
+            {
+                "title": "DeepseekHarness",
+                "tag": "dsh",
+                "description": "Deepseek Harness Web",
+                "code": "http://127.0.0.1:3080",
+                "url": "http://127.0.0.1:3080",
+                "icon": "fa-solid fa-laptop-code"
+            }
+        ]
+    },
+    {
         "id": "local",
         "name": "局域网",
         "icon": "fa-solid fa-network-wired",
@@ -134,6 +150,15 @@
                 "url": "http://192.168.10.4:37777",
                 "copyUrl": "http://192.168.10.4:37777",
                 "icon": "fa-solid fa-database",
+                "borderColor": "rose"
+            },
+            {
+                "title": "DeepseekHarness",
+                "port": ":3080",
+                "ip": "192.168.10.4:3080",
+                "url": "http://192.168.10.4:3080",
+                "copyUrl": "http://192.168.10.4:3080",
+                "icon": "fa-solid fa-laptop-code",
                 "borderColor": "rose"
             }
         ]

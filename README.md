@@ -36,7 +36,12 @@
 ### 1. 🎮 游戏自动化运维 (AzurPilot & MuMu)
 针对《碧蓝航线》自动化工具 AzurPilot (Alas) 与 MuMu 模拟器深度定制的监控系统：
 *   🙈 **静默运行**：自动隐藏各窗口
+    *   **暴力隐藏**: `win32gui.ShowWindow(hwnd, win32con.SW_HIDE)`等措施
+    *   **OCR**: 基于OCR的自动处理AzurPilot启动器更新提示
+    *   **自动最小化**: 基于相对位置的Webview窗口的最小化按钮点击 
 *   🔄 **自愈流程**：自动定时检查
+    *   **窗口隐藏**: 定期检查是否窗口外露
+    *   **状态更新**: 使用浏览器检查后台等是否异常
 *   🌐 **网页操作**：基于Playwright实现对其Webui的控制与数据抓取
 *   📲 **Push代收**：
     *   **信息解析**：解析红尖尖委托、行动力等消息
@@ -59,7 +64,7 @@
 
 ### 3. 📚 轻小说管理 (LK & iNovel)
 *   🕵️ **轻之国度爬虫**：
-    *   **常规模拟**：基于 Playwright 逐卷逐章爬取，支持滚木
+    *   **常规模拟**：基于 Playwright 逐卷逐章爬取，支持棍木
     *   **断点缓存**：支持断点续爬，也支持只读本地缓存
     *   **插图处理**：自动下载补齐插图
     *   **EPUB生成**：自动打包成epub
@@ -87,7 +92,7 @@
     *   **自动隐藏**：自动隐藏Webview窗口
 *   🎬 **FFmpeg音乐加工**：自动将 MP3 转换为 64k 低比特率版本，并抹除冗余元数据标签
 *   🍎 **Pgrjz签到**：针对水果软件站的 Playwright 模拟Webapp登录与每日签到任务
-*   🌐 **滚木浏览器**：地理位置伪装、剪切板穿透的独立滚木浏览器
+*   🌐 **棍木浏览器**：地理位置伪装、剪切板穿透的独立棍木浏览器（已废弃）
 *   📃 **在线剪切板**：内置网页实现在局域网内文件互传
 *   🎺 **Vela应用**：神秘腕上应用，仅支持RedmiWacth5/6（开发中）
 *   🕰  **手表同步**：同步腕上app的数据（开发中）
@@ -218,8 +223,7 @@ Perseus 提供了优雅的多级防闪退、静默挂载启动链：
 </details>
 
 2. [`main/ziNovel.py`](main/ziNovel.py) - 备选入口,tkinter
-3. [`main/zBrowser.py`](main/zBrowser.py) - 唯一入口,playwright
-4. [`main/zBNP.py`](main/zBNP.py) - 稳定方法,tkinter
+3. [`main/zBNP.py`](main/zBNP.py) - 稳定方法,tkinter
 
 ### 9. 云崽接入
 该功能稳定性差，教程略
@@ -266,5 +270,5 @@ Perseus 提供了优雅的多级防闪退、静默挂载启动链：
 
 ---
 <div align="right">
-  <i>Update Time: 2026-10-01</i>
+  <i>Update Time: 2026-11-08</i>
 </div>
