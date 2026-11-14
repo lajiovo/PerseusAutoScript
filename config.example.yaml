@@ -221,6 +221,10 @@ bnp:
   # 小说文件移动目标文件夹
   output_floder: "D:\\???\\Perseus\\main\\Novels"
 
+codestatus:
+  # 你的项目文件夹
+  dir: "D:\\???\\Perseus"
+
 ai:
   gemini:
     api_key: ""
