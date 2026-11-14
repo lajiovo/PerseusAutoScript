@@ -119,7 +119,7 @@ Perseus/
 本项目基于 Python 3.10+ 开发，核心依赖包括 `Flask`, `playwright`, `botpy` 等等。
 ```bash
 # 安装 Python 依赖包
-pip install aiohttp botpy beautifulsoup4 ebooklib flask opencc playwright psutil pynput requests ruamel.yaml urllib3 pywin32 patool pillow python-docx pyautogui pytesseract
+pip install aiohttp botpy beautifulsoup4 ebooklib flask opencc playwright psutil pynput requests urllib3 pywin32 patool pillow python-docx pyautogui pytesseract tomlkit tomli
 ```
 
 安装Tesseract
