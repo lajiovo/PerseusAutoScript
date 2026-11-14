@@ -1,4 +1,5 @@
 import zPerseusLogger
+from zPerseusLogger import logger
 import os
 import sys
 import datetime
@@ -18,6 +19,65 @@ import win32con
 import win32clipboard
 import asyncio
 
+# 在当前脚本所在目录的上级目录下读取或创建另外一个用于控制 Blueprint 开启状态的 toml 配置文件
+_current_dir = Path(__file__).resolve().parent
+_parent_dir = _current_dir.parent
+_blueprint_config_path = _parent_dir / "blueprint_config.toml"
+
+# 如果配置文件不存在，则默认全部关闭并创建该 toml 文件
+if not _blueprint_config_path.exists():
+    _default_blueprint_config = """# Blueprint 功能开关配置文件
+# 默认全部为 false (关闭)
+
+[blueprints]
+lk_bp = false
+inovel_bp = false
+lk_cache_viewer_bp = false
+log_bp = false
+p_ans_bp = false
+bnp_bp = false
+codestatus_bp = false
+ans_bp = false
+"""
+    try:
+        with open(_blueprint_config_path, "w", encoding="utf-8") as f:
+            f.write(_default_blueprint_config)
+        logger.info("已自动创建默认 Blueprint 配置文件: {}", _blueprint_config_path)
+    except Exception as _e:
+        logger.warning("创建默认 Blueprint 配置文件失败: {}", _e)
+
+# 读取 blueprint_config.toml 配置
+_bp_config_data = {}
+try:
+    if _blueprint_config_path.exists():
+        try:
+            import tomllib
+            with open(_blueprint_config_path, "rb") as f:
+                _bp_config_data = tomllib.load(f)
+        except ImportError:
+            try:
+                import tomli
+                with open(_blueprint_config_path, "rb") as f:
+                    _bp_config_data = tomli.load(f)
+            except ImportError:
+                # 降级使用 yaml 库读取 toml
+                from ruamel.yaml import YAML
+                _y = YAML()
+                with open(_blueprint_config_path, "r", encoding="utf-8") as f:
+                    _bp_config_data = _y.load(f) or {}
+except Exception as _e:
+    logger.error("读取 Blueprint 配置文件异常: {}", _e)
+
+_bp_switches = _bp_config_data.get("blueprints", {})
+
+def _is_bp_enabled(name: str) -> bool:
+    val = _bp_switches.get(name, False)
+    if isinstance(val, bool):
+        return val
+    if isinstance(val, str):
+        return val.lower() in ("true", "1", "yes")
+    return bool(val)
+
 from zBarkCustom import PerseusNotifyMsg, PerseusErrorMsg,PerseusWarningMsg
 from zMainHandler import run_alas_mumu_check, handlerun, Handlepush
 import zAlas
@@ -30,26 +90,74 @@ from zLK import crawl_lightnovel_to_epub
 from zConfig import get_config
 import zPlaywrightNew
 
-from zLKserver import lk_bp
-from zInovelServer import inovel_bp
-from zLKCacheViewerServer import lk_cache_viewer_bp
-from zBNPApi import bnp_bp
-from zLogApi import log_bp
-from zCodeStatusApi import codestatus_bp
-from zAnsApi import ans_bp
-from zPAnsApi import p_ans_bp
-
+# 根据配置文件中的开关条件性导入并注册 Blueprint，失败时报错并跳过
 app = Flask(__name__)
 # 配置请求大小限制
 app.config['MAX_CONTENT_LENGTH'] = 2 * 1024 * 1024
-app.register_blueprint(lk_bp)
-app.register_blueprint(inovel_bp)
-app.register_blueprint(lk_cache_viewer_bp)
-app.register_blueprint(log_bp)
-app.register_blueprint(p_ans_bp)
-app.register_blueprint(bnp_bp)
-app.register_blueprint(codestatus_bp)
-app.register_blueprint(ans_bp)
+
+if _is_bp_enabled("lk_bp"):
+    try:
+        from zLKserver import lk_bp
+        app.register_blueprint(lk_bp)
+        logger.info("成功加载并注册 Blueprint: lk_bp")
+    except Exception as e:
+        logger.error("加载 Blueprint [lk_bp] 失败: {}", e)
+
+if _is_bp_enabled("inovel_bp"):
+    try:
+        from zInovelServer import inovel_bp
+        app.register_blueprint(inovel_bp)
+        logger.info("成功加载并注册 Blueprint: inovel_bp")
+    except Exception as e:
+        logger.error("加载 Blueprint [inovel_bp] 失败: {}", e)
+
+if _is_bp_enabled("lk_cache_viewer_bp"):
+    try:
+        from zLKCacheViewerServer import lk_cache_viewer_bp
+        app.register_blueprint(lk_cache_viewer_bp)
+        logger.info("成功加载并注册 Blueprint: lk_cache_viewer_bp")
+    except Exception as e:
+        logger.error("加载 Blueprint [lk_cache_viewer_bp] 失败: {}", e)
+
+if _is_bp_enabled("log_bp"):
+    try:
+        from zLogApi import log_bp
+        app.register_blueprint(log_bp)
+        logger.info("成功加载并注册 Blueprint: log_bp")
+    except Exception as e:
+        logger.error("加载 Blueprint [log_bp] 失败: {}", e)
+
+if _is_bp_enabled("p_ans_bp"):
+    try:
+        from zPAnsApi import p_ans_bp
+        app.register_blueprint(p_ans_bp)
+        logger.info("成功加载并注册 Blueprint: p_ans_bp")
+    except Exception as e:
+        logger.error("加载 Blueprint [p_ans_bp] 失败: {}", e)
+
+if _is_bp_enabled("bnp_bp"):
+    try:
+        from zBNPApi import bnp_bp
+        app.register_blueprint(bnp_bp)
+        logger.info("成功加载并注册 Blueprint: bnp_bp")
+    except Exception as e:
+        logger.error("加载 Blueprint [bnp_bp] 失败: {}", e)
+
+if _is_bp_enabled("codestatus_bp"):
+    try:
+        from zCodeStatusApi import codestatus_bp
+        app.register_blueprint(codestatus_bp)
+        logger.info("成功加载并注册 Blueprint: codestatus_bp")
+    except Exception as e:
+        logger.error("加载 Blueprint [codestatus_bp] 失败: {}", e)
+
+if _is_bp_enabled("ans_bp"):
+    try:
+        from zAnsApi import ans_bp
+        app.register_blueprint(ans_bp)
+        logger.info("成功加载并注册 Blueprint: ans_bp")
+    except Exception as e:
+        logger.error("加载 Blueprint [ans_bp] 失败: {}", e)
 
 # 监听端口
 LISTEN_PORT = get_config("pushserver.listen_port", default=25566)
