@@ -347,6 +347,7 @@ def start(alas_path=ALAS_PATH, show_window=True,extra:bool=False,target_count:in
     """
     elevate_privileges()
 
+    print(f"这里zAlas.start(),extra={extra}")
     print(f"🚀 [Start] 开始检测进程 '{TARGET_PROCESS}' 是否已在运行...")
 
     is_running = False
@@ -400,11 +401,23 @@ def start(alas_path=ALAS_PATH, show_window=True,extra:bool=False,target_count:in
         print("正在检查启动器更新")
         try:
             response = check_and_click_updater()
-            if not(response or response == 0):
-                print("可能存在异常")
+            if response == 0:
+                try_count = 0
+                while try_count <= 3:
+                    time.sleep(1)
+                    print(f"再尝试一次,当前{try_count}")
+                    response2 = check_and_click_updater()
+                    try_count += 1
+                    print(f"->{response2}")
+            elif not response :
+                print("fail check_and_click_updater")
+            else:
+                print("success check_and_click_updater")
         except Exception as e:
             print(f"报错了:{e}")
         target_count = 2
+    else:
+        print("跳过启动更新检查")
 
     # 根据运行状态，分别向 hide() 传入 1 或 2 作为目标检测窗口数
     hide_result = hide(target_count=target_hide_count)
@@ -421,9 +434,15 @@ def start(alas_path=ALAS_PATH, show_window=True,extra:bool=False,target_count:in
 
 
 if __name__ == "__main__":
+    print("1->start")
+    print("2->hide")
+    print("3->cleanup")
+    print("4->start+ocr")
     a = input(">>")
     if a == "1" :
         result = start()
+    elif a == "4":
+        result = start(extra=True)
     elif a == "2" :
         result = hide()
     elif a == "3" :

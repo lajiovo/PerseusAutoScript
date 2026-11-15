@@ -28,6 +28,16 @@ MIN_HEIGHT = 100
 DPI_SCALE = 1.25 
 # ==================================================
 
+def contains_keyword(lines, keyword, field="text"):
+    """检查指定字段是否包含关键词（支持 str / list）"""
+    keywords = [keyword] if isinstance(keyword, str) else keyword
+
+    return any(
+        kw in str(line.get(field, ""))
+        for line in lines
+        for kw in keywords
+    )
+
 def parse_and_merge_ocr_data(data):
     """
     解析并合并 OCR 识别到的文本行，同时保留每行整体的位置 bounding box。
@@ -108,7 +118,7 @@ def click_at(x, y):
         print(f"  ❌ 点击失败: {e}")
 
 
-def check_and_click_updater(trigger_keyword="发现新版本", button_keyword="更新启动器"):
+def check_and_click_updater(trigger_keyword=["isavailable","发现新版本"], button_keyword=["Updatelauncher","更新启动器"],prepare_keyword=["Preparingruntimeenvironment","正在准备运行环境"],updating_keyword=["Updating","启动器更新中"]):
     """
     检查目标窗口中是否出现类似“发现新版本x.x.x,请先更新启动器”的提示，
     如果匹配成功，则自动寻找并点击按钮（如“C更新启动器”、“更新启动器”等）。
@@ -227,16 +237,18 @@ def check_and_click_updater(trigger_keyword="发现新版本", button_keyword="�
             azur_attempts += 1
             # 截图并进行 OCR
             screenshot = ImageGrab.grab(bbox=(real_left, real_top, real_right, real_bottom))
-            data = pytesseract.image_to_data(screenshot, lang='chi_sim+eng', output_type=pytesseract.Output.DICT)
+            # 已放弃中文识别
+            data = pytesseract.image_to_data(screenshot, lang='eng', output_type=pytesseract.Output.DICT)
             merged_lines = parse_and_merge_ocr_data(data)
 
             # 1. 如果结果中包含“正在准备运行环境”，直接返回 True
-            if any("正在准备运行环境" in line['text'] for line in merged_lines):
+            if contains_keyword(merged_lines,prepare_keyword):
                 print(f"✅ 窗口 [{win['title']}] 检测到 '正在准备运行环境'，直接返回 True")
                 return True
 
             # 检查是否有 AzurPilot 文本
-            has_azurpilot = any("azurpilot" in line['text'].lower() for line in merged_lines)
+            # has_azurpilot = contains_keyword(merged_lines,"Azur"):
+            has_azurpilot = True
             if has_azurpilot:
                 break
             else:
@@ -255,13 +267,14 @@ def check_and_click_updater(trigger_keyword="发现新版本", button_keyword="�
                     except Exception as e:
                         print(f"  ❌ 重置窗口失败: {e}")
 
+        
         # 如果尝试 2 次后仍未检测到 AzurPilot，返回 0
-        if not any("azurpilot" in line['text'].lower() for line in merged_lines):
-            print(f"❌ 尝试 2 次后仍未在 OCR 结果中检索到 'AzurPilot'，失败返回 0")
-            return 0
+        # if not any("azur" in line['text'].lower() for line in merged_lines):
+        #     print(f"❌ 尝试 2 次后仍未在 OCR 结果中检索到 'AzurPilot'，失败返回 0")
+        #     return 0
 
         # 检查所有文本行中是否出现了更新提示
-        has_update_notice = any(trigger_keyword in line['text'] for line in merged_lines)
+        has_update_notice = contains_keyword(merged_lines,trigger_keyword)
 
         if has_update_notice:
             print(f"⚠️ 窗口 [{win['title']}] 检测到更新提示（匹配词: '{trigger_keyword}'）")
@@ -269,7 +282,7 @@ def check_and_click_updater(trigger_keyword="发现新版本", button_keyword="�
             # 寻找符合点击条件的按钮（可能包含噪声字符如 "C更新启动器"）
             btn_line = None
             for line in merged_lines:
-                if button_keyword in line['text']:
+                if contains_keyword(merged_lines,button_keyword):
                     btn_line = line
                     break
 
@@ -309,7 +322,7 @@ def check_and_click_updater(trigger_keyword="发现新版本", button_keyword="�
                         merged_lines_retry = parse_and_merge_ocr_data(data_retry)
 
                         # 判断是否存在“启动器更新中”
-                        is_updating = any("启动器更新中" in l['text'] for l in merged_lines_retry)
+                        is_updating = contains_keyword(merged_lines,updating_keyword)
 
                         if is_updating:
                             print(f"⏳ 检测到 '启动器更新中'，正在最小化窗口...")
@@ -331,4 +344,4 @@ def check_and_click_updater(trigger_keyword="发现新版本", button_keyword="�
 
 
 if __name__ == "__main__":
-    check_and_click_updater(trigger_keyword="发现新版本", button_keyword="更新启动器")
+    check_and_click_updater()

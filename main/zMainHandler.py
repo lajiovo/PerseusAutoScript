@@ -1,4 +1,4 @@
-import zPerseusLogger
+from zPerseusLogger import logger
 import traceback
 import zAlas
 import zMumu
@@ -65,10 +65,13 @@ def run_alas_mumu_check():
                 print(f"[Error] 清理进程时出现异常: {e}")
             return False
         if not zAlas.is_process_running():
+            logger.info("Alas未在运行")
             zAlas.cleanup()
             if (alas_hard_restart_count >= 1)or need_check:
+                logger.info("尝试运行zAlas.start(extra=True)")
                 response = zAlas.start(extra=True)[0]
             else:
+                logger.info("尝试运行zAlas.start()")
                 response = zAlas.start()[0]
             alas_hard_restart_count += 1
             if response :

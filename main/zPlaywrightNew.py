@@ -96,60 +96,75 @@ def post_data_to_endpoint(url: str, payload_dict: dict) -> bool:
         return False
 
 
-def check_is_in_instance(page) -> bool:
+def check_is_in_instance(page, need_print: bool = False) -> bool:
     """
-    核对是否在实例页面（检查是否存在 <div class="overview-page">）
-    """
-    try:
-        overview_elem = page.locator(".overview-page")
-        return overview_elem.is_visible()
-    except Exception:
-        return False
-
-
-def nav_to_home(page):
-    """
-    ①函数前往主页：点击 <a href="#/" data-discover="true">主页</a>
-    简称: home
+    核对是否在实例页面（检查 topbar 标题是否为 Overview / 运行总览）
     """
     try:
-        print("🏠 正在前往主页...")
-        home_btn = page.locator('a[href="#/"]').filter(has_text="主页").first
-        if not home_btn.is_visible():
-            home_btn = page.locator('a[href="#/"]').first
-        
-        home_btn.wait_for(state="visible", timeout=5000)
-        home_btn.click(force=True)
-        page.wait_for_timeout(1000)
-        print("✅ 已点击前往主页")
-        return True, "0001", "前往主页成功"
+        title_elem = page.locator(".legacy-topbar-title")
+
+        if not title_elem.is_visible():
+            return False
+
+        title = title_elem.inner_text().strip()
+
+        if need_print:
+            print(f".legacy-topbar-title --> {title}")
+
+        return title.lower() in ("overview", "运行总览")
+
     except Exception as e:
-        msg = f"前往主页失败: {e}"
-        print(f"⚠️ {msg}")
-        return False, "0002", msg
-
+        if need_print:
+            print(f"实例页面检测异常: {e}")
+        return False
 
 def nav_to_instance(page):
     """
-    ②函数前往实例页：先前往主页，再点击实例卡片
-    <a class="instance-card panel" href="#/i/alas/overview" ...> 后确认出现 <div class="overview-page">
+    ② 函数前往实例页：点击 instance-tabs 中的实例按钮
+    点击后通过 check_is_in_instance(page) 确认是否进入实例页
     简称: instance
     """
     try:
         print("🖥️ 正在前往实例页...")
-        # 步骤 1: 先前往主页
-        nav_to_home(page)
-        
-        # 步骤 2: 点击实例卡片
-        instance_card = page.locator('a.instance-card[href="#/i/alas/overview"], a[href="#/i/alas/overview"]').first
-        instance_card.wait_for(state="visible", timeout=5000)
-        instance_card.click(force=True)
 
-        # 步骤 3: 确认出现 overview-page
-        overview_page = page.locator(".overview-page")
-        overview_page.wait_for(state="visible", timeout=8000)
-        print("✅ 已成功跳转至实例页并确认包含 <div class=\"overview-page\">")
-        return True, "0003", "前往实例页成功"
+        # 步骤 1: 定位 alas 实例按钮
+        instance_tab = page.locator(
+            '.instance-tabs button.instance-tab[aria-label="alas"]'
+        ).first
+
+        instance_tab.wait_for(state="visible", timeout=5000)
+
+        # 步骤 2: 点击并确认，最多重试 2 次
+        for attempt in range(2):
+            print(f"🔄 正在进入实例页（第 {attempt + 1}/2 次）...")
+
+            instance_tab.click(force=True)
+
+            try:
+                page.wait_for_function(
+                    """() => {
+                        const title = document.querySelector(
+                            '.legacy-topbar-title'
+                        );
+                        return title &&
+                               title.textContent.trim().toLowerCase() === 'overview';
+                    }""",
+                    timeout=3000
+                )
+            except Exception:
+                pass
+
+            # 步骤 3: 确认是否进入实例页
+            if check_is_in_instance(page,True):
+                print("✅ 已成功进入实例页")
+                return True, "0003", "前往实例页成功"
+
+            print("⚠️ 尚未进入实例页，准备重试...")
+
+        msg = "前往实例页失败：连续 2 次点击后仍未检测到 Overview 页面"
+        print(f"⚠️ {msg}")
+        return False, "0004", msg
+
     except Exception as e:
         msg = f"前往实例页失败: {e}"
         print(f"⚠️ {msg}")
@@ -193,23 +208,35 @@ def check_updates(page):
 
 def get_resource_list(page):
     """
-    ④函数获取资源列表：在实例页面，向 127.0.0.1:25566/main/ap/set 提交
-    <section class="resource-card resource-merged"...> 的全部内容
+    ④ 函数获取资源列表：在实例页面，获取
+    <div class="resource-grid resource-fit resource-fit-text resource-dense">
+    的全部内容，并提交至 127.0.0.1:25566/main/ap/set
+
     简称: get_resources
     """
     try:
         ensure_instance_page(page)
         print("📦 正在获取资源列表...")
-        resource_sec = page.locator("section.resource-card").first
-        resource_sec.wait_for(state="visible", timeout=5000)
-        resource_html = resource_sec.evaluate("el => el.outerHTML")
 
-        # 提交到 127.0.0.1:25566/main/ap/set
+        # 定位资源网格
+        resource_grid = page.locator(
+            ".resource-grid.resource-fit.resource-fit-text.resource-dense"
+        ).first
+
+        resource_grid.wait_for(state="visible", timeout=5000)
+
+        # 获取完整 HTML
+        resource_html = resource_grid.evaluate("el => el.outerHTML")
+
+        # 提交到接口
         target_url = "http://127.0.0.1:25566/main/ap/set"
+
         if post_data_to_endpoint(target_url, {"html": resource_html}):
+            print("✅ 资源列表获取并提交成功")
             return True, "0008", "获取并提交资源列表成功"
         else:
             return False, "0009", "资源列表接口提交失败"
+
     except Exception as e:
         msg = f"获取资源列表异常: {e}"
         print(f"⚠️ {msg}")
@@ -218,23 +245,35 @@ def get_resource_list(page):
 
 def get_task_list(page):
     """
-    ⑤函数获取任务列表：在实例页面，向 127.0.0.1:25566/main/ap/set2 提交
-    <aside class="right-rail" id="right-rail-menu" aria-label="调度与任务">
+    ⑤函数获取任务列表：在实例页面，获取
+    <div class="rail-task-list"> 的全部 HTML 内容，
+    提交到 127.0.0.1:25566/main/ap/set2
     简称: get_tasks
     """
     try:
         ensure_instance_page(page)
         print("📋 正在获取任务列表...")
-        task_rail = page.locator('#right-rail-menu, aside.right-rail[aria-label*="调度"]').first
-        task_rail.wait_for(state="visible", timeout=5000)
-        task_html = task_rail.evaluate("el => el.outerHTML")
 
-        # 提交到 127.0.0.1:25566/main/ap/set2
+        # 定位任务列表
+        task_list = page.locator(
+            'section.rail-schedule[aria-label="任务计划"] .rail-task-list'
+        )
+
+        task_list.wait_for(state="attached", timeout=5000)
+
+        # 获取元素完整 HTML
+        task_html = task_list.evaluate("el => el.outerHTML")
+
+        print(f"📦 成功获取任务列表 HTML (长度: {len(task_html)})")
+
+        # 提交到 /main/ap/set2
         target_url = "http://127.0.0.1:25566/main/ap/set2"
+
         if post_data_to_endpoint(target_url, {"html": task_html}):
             return True, "0011", "获取并提交任务列表成功"
         else:
             return False, "0012", "任务列表接口提交失败"
+
     except Exception as e:
         msg = f"获取任务列表异常: {e}"
         print(f"⚠️ {msg}")
@@ -243,29 +282,65 @@ def get_task_list(page):
 
 def start_scheduler(page):
     """
-    ⑥函数启动调度器：在实例页面，点击
-    <button class="button scheduler-toggle primary">启动调度器</button>
-    直到出现 <button class="button scheduler-toggle danger">停止运行</button>
+    ⑥ 函数启动调度器：
+    - danger：停止运行（已运行）
+    - danger[disabled]：正在处理
+    - primary：启动调度器（未运行）
+
+    正在处理时等待最多 5 秒，消失后重新判断状态。
     简称: start
     """
     try:
         ensure_instance_page(page)
         print("⚡ 正在检查调度器状态...")
-        
-        stop_btn = page.locator("button.scheduler-toggle.danger").filter(has_text="停止运行")
+
+        stop_btn = page.locator(
+            'button.scheduler-toggle.danger:not([disabled])'
+        ).filter(has_text="停止运行")
+
+        processing_btn = page.locator(
+            'button.scheduler-toggle.danger[disabled]'
+        ).filter(has_text="正在处理")
+
+        start_btn = page.locator(
+            'button.scheduler-toggle.primary'
+        ).filter(has_text="启动调度器")
+
+        # 检查是否已经运行
         if stop_btn.is_visible():
-            print("▶️ 调度器当前已处于运行状态（显示停止运行按钮）。")
+            print("▶️ 调度器当前已处于运行状态。")
             return True, "0014", "调度器已在运行状态"
 
-        start_btn = page.locator("button.scheduler-toggle.primary").filter(has_text="启动调度器")
+        # 正在处理：等待状态消失，最多 5 秒
+        if processing_btn.is_visible():
+            print("⏳ 调度器正在处理，等待状态结束（最多 5 秒）...")
+
+            try:
+                processing_btn.wait_for(state="hidden", timeout=5000)
+            except Exception:
+                msg = "调度器处理状态等待超时（5 秒）"
+                print(f"⚠️ {msg}")
+                return False, "0016", msg
+
+            print("🔄 处理状态已消失，重新检查调度器状态...")
+
+            # 重新检查是否已经运行
+            if stop_btn.is_visible():
+                print("🎉 调度器已进入运行状态！")
+                return True, "0015", "成功启动调度器"
+
+        # 尚未运行：点击启动
         start_btn.wait_for(state="visible", timeout=5000)
+
         print("🚀 点击【启动调度器】按钮...")
         start_btn.click(force=True)
 
-        # 等待直到出现停止运行按钮
-        stop_btn.wait_for(state="visible", timeout=10000)
-        print("🎉 确认调度器已切换为【停止运行】状态！")
+        # 等待运行状态
+        stop_btn.wait_for(state="visible", timeout=15000)
+
+        print("🎉 确认调度器已进入【停止运行】状态！")
         return True, "0015", "成功启动调度器"
+
     except Exception as e:
         msg = f"启动调度器失败: {e}"
         print(f"⚠️ {msg}")
@@ -274,39 +349,73 @@ def start_scheduler(page):
 
 def get_screenshot(page):
     """
-    ⑦函数获取截图：在实例页面，点击
-    <button type="button" role="tab"...>截图</button>
-    等待获取 <a class="text-button" download="alas-screenshot.jpg"...>保存截图</a> 的 base64 图片，
-    提交到 127.0.0.1:25566/main/ap/set3
+    ⑦函数获取截图：
+    1. 检查 .preview-screen 是否处于等待任务截图状态
+    2. 如果是，点击截图标签触发截图加载
+    3. 等待 .preview-screen img 出现
+    4. 获取 img 的 src Base64
+    5. 提交到 127.0.0.1:25566/main/ap/set3
     简称: get_screenshot
     """
     try:
         ensure_instance_page(page)
-        print("📸 正在触发页面截图...")
-        
-        # 点击截图标签按钮
-        screenshot_btn = page.locator('button[role="tab"]').filter(has_text="截图").first
-        if not screenshot_btn.is_visible():
-            screenshot_btn = page.locator("button").filter(has_text="截图").first
-        
-        screenshot_btn.wait_for(state="visible", timeout=5000)
-        screenshot_btn.click(force=True)
+        print("📸 正在检查页面截图...")
 
-        # 等待带有 base64 图片的保存截图 <a> 元素
-        download_link = page.locator('a[download="alas-screenshot.jpg"], a.text-button[download]').first
-        download_link.wait_for(state="visible", timeout=12000)
-        
-        base64_data = download_link.get_attribute("href")
-        if not base64_data:
-            return False, "0017", "未能从截图链接获取到 base64 内容"
+        preview = page.locator(".preview-screen")
+        preview.wait_for(state="attached", timeout=5000)
 
-        print(f"🖼️ 成功捕获 Base64 图片数据 (长度: {len(base64_data)})，提交至 /main/ap/set3...")
-        
+        # 检查是否处于等待任务截图状态
+        empty = preview.locator(".empty")
+
+        if empty.count() > 0 and empty.is_visible():
+            print("🖼️ 检测到等待任务截图，点击截图按钮加载...")
+
+            screenshot_btn = page.locator(
+                'button[role="tab"]'
+            ).filter(has_text="截图").first
+
+            screenshot_btn.wait_for(state="visible", timeout=5000)
+            screenshot_btn.click(force=True)
+
+        else:
+            print("🖼️ 截图区域已有内容，直接获取...")
+
+        # 等待截图图片加载
+        screenshot_img = preview.locator("img")
+
+        screenshot_img.wait_for(state="attached", timeout=20000)
+
+        # 等待 Base64 数据生成
+        page.wait_for_function(
+            """() => {
+                const img = document.querySelector('.preview-screen img');
+                return img &&
+                    img.getAttribute('src') &&
+                    img.getAttribute('src').startsWith('data:image/jpeg;base64,');
+            }""",
+            timeout=20000
+        )
+
+        # 获取 Base64
+        image_src = screenshot_img.get_attribute("src")
+
+        if not image_src or "," not in image_src:
+            return False, "0017", "未能获取截图 Base64 数据"
+
+        base64_data = image_src.split(",", 1)[1]
+
+        print(
+            f"🖼️ 成功捕获 Base64 图片数据 "
+            f"(长度: {len(base64_data)})，提交至 /main/ap/set3..."
+        )
+
         target_url = "http://127.0.0.1:25566/main/ap/set3"
+
         if post_data_to_endpoint(target_url, {"image": base64_data}):
             return True, "0018", "获取并提交截图成功"
-        else:
-            return False, "0019", "截图接口提交失败"
+
+        return False, "0019", "截图接口提交失败"
+
     except Exception as e:
         msg = f"获取截图过程出现异常: {e}"
         print(f"⚠️ {msg}")
@@ -320,7 +429,6 @@ def main(
 ):
     """
     任务简称对照表：
-    - 'home': 前往主页 (①)
     - 'instance': 前往实例页 (②)
     - 'check_update': 检查更新 (③)
     - 'get_resources': 获取资源列表 (④)
@@ -368,11 +476,7 @@ def main(
             task_key = task.lower().strip()
             print(f"\n--- 📋 执行任务项: [{task_key}] ---")
 
-            if task_key == "home":
-                success, code, msg = nav_to_home(page)
-                task_results.append([success, code, msg])
-
-            elif task_key == "instance":
+            if task_key == "instance":
                 success, code, msg = nav_to_instance(page)
                 task_results.append([success, code, msg])
 
@@ -413,7 +517,7 @@ def main(
 if __name__ == "__main__":
     # 默认按顺序执行：前往主页 -> 前往实例页 -> 启动调度器 -> 获取资源列表 -> 获取任务列表
     # 如需额外任务可添加 'get_screenshot' 或 'check_update'
-    default_tasks = ["home", "instance", "start", "get_resources", "get_tasks","get_screenshot"]
+    default_tasks = ["instance", "start", "get_resources", "get_tasks","get_screenshot"]
     
     result = main(
         headless=False,

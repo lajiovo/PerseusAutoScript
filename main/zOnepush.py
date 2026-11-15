@@ -159,8 +159,7 @@ if _is_bp_enabled("main_loop_bp"):
     main_enabled = True
     try:
         import zMainLoopApi
-        from zMainLoopApi import main_loop_bp ,timer_lock,load_stats,save_stats,stop_timer,start_alas_mumu_check_timer,enter_standby
-        app.register_blueprint(main_loop_bp)
+        app.register_blueprint(zMainLoopApi.main_loop_bp)
         import zAlas
         import zMumu
         logger.success("成功加载并注册 Blueprint: main_loop_bp")
@@ -168,7 +167,7 @@ if _is_bp_enabled("main_loop_bp"):
         logger.error("加载 Blueprint [main_loop_bp] 失败: {}", e)
 else:
     main_enabled = False
-    from zMainLoopApi import timer_lock,load_stats,save_stats
+    import zMainLoopApi.load_stats,zMainLoopApi.save_stats
 
 if _is_bp_enabled("ap_bp"):
     try:
@@ -707,9 +706,9 @@ def _runtime_persistence_loop():
         time.sleep(interval)
         try:
             with stats_lock:
-                stats = load_stats()
+                stats = zMainLoopApi.load_stats()
                 stats["total_runtime_seconds"] += interval
-                save_stats(stats)
+                zMainLoopApi.save_stats(stats)
             print("⏱️ [统计模块] 累计运行时长已更新并持久化 (+10分钟)")
         except Exception as e:
             print(f"⚠️ 运行时长持久化线程异常: {e}")
@@ -838,7 +837,7 @@ def parse_pushlog_span(span):
 @app.route("/main/stats/get", methods=["GET"])
 def handle_main_stats_get():
     """返回 zOnepush 自身统计数据，并尝试请求本地运行的 QBot (/bot/status/get 或 /bot/api/stats) 聚合完整统计信息"""
-    stats = load_stats()
+    stats = zMainLoopApi.load_stats()
     
     bot_stats = None
     try:
@@ -1130,7 +1129,7 @@ def handle_shutdown():
     print("🛑 收到 /shutdown 请求，正在关闭服务自身...")
     PerseusNotifyMsg("🛑 收到 /shutdown 请求，正在关闭服务自身...","")
     if main_enabled:
-        stop_timer()
+        zMainLoopApi.stop_timer()
     
     def delayed_exit():
         time.sleep(0.5)
@@ -1148,7 +1147,7 @@ def handle_restart():
     # 1. 优雅停止后台定时任务与清理资源
     try:
         if main_enabled:
-            stop_timer()
+            zMainLoopApi.stop_timer()
     except Exception as e:
         print(f"⚠️ 重启前清理定时器/待机状态异常: {e}")
 
@@ -1769,7 +1768,7 @@ def main():
     request_admin_privileges(max_retries=5)
     kill_port_process(LISTEN_PORT)
     if main_enabled:
-        start_alas_mumu_check_timer()
+        zMainLoopApi.start_alas_mumu_check_timer()
     else:
         logger.info("已跳过start_alas_mumu_check_timer")
 
