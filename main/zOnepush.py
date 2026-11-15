@@ -66,7 +66,7 @@ try:
                 with open(_blueprint_config_path, "r", encoding="utf-8") as f:
                     _bp_config_data = _y.load(f) or {}
 except Exception as _e:
-    logger.error("读取 Blueprint 配置文件异常: {}", _e)
+    logger.warning("读取 Blueprint 配置文件异常: {}", _e)
 
 _bp_switches = _bp_config_data.get("blueprints", {})
 
@@ -79,10 +79,6 @@ def _is_bp_enabled(name: str) -> bool:
     return bool(val)
 
 from zBarkCustom import PerseusNotifyMsg, PerseusErrorMsg,PerseusWarningMsg
-from zMainHandler import run_alas_mumu_check, handlerun, Handlepush
-import zAlas
-import zMumu
-import zPGRJZ
 import zMusicDL
 from zFfmpeg import process_audio as ffmrun
 import zCpolar
@@ -99,7 +95,7 @@ if _is_bp_enabled("lk_bp"):
     try:
         from zLKserver import lk_bp
         app.register_blueprint(lk_bp)
-        logger.info("成功加载并注册 Blueprint: lk_bp")
+        logger.success("成功加载并注册 Blueprint: lk_bp")
     except Exception as e:
         logger.error("加载 Blueprint [lk_bp] 失败: {}", e)
 
@@ -107,7 +103,7 @@ if _is_bp_enabled("inovel_bp"):
     try:
         from zInovelServer import inovel_bp
         app.register_blueprint(inovel_bp)
-        logger.info("成功加载并注册 Blueprint: inovel_bp")
+        logger.success("成功加载并注册 Blueprint: inovel_bp")
     except Exception as e:
         logger.error("加载 Blueprint [inovel_bp] 失败: {}", e)
 
@@ -115,7 +111,7 @@ if _is_bp_enabled("lk_cache_viewer_bp"):
     try:
         from zLKCacheViewerServer import lk_cache_viewer_bp
         app.register_blueprint(lk_cache_viewer_bp)
-        logger.info("成功加载并注册 Blueprint: lk_cache_viewer_bp")
+        logger.success("成功加载并注册 Blueprint: lk_cache_viewer_bp")
     except Exception as e:
         logger.error("加载 Blueprint [lk_cache_viewer_bp] 失败: {}", e)
 
@@ -123,7 +119,7 @@ if _is_bp_enabled("log_bp"):
     try:
         from zLogApi import log_bp
         app.register_blueprint(log_bp)
-        logger.info("成功加载并注册 Blueprint: log_bp")
+        logger.success("成功加载并注册 Blueprint: log_bp")
     except Exception as e:
         logger.error("加载 Blueprint [log_bp] 失败: {}", e)
 
@@ -131,7 +127,7 @@ if _is_bp_enabled("p_ans_bp"):
     try:
         from zPAnsApi import p_ans_bp
         app.register_blueprint(p_ans_bp)
-        logger.info("成功加载并注册 Blueprint: p_ans_bp")
+        logger.success("成功加载并注册 Blueprint: p_ans_bp")
     except Exception as e:
         logger.error("加载 Blueprint [p_ans_bp] 失败: {}", e)
 
@@ -139,7 +135,7 @@ if _is_bp_enabled("bnp_bp"):
     try:
         from zBNPApi import bnp_bp
         app.register_blueprint(bnp_bp)
-        logger.info("成功加载并注册 Blueprint: bnp_bp")
+        logger.success("成功加载并注册 Blueprint: bnp_bp")
     except Exception as e:
         logger.error("加载 Blueprint [bnp_bp] 失败: {}", e)
 
@@ -147,7 +143,7 @@ if _is_bp_enabled("codestatus_bp"):
     try:
         from zCodeStatusApi import codestatus_bp
         app.register_blueprint(codestatus_bp)
-        logger.info("成功加载并注册 Blueprint: codestatus_bp")
+        logger.success("成功加载并注册 Blueprint: codestatus_bp")
     except Exception as e:
         logger.error("加载 Blueprint [codestatus_bp] 失败: {}", e)
 
@@ -155,17 +151,19 @@ if _is_bp_enabled("ans_bp"):
     try:
         from zAnsApi import ans_bp
         app.register_blueprint(ans_bp)
-        logger.info("成功加载并注册 Blueprint: ans_bp")
+        logger.success("成功加载并注册 Blueprint: ans_bp")
     except Exception as e:
         logger.error("加载 Blueprint [ans_bp] 失败: {}", e)
 
 if _is_bp_enabled("main_loop_bp"):
     main_enabled = True
     try:
-        from zMainLoopApi import main_loop_bp
+        import zMainLoopApi
+        from zMainLoopApi import main_loop_bp ,timer_lock,load_stats,save_stats,stop_timer,start_alas_mumu_check_timer,enter_standby
         app.register_blueprint(main_loop_bp)
-        logger.info("成功加载并注册 Blueprint: main_loop_bp")
-        from zMainLoopApi import HANDLEPUSH ,FORCESTOP ,timer_lock,load_stats,save_stats,stop_timer,start_alas_mumu_check_timer,enter_standby
+        import zAlas
+        import zMumu
+        logger.success("成功加载并注册 Blueprint: main_loop_bp")
     except Exception as e:
         logger.error("加载 Blueprint [main_loop_bp] 失败: {}", e)
 else:
@@ -176,7 +174,7 @@ if _is_bp_enabled("ap_bp"):
     try:
         from zAPApi import ap_bp
         app.register_blueprint(ap_bp)
-        logger.info("成功加载并注册 Blueprint: ap_bp")
+        logger.success("成功加载并注册 Blueprint: ap_bp")
     except Exception as e:
         logger.error("加载 Blueprint [ap_bp] 失败: {}", e)
 
@@ -864,14 +862,31 @@ def handle_main_stats_get():
                         bot_stats = bot_data.get("data")
         except Exception:
             pass
+    if not main_enabled :
+        return format_response({
+            "status": "ok",
+            "handlepush": False,
+            "mumu_running": False,
+            "alas_running": False,
+            "bot_running":is_bot_online(),
+            "force_stop": True,
+            "qbot_stop": QBOTSTOP,
+            "zOnepush": {
+                "auto_check_count": stats["auto_check_count"],
+                "push_handle_count": stats["push_handle_count"],
+                "total_runtime_seconds": stats["total_runtime_seconds"],
+                "total_runtime_hours": round(stats["total_runtime_seconds"] / 3600.0, 2)
+            },
+            "qbot": bot_stats
+        }, 200)
 
     return format_response({
         "status": "ok",
-        "handlepush": HANDLEPUSH,
+        "handlepush": zMainLoopApi.HANDLEPUSH,
         "mumu_running": zMumu.is_mumu_running(),
         "alas_running": zAlas.is_process_running(),
         "bot_running":is_bot_online(),
-        "force_stop": FORCESTOP,
+        "force_stop": zMainLoopApi.FORCESTOP,
         "qbot_stop": QBOTSTOP,
         "zOnepush": {
             "auto_check_count": stats["auto_check_count"],
@@ -1107,65 +1122,7 @@ def handle_clipboard():
 
         return format_response({"status": "error", "message": "未知请求"}, 400)
 
-# 推送接收接口
-@app.route("/push", methods=["GET", "POST"])
-def receive_push():
-    msg_dict = {}
-    msg_dict.update(request.args.to_dict())
-    msg_dict.update(request.form.to_dict())
-    if request.is_json:
-        json_data = request.get_json(silent=True)
-        if json_data:
-            msg_dict.update(json_data)
-
-    print("\n========================================")
-    print(f"【新OnePush推送】时间：{str(request.args)}")
-    print("消息完整字典：")
-    print(json.dumps(msg_dict, ensure_ascii=False, indent=4))
-    print("========================================\n")
-    with stats_lock:
-        stats = load_stats()
-        stats["push_handle_count"] += 1
-        save_stats(stats)
-    print("⏱️ [统计模块] push处理次数+1")
-
-    if HANDLEPUSH:
-        push_res = Handlepush(msg_dict)
-        if not push_res:
-            print("❌ Handlepush 处理失败，进入待机状态...")
-            if main_enabled:
-                enter_standby()
-            
-            PerseusErrorMsg(
-                "Handlepush 处理失败", 
-                "Push 消息处理异常，服务已自动进入待机状态并清理进程！"
-            )
-            
-            fail_resp = push_res if push_res is not None else {
-                "status": "error",
-                "code": 500,
-                "message": "推送处理失败，服务已转入待机状态",
-                "data": msg_dict
-            }
-            return format_response(fail_resp, 500)
-        
-        return format_response(push_res, 200)
-
-    title = msg_dict.get("title", "")
-    body = msg_dict.get("body", "")
-    PerseusNotifyMsg(title, body)
-
-    default_resp = {
-        "status": "ok",
-        "code": 200,
-        "message": "消息已转发（处于待机状态，未开启 Handlepush）",
-        "data": msg_dict
-    }
-    return format_response(default_resp, 200)
-
 # ==================== 控制路由命令 ====================
-
-
 
 @app.route("/shutdown", methods=["GET", "POST"])
 def handle_shutdown():
@@ -1392,7 +1349,7 @@ def handle_ping():
 
     if not main_enabled :
         return format_response({
-            "handlepush": HANDLEPUSH,
+            "handlepush": False,
             "mumu_running": False,
             "alas_running": False,
             "bot_running": is_bot_online(),
@@ -1401,11 +1358,11 @@ def handle_ping():
         }, 200)
 
     return format_response({
-        "handlepush": HANDLEPUSH,
+        "handlepush": zMainLoopApi.HANDLEPUSH,
         "mumu_running": zMumu.is_mumu_running(),
         "alas_running": zAlas.is_process_running(),
         "bot_running": is_bot_online(),
-        "force_stop": FORCESTOP,
+        "force_stop": zMainLoopApi.FORCESTOP,
         "qbot_stop": QBOTSTOP
     }, 200)
 
@@ -1426,25 +1383,6 @@ def handle_get_ip():
         except Exception:
             pass
     return format_response({"ip": ip}, 200)
-
-@app.route("/run", methods=["GET", "POST"])
-def handle_run():
-    req_data = {}
-    req_data.update(request.args.to_dict())
-    req_data.update(request.form.to_dict())
-    if request.is_json:
-        json_data = request.get_json(silent=True)
-        if json_data:
-            req_data.update(json_data)
-
-    print("\n========================================")
-    print("【/run 收到消息】内容：")
-    print(json.dumps(req_data, ensure_ascii=False, indent=4))
-    print("========================================\n")
-
-    run_result = handlerun(req_data)
-    PerseusNotifyMsg(str(run_result),"")
-    return format_response(run_result, 200)
 
 @app.route("/main/pwupdate", methods=["GET", "POST"])
 @app.route("/pwupdate", methods=["GET", "POST"])

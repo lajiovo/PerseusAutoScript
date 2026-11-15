@@ -4,7 +4,7 @@ import threading
 import json
 from flask import Blueprint, request
 from zPerseusLogger import logger
-from zMainHandler import run_alas_mumu_check
+from zMainHandler import run_alas_mumu_check ,handlerun,Handlepush
 import zAlas
 import zMumu
 import zPGRJZ
@@ -52,7 +52,7 @@ def save_stats(stats):
         with open(STATS_FILE, "w", encoding="utf-8") as f:
             json.dump(stats, f, ensure_ascii=False, indent=2)
     except Exception as e:
-        print(f"⚠️ 保存统计数据失败: {e}")
+        logger.warning(f"⚠️ 保存统计数据失败: {e}")
 
 def increment_stat(key, amount=1):
     with stats_lock:
@@ -92,17 +92,17 @@ def start_alas_mumu_check_timer():
                     zMumu.once_hidemumu()
                     zAlas.once_hidealas()
                     timer_counter += 1
-                    logger.info("已完成常规隐藏任务 {}", timer_counter)
+                    logger.success("已完成常规隐藏任务 {}", timer_counter)
                 else:
                     response = run_alas_mumu_check()
                     if response:
-                        logger.info("自动化检查成功，返回为 {}", response)
+                        logger.success("自动化检查成功，返回为 {}", response)
                     else:
                         global HANDLEPUSH
                         HANDLEPUSH = False
-                        logger.warning("自动化检查报错, HANDLEPUSH已设置为 {}", HANDLEPUSH)
+                        logger.error("自动化检查报错, HANDLEPUSH已设置为 {}", HANDLEPUSH)
                     timer_counter = 0
-                    logger.info("已完成完整检查任务")
+                    logger.success("已完成完整检查任务")
 
                     # 尝试调用 zOnepush 中的 _load_stats/_save_stats
                     try:
@@ -129,10 +129,11 @@ def start_alas_mumu_check_timer():
                     if last_date != today_str:
                         try:
                             if not QBOTSTOP:
+                                # ???
                                 logger.info("正在处理自动化签到")
                             zPGRJZ.run(headless=True)
                         except Exception as e:
-                            logger.error("自动签到异常: {}", e)
+                            logger.warning("自动签到异常: {}", e)
                         with open(log_path, 'w', encoding='utf-8') as f:
                             f.write(today_str)
             except Exception as e:
@@ -157,16 +158,16 @@ def enter_standby():
     try:
         zAlas.cleanup()
     except Exception as e:
-        logger.warning("zAlas.cleanup() 失败: {}", e)
+        logger.error("zAlas.cleanup() 失败: {}", e)
     try:
         zMumu.mumu_kill()
     except Exception as e:
-        logger.warning("zMumu.mumu_kill() 失败: {}", e)
+        logger.error("zMumu.mumu_kill() 失败: {}", e)
     try:
         zAlas.once_hidealas()
         zMumu.once_hidemumu()
     except Exception as e:
-        logger.warning("兜底窗口隐藏失败: {}", e)
+        logger.error("兜底窗口隐藏失败: {}", e)
 
 def format_response(data, status_code=200):
     return data, status_code
@@ -222,3 +223,78 @@ def handle_start():
         start_alas_mumu_check_timer()
         PerseusNotifyMsg(str({"status": "ok", "message": "服务已重新启动并恢复处理"}), "")
         return format_response({"status": "ok", "message": "服务已重新启动并恢复处理"}, 200)
+
+# 推送接收接口
+@main_loop_bp.route("/push", methods=["GET", "POST"])
+def receive_push():
+    msg_dict = {}
+    msg_dict.update(request.args.to_dict())
+    msg_dict.update(request.form.to_dict())
+    if request.is_json:
+        json_data = request.get_json(silent=True)
+        if json_data:
+            msg_dict.update(json_data)
+
+    logger.info("\n========================================")
+    logger.info(f"【新OnePush推送】时间：{str(request.args)}")
+    logger.info("消息完整字典：")
+    print(json.dumps(msg_dict, ensure_ascii=False, indent=4))
+    logger.info("========================================\n")
+    with stats_lock:
+        stats = load_stats()
+        stats["push_handle_count"] += 1
+        save_stats(stats)
+    logger.info("⏱️ [统计模块] push处理次数+1")
+
+    if HANDLEPUSH:
+        push_res = Handlepush(msg_dict)
+        if not push_res:
+            logger.error("❌ Handlepush 处理失败，进入待机状态...")
+            if main_enabled:
+                enter_standby()
+            
+            PerseusErrorMsg(
+                "Handlepush 处理失败", 
+                "Push 消息处理异常，服务已自动进入待机状态并清理进程！"
+            )
+            
+            fail_resp = push_res if push_res is not None else {
+                "status": "error",
+                "code": 500,
+                "message": "推送处理失败，服务已转入待机状态",
+                "data": msg_dict
+            }
+            return format_response(fail_resp, 500)
+        
+        return format_response(push_res, 200)
+
+    title = msg_dict.get("title", "")
+    body = msg_dict.get("body", "")
+    PerseusNotifyMsg(title, body)
+
+    default_resp = {
+        "status": "ok",
+        "code": 200,
+        "message": "消息已转发（处于待机状态，未开启 Handlepush）",
+        "data": msg_dict
+    }
+    return format_response(default_resp, 200)
+
+@main_loop_bp.route("/run", methods=["GET", "POST"])
+def handle_run():
+    req_data = {}
+    req_data.update(request.args.to_dict())
+    req_data.update(request.form.to_dict())
+    if request.is_json:
+        json_data = request.get_json(silent=True)
+        if json_data:
+            req_data.update(json_data)
+
+    print("\n========================================")
+    print("【/run 收到消息】内容：")
+    print(json.dumps(req_data, ensure_ascii=False, indent=4))
+    print("========================================\n")
+
+    run_result = handlerun(req_data)
+    PerseusNotifyMsg(str(run_result),"")
+    return format_response(run_result, 200)
