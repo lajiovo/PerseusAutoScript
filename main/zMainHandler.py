@@ -31,6 +31,7 @@ def run_alas_mumu_check():
 
     max_hard_restarts = 3
     max_mumu_restarts = 2
+    need_check = False
     print("[Info] 开始执行 Alas & MuMu 状态自动化检查流程...")
     zMumu.once_hidemumu()
     zAlas.once_hidealas()
@@ -65,7 +66,7 @@ def run_alas_mumu_check():
             return False
         if not zAlas.is_process_running():
             zAlas.cleanup()
-            if alas_hard_restart_count >= 1:
+            if (alas_hard_restart_count >= 1)or need_check:
                 response = zAlas.start(extra=True)[0]
             else:
                 response = zAlas.start()[0]
@@ -74,9 +75,8 @@ def run_alas_mumu_check():
                 print("[Info]Alas重启成功")
             else:
                 if not zAlas.is_site_accessible():
-                    print("[Error]Alas重启失败，将直接放弃")
-                    # 直接放弃
-                    alas_hard_restart_count += 1
+                    print("[Error]Alas重启失败")
+                    need_check = True
                 else:
                     print("[Info]网页可以访问，再试试看")
         if not zMumu.is_mumu_running():

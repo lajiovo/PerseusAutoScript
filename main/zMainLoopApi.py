@@ -15,7 +15,7 @@ main_loop_bp = Blueprint("main_loop_bp", __name__)
 # 定时器相关全局状态控制
 timer_thread = None
 timer_event = threading.Event()
-timer_counter = 0
+timer_counter = 15
 timer_lock = threading.Lock()
 
 # 全局状态引用

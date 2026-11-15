@@ -290,7 +290,10 @@ def hide(target_count=3):
                 detail = f"监测结束，设定目标为 {target_count} 个窗口，实际隐藏 {len(hidden_hwnds)} 个窗口"
                 print(f"{'⏰' if not is_success else '✅'} {detail}")
                 code = "0005" if is_success else "0004"
-                return [is_success, code, detail]
+                if is_site_accessible():
+                    return [True, code, detail]
+                else:
+                    return [is_success, code, detail]
 
             # 2. 检测并处理出现的窗口
             try:
@@ -401,6 +404,7 @@ def start(alas_path=ALAS_PATH, show_window=True,extra:bool=False,target_count:in
                 print("可能存在异常")
         except Exception as e:
             print(f"报错了:{e}")
+        target_count = 2
 
     # 根据运行状态，分别向 hide() 传入 1 或 2 作为目标检测窗口数
     hide_result = hide(target_count=target_hide_count)
