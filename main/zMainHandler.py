@@ -18,7 +18,7 @@ def _md_original(title, body):
 def run_alas_mumu_check():
     """
     通用检查与恢复函数
-    按 ["home", "instance", "start", "get_resources", "get_tasks"] 顺序执行 Playwright 操作并根据返回状态自动恢复。
+    按 [ "instance", "start", "get_resources", "get_tasks"] 顺序执行 Playwright 操作并根据返回状态自动恢复。
     """
     # 0. 初始检测：若 MuMu 未运行，则拉起并隐藏（不计数）
     if not zMumu.is_mumu_running():
@@ -37,7 +37,7 @@ def run_alas_mumu_check():
     zAlas.once_hidealas()
 
     # 标准执行任务队列
-    standard_task_list =  ["home", "instance", "start", "get_resources", "get_tasks","get_screenshot"]
+    standard_task_list =  [ "instance", "start", "get_resources", "get_tasks","get_screenshot"]
 
     while True:
         # 0. 校验硬重启与 MuMu 重启上限
@@ -418,7 +418,7 @@ def parse_task_list(arg):
     """
     将传入的 arg 解析并强转为包含字符串的 list
     """
-    default_list = ["home", "instance", "start", "get_resources", "get_tasks"]
+    default_list = [ "instance", "start", "get_resources", "get_tasks"]
 
     if not arg:
         return default_list

@@ -361,24 +361,15 @@ def get_screenshot(page):
         ensure_instance_page(page)
         print("📸 正在检查页面截图...")
 
+        screenshot_btn = page.locator(
+            'button[role="tab"]'
+        ).filter(has_text="截图").first
+
+        screenshot_btn.wait_for(state="visible", timeout=5000)
+        screenshot_btn.click(force=True)
+
         preview = page.locator(".preview-screen")
         preview.wait_for(state="attached", timeout=5000)
-
-        # 检查是否处于等待任务截图状态
-        empty = preview.locator(".empty")
-
-        if empty.count() > 0 and empty.is_visible():
-            print("🖼️ 检测到等待任务截图，点击截图按钮加载...")
-
-            screenshot_btn = page.locator(
-                'button[role="tab"]'
-            ).filter(has_text="截图").first
-
-            screenshot_btn.wait_for(state="visible", timeout=5000)
-            screenshot_btn.click(force=True)
-
-        else:
-            print("🖼️ 截图区域已有内容，直接获取...")
 
         # 等待截图图片加载
         screenshot_img = preview.locator("img")
@@ -439,7 +430,7 @@ def main(
     默认任务顺序: 前往主页 -> 前往实例页 -> 启动调度器 -> 获取资源列表 -> 获取任务列表
     """
     if task_list is None:
-        task_list = ["home", "instance", "start", "get_resources", "get_tasks"]
+        task_list = ["instance", "start", "get_resources", "get_tasks"]
 
     if not wait_for_site_ready(base_url, max_wait_sec=180):
         return [False, [[False, "0000", f"错误：目标网址 {base_url} 无法访问"]]]

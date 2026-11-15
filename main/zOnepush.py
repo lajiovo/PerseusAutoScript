@@ -732,7 +732,7 @@ PUSHLOG_DIR = os.path.join(BASE_DIR, "servercache", "pushlog")
 pushlog_lock = threading.Lock()
 
 
-def _collect_request_dict():
+def collect_request_dict():
     msg_dict = {}
     msg_dict.update(request.args.to_dict())
     msg_dict.update(request.form.to_dict())
@@ -1024,7 +1024,7 @@ def handle_clipboard():
         data = read_clipboard_cache()
         return format_response({"status": "ok", **data}, 200)
     else:
-        req_data = _collect_request_dict()
+        req_data = collect_request_dict()
         action = req_data.get("action")
         
         # 1. 删除文件
@@ -1278,7 +1278,7 @@ def proxy_bot(subpath):
 @app.route("/pushlog/add", methods=["GET", "POST"])
 def handle_pushlog_add():
     """接收推送记录并按 notify/warning/error 三级写入 servercache/pushlog。"""
-    req_data = _collect_request_dict()
+    req_data = collect_request_dict()
     level = _normalize_pushlog_level(req_data.get("level") or req_data.get("type") or "notify")
     if not level:
         return format_response({"status": "error", "message": "level 必须为 notify/warning/error"}, 400)
@@ -1387,7 +1387,7 @@ def handle_get_ip():
 @app.route("/pwupdate", methods=["GET", "POST"])
 def run_screeen_shot():
     try:
-        response = zPlaywrightNew.main(["home", "instance", "get_resources", "get_tasks","get_screenshot"])
+        response = zPlaywrightNew.main(["instance", "get_resources", "get_tasks","get_screenshot"])
         return format_response({"status":"ok","message":str(response)}, 200)
     except Exception: 
         return format_response({"status":"error","message":str(Exception)}, 200)
