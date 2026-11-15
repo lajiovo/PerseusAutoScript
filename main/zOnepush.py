@@ -159,6 +159,27 @@ if _is_bp_enabled("ans_bp"):
     except Exception as e:
         logger.error("加载 Blueprint [ans_bp] 失败: {}", e)
 
+if _is_bp_enabled("main_loop_bp"):
+    main_enabled = True
+    try:
+        from zMainLoopApi import main_loop_bp
+        app.register_blueprint(main_loop_bp)
+        logger.info("成功加载并注册 Blueprint: main_loop_bp")
+        from zMainLoopApi import HANDLEPUSH ,FORCESTOP ,timer_lock,load_stats,save_stats,stop_timer,start_alas_mumu_check_timer,enter_standby
+    except Exception as e:
+        logger.error("加载 Blueprint [main_loop_bp] 失败: {}", e)
+else:
+    main_enabled = False
+    from zMainLoopApi import timer_lock,load_stats,save_stats
+
+if _is_bp_enabled("ap_bp"):
+    try:
+        from zAPApi import ap_bp
+        app.register_blueprint(ap_bp)
+        logger.info("成功加载并注册 Blueprint: ap_bp")
+    except Exception as e:
+        logger.error("加载 Blueprint [ap_bp] 失败: {}", e)
+
 # 监听端口
 LISTEN_PORT = get_config("pushserver.listen_port", default=25566)
 
@@ -167,13 +188,7 @@ PYTHONW_PATH = get_config("pushserver.qbot.pythonw_path")
 QBOT_SCRIPT_PATH = get_config("pushserver.qbot.script_path")
 QBOT_IDENTIFIER = get_config("pushserver.qbot.identifier")
 
-# 全局状态控制与定时器线程锁/事件控制
-HANDLEPUSH = True
-FORCESTOP = False
 QBOTSTOP = False
-timer_thread = None
-timer_event = threading.Event()  # 用于优雅控制和停止定时器线程
-timer_counter = 0
 
 # 2. 新增 MusicDL 相关配置与全局变量
 # MusicDL 配置
@@ -400,30 +415,81 @@ def kill_port_process(port):
     """启动时结束指定端口的原有占用进程"""
     try:
         if sys.platform.startswith("win"):
-            cmd = f"netstat -ano | findstr :{port}"
-            try:
-                output = subprocess.check_output(cmd, shell=True).decode('gbk', errors='ignore')
-            except subprocess.CalledProcessError:
+            cmd = f'netstat -ano | findstr ":{port}"'
+
+            result = subprocess.run(
+                cmd,
+                shell=True,
+                capture_output=True,
+                text=True,
+                encoding="gbk",
+                errors="ignore"
+            )
+
+            # findstr 返回 1：没有匹配结果，属于正常情况
+            if result.returncode == 1:
+                print(f"ℹ️ 端口 {port} 当前未被占用")
                 return
 
+            if result.returncode != 0:
+                print(f"⚠️ 查询端口 {port} 失败: {result.stderr}")
+                return
+
+            output = result.stdout
+
             pids = set()
+
             for line in output.strip().splitlines():
                 parts = line.split()
+
                 if len(parts) >= 5 and "LISTENING" in parts:
-                    pids.add(parts[-1])
+                    pid = parts[-1]
+
+                    if pid.isdigit() and pid != "0":
+                        pids.add(pid)
+
             for pid in pids:
-                if pid != '0':
-                    print(f"🧹 检测到端口 {port} 被进程 {pid} 占用，正在结束该进程...")
-                    subprocess.call(f"taskkill /F /PID {pid}", shell=True)
+                print(
+                    f"🧹 检测到端口 {port} 被进程 {pid} 占用，"
+                    "正在结束该进程..."
+                )
+
+                subprocess.run(
+                    ["taskkill", "/F", "/PID", pid],
+                    capture_output=True,
+                    text=True,
+                    encoding="gbk",
+                    errors="ignore"
+                )
+
         else:
             cmd = f"lsof -i:{port} -t"
-            try:
-                pids = subprocess.check_output(cmd, shell=True).decode().strip().splitlines()
-                for pid in pids:
-                    print(f"🧹 检测到端口 {port} 被进程 {pid} 占用，正在结束该进程...")
-                    subprocess.call(f"kill -9 {pid}", shell=True)
-            except subprocess.CalledProcessError:
-                pass
+
+            result = subprocess.run(
+                cmd,
+                shell=True,
+                capture_output=True,
+                text=True
+            )
+
+            if result.returncode == 1:
+                print(f"ℹ️ 端口 {port} 当前未被占用")
+                return
+
+            if result.returncode != 0:
+                print(f"⚠️ 查询端口 {port} 失败: {result.stderr}")
+                return
+
+            pids = set(result.stdout.strip().splitlines())
+
+            for pid in pids:
+                if pid.isdigit():
+                    print(
+                        f"🧹 检测到端口 {port} 被进程 {pid} 占用，"
+                        "正在结束该进程..."
+                    )
+                    subprocess.run(["kill", "-9", pid])
+
     except Exception as e:
         print(f"⚠️ 尝试清理端口 {port} 占用进程时遇到问题: {e}")
 
@@ -636,46 +702,6 @@ def start_qbot_process():
         print(f"❌ 启动 QBot 进程失败: {e}")
 
 
-# ==================== 统计模块（累计运行时长、自动化检查总次数、Push总处理次数） ====================
-
-STATS_FILE = os.path.join(BASE_DIR, "servercache", "stats.json")
-stats_lock = threading.Lock()
-
-def _load_stats():
-    os.makedirs(os.path.dirname(STATS_FILE), exist_ok=True)
-    if os.path.exists(STATS_FILE):
-        try:
-            with open(STATS_FILE, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                if isinstance(data, dict):
-                    return {
-                        "auto_check_count": int(data.get("auto_check_count", 0)),
-                        "push_handle_count": int(data.get("push_handle_count", 0)),
-                        "total_runtime_seconds": float(data.get("total_runtime_seconds", 0.0))
-                    }
-        except Exception:
-            pass
-    return {
-        "auto_check_count": 0,
-        "push_handle_count": 0,
-        "total_runtime_seconds": 0.0
-    }
-
-def _save_stats(stats):
-    os.makedirs(os.path.dirname(STATS_FILE), exist_ok=True)
-    try:
-        with open(STATS_FILE, "w", encoding="utf-8") as f:
-            json.dump(stats, f, ensure_ascii=False, indent=2)
-    except Exception as e:
-        print(f"⚠️ 保存统计数据失败: {e}")
-
-def increment_stat(key, amount=1):
-    with stats_lock:
-        stats = _load_stats()
-        if key in stats:
-            stats[key] += amount
-            _save_stats(stats)
-
 def _runtime_persistence_loop():
     """后台线程：每 10 分钟自动将运行时长（秒数）累加并持久化一次"""
     interval = 600  # 10 分钟 = 600 秒
@@ -683,129 +709,15 @@ def _runtime_persistence_loop():
         time.sleep(interval)
         try:
             with stats_lock:
-                stats = _load_stats()
+                stats = load_stats()
                 stats["total_runtime_seconds"] += interval
-                _save_stats(stats)
+                save_stats(stats)
             print("⏱️ [统计模块] 累计运行时长已更新并持久化 (+10分钟)")
         except Exception as e:
             print(f"⚠️ 运行时长持久化线程异常: {e}")
 
 # 启动后台累计运行时长持久化线程
 threading.Thread(target=_runtime_persistence_loop, daemon=True).start()
-
-
-def stop_timer():
-    """停止后台定时检查线程"""
-    global timer_event
-    timer_event.set()
-
-def start_alas_mumu_check_timer():
-    """启动/重启后台定时任务线程：自动执行alas_mumu_check"""
-    global timer_thread, timer_event
-    stop_timer()
-    
-    timer_event = threading.Event()
-    
-    def timer_loop():
-        global timer_counter
-        while not timer_event.is_set():
-            if timer_event.wait(120):
-                break
-            try:
-                print(f"⏰ 触发定时任务:{timer_counter}")
-                if timer_counter < 0 :
-                    timer_counter = 0
-                elif timer_counter < 15 :
-                    zMumu.once_hidemumu()
-                    zAlas.once_hidealas()
-                    timer_counter += 1
-                    print(f"已完成常规隐藏任务{timer_counter}")
-                else:
-                    response = run_alas_mumu_check()
-                    if response :
-                        print(f"自动化检查成功，返回为{response}")
-                    else: 
-                        global HANDLEPUSH
-                        HANDLEPUSH = False
-                        print(f"自动化检查报错,HANDLEPUSH已设置为{HANDLEPUSH}")
-                    timer_counter = 0
-                    print(f"已完成完整检查任务{{timer_counter}}")
-                    with stats_lock:
-                        stats = _load_stats()
-                        stats["auto_check_count"] += 1
-                        _save_stats(stats)
-                    print("⏱️ [统计模块] autocheck处理次数+1")
-                    
-                    # 1. 运行前检查签到记录文件
-                    current_dir = os.path.dirname(os.path.abspath(__file__))
-                    log_path = str(os.path.join(current_dir, 'last_checkin.txt'))
-                    today_str = datetime.date.today().isoformat()  # YYYY-MM-DD
-
-                    # 如果文件不存在，新建空文件
-                    if not os.path.exists(log_path):
-                        with open(log_path, 'w', encoding='utf-8') as f:
-                            pass
-                        last_date = ''
-                    else:
-                        with open(log_path, 'r', encoding='utf-8') as f:
-                            last_date = f.read().strip()
-                    print(f"last_date={last_date},today_str={today_str}")
-                    # 如果记录的时间是今天，直接跳过任务并返回 True
-                    if last_date == today_str:
-                        # 此步将检查QBOT是否寄了
-                        if not is_bot_online():
-                            if not QBOTSTOP:
-                                print("bot不在线，将严肃启动")
-                                start_qbot_process()
-                        else:
-                            print("今日已重启过qbot")
-                    else:
-                        try:
-                            response = is_bot_online()
-                            if QBOTSTOP :
-                                print("QBOT重启被禁用")
-                            else:
-                                print("正在重启QBOT")
-                                start_qbot_process()
-                            print("今日也没有签到pgrjz")
-                            zPGRJZ.run(headless=True)
-                        except Exception as e :
-                            print(e)
-                        with open(log_path, 'w', encoding='utf-8') as f:
-                            f.write(today_str)
-                        print("已更新今日签到记录文件。")
-            except Exception as e:
-                print(f"⚠️ 定时运行 alas_mumu_check 出现异常: {e}")
-                PerseusErrorMsg("定时运行 alas_mumu_check 出现异常",str(e))
-
-    timer_thread = threading.Thread(target=timer_loop, daemon=True)
-    timer_thread.start()
-
-def enter_standby():
-    """进入待机状态：停止 handlepush，清理进程，停用定时任务"""
-    global HANDLEPUSH
-    HANDLEPUSH = False
-    stop_timer()
-    
-    try:
-        print("🧹 正在执行 zAlas.cleanup()...")
-        zAlas.cleanup()
-    except Exception as e:
-        print(f"⚠️ zAlas.cleanup() 执行失败: {e}")
-        
-    try:
-        print("🧹 正在执行 zMumu.mumu_kill()...")
-        zMumu.mumu_kill()
-    except Exception as e:
-        print(f"⚠️ zMumu.mumu_kill() 执行失败: {e}")
-    try:
-        zAlas.once_hidealas()
-        zMumu.once_hidemumu()
-        print(f"兜底窗口隐藏成功")
-    except Exception as e:
-        print(f"兜底窗口隐藏失败")
-        
-    print("⏸️ 已切换至待机状态。")
 
 def format_response(result_data, status_code=200):
     """统一构建 JSON 响应"""
@@ -925,441 +837,10 @@ def parse_pushlog_span(span):
         return n, n
     return None, None
 
-# ==================== 仪表盘缓存与路由 (servercache/ap) ====================
-
-AP_DIR = os.path.join(BASE_DIR, "servercache", "ap")
-os.makedirs(AP_DIR, exist_ok=True)
-
-def parse_relative_or_absolute_time(time_str):
-    """
-    将相对时间（如“2小时前”、“9小时前”、“5分钟前”、“刚刚”）或绝对时间（如“2026-09-18 17:07:03”）
-    转换为绝对时间戳（秒/毫秒）并计算出真实绝对时间格式 `YYYY-MM-DD HH:mm:ss`。
-    """
-    if not time_str:
-        now_dt = datetime.datetime.now()
-        return int(now_dt.timestamp() * 1000), now_dt.strftime("%Y-%m-%d %H:%M:%S")
-
-    time_str = str(time_str).strip()
-    now = datetime.datetime.now()
-
-    # 1. 尝试匹配绝对时间格式 YYYY-MM-DD HH:mm:ss 或类似
-    abs_formats = ["%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y/%m/%d %H:%M:%S", "%Y/%m/%d %H:%M"]
-    for fmt in abs_formats:
-        try:
-            dt = datetime.datetime.strptime(time_str, fmt)
-            return int(dt.timestamp() * 1000), dt.strftime("%Y-%m-%d %H:%M:%S")
-        except ValueError:
-            continue
-
-    # 2. 尝试匹配相对时间：数字 + 单位 + 前/ago
-    # 例如：2小时前，5分钟前，3天前，刚刚
-    if "刚刚" in time_str or "just now" in time_str.lower():
-        return int(now.timestamp() * 1000), now.strftime("%Y-%m-%d %H:%M:%S")
-
-    match = re.search(r'(\d+)\s*(秒|分|小时|天|周|个月|年|s|m|h|d)', time_str, re.IGNORECASE)
-    if match:
-        val = int(match.group(1))
-        unit = match.group(2)
-        delta = datetime.timedelta(seconds=0)
-        if unit in ('秒', 's'):
-            delta = datetime.timedelta(seconds=val)
-        elif unit in ('分', 'm'):
-            delta = datetime.timedelta(minutes=val)
-        elif unit in ('小时', 'h'):
-            delta = datetime.timedelta(hours=val)
-        elif unit in ('天', 'd'):
-            delta = datetime.timedelta(days=val)
-        elif unit in ('周',):
-            delta = datetime.timedelta(weeks=val)
-        elif unit in ('个月',):
-            delta = datetime.timedelta(days=val * 30)
-        elif unit in ('年',):
-            delta = datetime.timedelta(days=val * 365)
-
-        target_dt = now - delta
-        return int(target_dt.timestamp() * 1000), target_dt.strftime("%Y-%m-%d %H:%M:%S")
-
-    # 无法识别时默认返回当前时间
-    return int(now.timestamp() * 1000), now.strftime("%Y-%m-%d %H:%M:%S")
-
-
-def parse_dashboard_html(html_content):
-    """
-    严格适配最新资源卡片 HTML 结构：
-    <section class="resource-card resource-merged" style="...">
-        <section class="resource-card resource-merged-item resource-0">
-            <div class="resource-heading"><span>石油</span><div class="resource-image-wrap"><img class="resource-icon-image" alt="" width="32" height="32" draggable="false" src="./oil.webp"></div></div>
-            <div class="resource-value"><span class="resource-value-content" style="font-size: 1em;"><span>11,487</span><small>/ 14,900</small></span></div>
-            <div class="resource-foot">09:42:51</div>
-        </section>
-    </section>
-    提取所有项、数额、限额、时间，并自动下载图标保存到 servercache/ap 文件夹。
-    """
-    print(f"DEBUG [parse_dashboard_html] Received html_content length: {len(html_content) if html_content else 0}")
-    if not html_content:
-        return {"resources": [], "raw_html": ""}
-
-    resources = []
-    try:
-        items = re.findall(r'<section[^>]*class="[^"]*resource-merged-item[^"]*"[^>]*>(.*?)</section>', html_content, re.DOTALL | re.IGNORECASE)
-        if not items:
-            items = re.findall(r'<section[^>]*class="[^"]*resource-card[^"]*resource-merged-item[^"]*"[^>]*>(.*?)</section>', html_content, re.DOTALL | re.IGNORECASE)
-
-        for item_html in items:
-            res_item = {}
-            # 1. 提取名称 (resource-heading)
-            heading_match = re.search(r'<div[^>]*class="[^"]*resource-heading[^"]*"[^>]*>(.*?)</div>', item_html, re.DOTALL | re.IGNORECASE)
-            name = "未知资源"
-            if heading_match:
-                span_match = re.search(r'<span[^>]*>(.*?)</span>', heading_match.group(1), re.DOTALL | re.IGNORECASE)
-                if span_match:
-                    name = re.sub(r'<[^>]+>', '', span_match.group(1)).strip()
-                else:
-                    name = re.sub(r'<[^>]+>', '', heading_match.group(1)).strip()
-            res_item["name"] = name
-
-            # 2. 提取图标并下载到 servercache/ap
-            img_match = re.search(r'<img[^>]*src="([^"]+)"', item_html, re.DOTALL | re.IGNORECASE)
-            if img_match:
-                src = img_match.group(1)
-                basename = os.path.basename(src.split('?')[0])
-                if basename:
-                    res_item["icon"] = f"/ap/file/{basename}"
-                    try:
-                        
-                        icon_url = f"http://127.0.0.1:22267/{basename}" if src.startswith("./") or not src.startswith("http") else src
-                        req = urllib.request.Request(icon_url, headers={"User-Agent": "Mozilla/5.0"})
-                        with urllib.request.urlopen(req, timeout=2) as resp:
-                            if resp.status == 200:
-                                icon_data = resp.read()
-                                icon_path = os.path.join(AP_DIR, basename)
-                                with open(icon_path, "wb") as f_icon:
-                                    f_icon.write(icon_data)
-                    except Exception as e:
-                        print(f"⚠️ 下载图标 {basename} 失败: {e}")
-
-            # 3. 提取数额与限额 (resource-value)
-            val_match = re.search(r'<div[^>]*class="[^"]*resource-value[^"]*"[^>]*>(.*?)</div>', item_html, re.DOTALL | re.IGNORECASE)
-            amount = "0"
-            limit = ""
-            if val_match:
-                val_html = val_match.group(1)
-                inner_spans = re.findall(r'<span[^>]*>(.*?)</span>', val_html, re.DOTALL | re.IGNORECASE)
-                if inner_spans:
-                    amount = re.sub(r'<[^>]+>', '', inner_spans[0]).strip()
-                small_match = re.search(r'<small[^>]*>(.*?)</small>', val_html, re.DOTALL | re.IGNORECASE)
-                if small_match:
-                    limit = re.sub(r'<[^>]+>', '', small_match.group(1)).strip()
-            res_item["amount"] = amount
-            res_item["limit"] = limit
-
-            # 4. 提取时间 (resource-foot)
-            foot_match = re.search(r'<div[^>]*class="[^"]*resource-foot[^"]*"[^>]*>(.*?)</div>', item_html, re.DOTALL | re.IGNORECASE)
-            time_str = "刚刚"
-            if foot_match:
-                time_str = re.sub(r'<[^>]+>', '', foot_match.group(1)).strip()
-
-            ts, formatted_time = parse_relative_or_absolute_time(time_str)
-            res_item["time_text"] = time_str
-            res_item["timestamp"] = ts
-            res_item["formatted_time"] = formatted_time
-
-            resources.append(res_item)
-
-        # 兼容旧逻辑兜底
-        if not resources:
-            lines = [line.strip() for line in html_content.splitlines() if line.strip()]
-            for line in lines:
-                clean_text = re.sub(r'<[^>]+>', '', line).strip()
-                if not clean_text:
-                    continue
-                if "前" in clean_text or "-" in clean_text or ":" in clean_text:
-                    ts, formatted_time = parse_relative_or_absolute_time(clean_text)
-                    resources.append({
-                        "name": "总览资源",
-                        "amount": clean_text,
-                        "time_text": clean_text,
-                        "timestamp": ts,
-                        "formatted_time": formatted_time
-                    })
-    except Exception as e:
-        print(f"⚠️ 解析仪表盘 HTML 异常: {e}")
-
-    return {
-        "resources": resources,
-        "updated_at": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "timestamp": int(datetime.datetime.now().timestamp() * 1000)
-    }
-
-
-def parse_tasks_html(html_content):
-    """
-    严格适配最新右侧侧边栏任务调度 HTML 结构：
-    <aside class="right-rail" id="right-rail-menu" ...>
-        <section class="scheduler-widget" ...> ... </section>
-        <section class="rail-schedule" ...>
-            <div class="rail-queue-group running" ...>
-                <a data-task="Main" class="rail-task-item" ...><div><strong>主线图-1Plus</strong><small>2026-09-25 09:17:39</small></div>...</a>
-            </div>
-        </section>
-    </aside>
-    """
-    print(f"DEBUG [parse_tasks_html] Received html_content length: {len(html_content) if html_content else 0}")
-    if not html_content:
-        return {"running": [], "queued": [], "waiting": [], "scheduler": {}, "raw_html": ""}
-
-    running = []
-    queued = []
-    waiting = []
-    scheduler_stats = {}
-
-    try:
-        # 1. 解析调度器统计 (scheduler-stats)
-        stat_divs = re.findall(r'<div[^>]*class="[^"]*scheduler-stats[^"]*"[^>]*>(.*?)</div>', html_content, re.DOTALL | re.IGNORECASE)
-        if stat_divs:
-            matches = re.findall(r'<span>(.*?)</span>\s*<strong>(.*?)</strong>', stat_divs[0], re.DOTALL | re.IGNORECASE)
-            for label, val in matches:
-                lbl = re.sub(r'<[^>]+>', '', label).strip()
-                v = re.sub(r'<[^>]+>', '', val).strip()
-                scheduler_stats[lbl] = v
-
-        # 2. 解析任务项 (rail-task-item)
-        task_items = re.findall(r'<a[^>]*data-task="([^"]*)"[^>]*class="([^"]*)"[^>]*>(.*?)</a>', html_content, re.DOTALL | re.IGNORECASE)
-        if not task_items:
-            raw_items = re.findall(r'<a[^>]*class="[^"]*rail-task-item[^"]*"[^>]*>(.*?)</a>', html_content, re.DOTALL | re.IGNORECASE)
-            task_items = []
-            for item_html in raw_items:
-                dt_match = re.search(r'data-task="([^"]*)"', item_html, re.IGNORECASE)
-                dt = dt_match.group(1) if dt_match else ""
-                task_items.append((dt, "", item_html))
-
-        for item in task_items:
-            if len(item) == 4:
-                task_key, class_str, _, inner_html = item
-            elif len(item) == 3:
-                task_key, class_str, inner_html = item
-            else:
-                continue
-            status = "waiting"
-            full_lower = (class_str + inner_html).lower()
-            if "running" in full_lower or "运行中" in full_lower:
-                status = "running"
-            elif "pending" in full_lower or "queued" in full_lower or "待运行" in full_lower or "队列" in full_lower:
-                status = "queued"
-            else:
-                status = "waiting"
-
-            strong_match = re.search(r'<strong[^>]*>(.*?)</strong>', inner_html, re.DOTALL | re.IGNORECASE)
-            title = ""
-            if strong_match:
-                title = re.sub(r'<[^>]+>', '', strong_match.group(1)).strip()
-            if not title:
-                title = task_key or "未知任务"
-
-            small_match = re.search(r'<small[^>]*>(.*?)</small>', inner_html, re.DOTALL | re.IGNORECASE)
-            time_str = "刚刚"
-            if small_match:
-                time_str = re.sub(r'<[^>]+>', '', small_match.group(1)).strip()
-
-            ts, formatted_time = parse_relative_or_absolute_time(time_str)
-            task_item = {
-                "title": title,
-                "status": status,
-                "action_button": "查看",
-                "time_text": time_str,
-                "timestamp": ts,
-                "formatted_time": formatted_time,
-                "task_key": task_key
-            }
-
-            if status == "running":
-                running.append(task_item)
-            elif status == "queued":
-                queued.append(task_item)
-            else:
-                waiting.append(task_item)
-
-        # 旧结构兜底
-        if not running and not queued and not waiting:
-            text_blocks = re.findall(r'<div[^>]*>(.*?)</div>|<tr[^>]*>(.*?)</tr>|<li[^>]*>(.*?)</li>', html_content, re.DOTALL | re.IGNORECASE)
-            flat_blocks = [re.sub(r'<[^>]+>', '', b[0] or b[1] or b[2]).strip() for b in text_blocks if any(b)]
-            for block in flat_blocks:
-                if not block or len(block) < 2:
-                    continue
-                ts, formatted_time = parse_relative_or_absolute_time(block)
-                task_item = {
-                    "title": block[:30],
-                    "status": "waiting",
-                    "action_button": "查看",
-                    "time_text": block,
-                    "timestamp": ts,
-                    "formatted_time": formatted_time
-                }
-                if "运行中" in block or "running" in block.lower():
-                    task_item["status"] = "running"
-                    running.append(task_item)
-                elif "队列" in block or "queue" in block.lower():
-                    task_item["status"] = "queued"
-                    queued.append(task_item)
-                else:
-                    waiting.append(task_item)
-
-    except Exception as e:
-        print(f"⚠️ 解析任务 HTML 异常: {e}")
-
-    return {
-        "running": running,
-        "queued": queued,
-        "waiting": waiting,
-        "scheduler": scheduler_stats,
-        "updated_at": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "timestamp": int(datetime.datetime.now().timestamp() * 1000)
-    }
-
-
-def get_ap_html_path():
-    return os.path.join(AP_DIR, "dashboard.html")
-
-def get_dashboard_json_path():
-    return os.path.join(AP_DIR, "dashboard_data.json")
-
-def get_tasks_json_path():
-    return os.path.join(AP_DIR, "tasks_data.json")
-
-@app.route("/main/ap/set", methods=["POST"])
-def handle_ap_set():
-    """接收并解析仪表盘 HTML 内容，保存到 servercache/ap/dashboard_data.json"""
-    try:
-        req_data = _collect_request_dict()
-        html_content = req_data.get("html")
-        if not html_content and request.is_json:
-            j = request.get_json(silent=True)
-            if j:
-                html_content = j.get("html")
-        if not html_content:
-            html_content = request.form.get("html") or request.data.decode("utf-8", errors="ignore")
-
-        if html_content:
-            # 1. 保存原始 HTML
-            with open(get_ap_html_path(), "w", encoding="utf-8") as f:
-                f.write(html_content)
-            
-            # 2. 解析 HTML 并生成结构化数据
-            parsed_data = parse_dashboard_html(html_content)
-            
-            # 3. 存储到后端缓存 JSON
-            with open(get_dashboard_json_path(), "w", encoding="utf-8") as f:
-                json.dump(parsed_data, f, ensure_ascii=False, indent=2)
-
-            return format_response({"status": "ok", "message": "仪表盘 HTML 解析并保存成功", "data": parsed_data}, 200)
-        return format_response({"status": "error", "message": "缺少 html 内容"}, 400)
-    except Exception as e:
-        return format_response({"status": "error", "message": str(e)}, 500)
-
-@app.route("/main/ap/set2", methods=["POST"])
-def handle_ap_set2():
-    """接收并解析任务状态 HTML 内容，保存到 servercache/ap/tasks_data.json"""
-    try:
-        req_data = _collect_request_dict()
-        html_content = req_data.get("html")
-        if not html_content and request.is_json:
-            j = request.get_json(silent=True)
-            if j:
-                html_content = j.get("html")
-        if not html_content:
-            html_content = request.form.get("html") or request.data.decode("utf-8", errors="ignore")
-
-        if html_content:
-            # 解析任务 HTML
-            parsed_data = parse_tasks_html(html_content)
-            
-            # 存储到后端缓存 JSON
-            with open(get_tasks_json_path(), "w", encoding="utf-8") as f:
-                json.dump(parsed_data, f, ensure_ascii=False, indent=2)
-
-            return format_response({"status": "ok", "message": "任务状态 HTML 解析并保存成功", "data": parsed_data}, 200)
-        return format_response({"status": "error", "message": "缺少 html 内容"}, 400)
-    except Exception as e:
-        return format_response({"status": "error", "message": str(e)}, 500)
-
-@app.route("/main/ap/get", methods=["GET"])
-def handle_ap_get():
-    """读取并返回仪表盘结构化数据缓存"""
-    path = get_dashboard_json_path()
-    if os.path.exists(path):
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            return format_response({"status": "ok", **data}, 200)
-        except Exception as e:
-            return format_response({"status": "error", "message": str(e)}, 500)
-    return format_response({"status": "ok", "resources": []}, 200)
-
-@app.route("/main/ap/get2", methods=["GET"])
-@app.route("/ap/get2", methods=["GET"])
-def handle_ap_get2():
-    """读取并返回任务状态结构化数据缓存"""
-    path = get_tasks_json_path()
-    if os.path.exists(path):
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            return format_response({"status": "ok", **data}, 200)
-        except Exception as e:
-            return format_response({"status": "error", "message": str(e)}, 500)
-    return format_response({"status": "ok", "running": [], "queued": [], "waiting": []}, 200)
-
-def get_screenshot_path():
-    return os.path.join(AP_DIR, "screenshot.png")
-
-@app.route("/main/ap/set3", methods=["POST"])
-@app.route("/ap/set3", methods=["POST"])
-def handle_ap_set3():
-    """接收并保存 Base64 截图"""
-    try:
-        req_data = _collect_request_dict()
-        b64_data = req_data.get("image") or req_data.get("base64") or req_data.get("data")
-        if not b64_data and request.is_json:
-            j = request.get_json(silent=True)
-            if j:
-                b64_data = j.get("image") or j.get("base64") or j.get("data")
-        if not b64_data:
-            b64_data = request.form.get("image") or request.form.get("base64") or request.data.decode("utf-8", errors="ignore")
-
-        if b64_data:
-            import base64
-            if "base64," in b64_data:
-                b64_data = b64_data.split("base64,")[1]
-            img_bytes = base64.b64decode(b64_data.strip())
-            with open(get_screenshot_path(), "wb") as f:
-                f.write(img_bytes)
-            return format_response({"status": "ok", "message": "截图保存成功", "url": "/ap/file/screenshot.png"}, 200)
-        return format_response({"status": "error", "message": "缺少图片数据"}, 400)
-    except Exception as e:
-        return format_response({"status": "error", "message": str(e)}, 500)
-
-@app.route("/main/ap/get3", methods=["GET"])
-@app.route("/ap/get3", methods=["GET"])
-def handle_ap_get3():
-    """获取最新截图信息及访问链接"""
-    path = get_screenshot_path()
-    exists = os.path.exists(path)
-    return format_response({
-        "status": "ok",
-        "exists": exists,
-        "screenshot_url": "/ap/file/screenshot.png" if exists else "",
-        "updated_at": datetime.datetime.fromtimestamp(os.path.getmtime(path)).strftime("%Y-%m-%d %H:%M:%S") if exists else ""
-    }, 200)
-
-@app.route("/ap/file/<path:filename>", methods=["GET"])
-@app.route("/main/ap/file/<path:filename>", methods=["GET"])
-def serve_ap_file(filename):
-    return send_from_directory(AP_DIR, filename)
-
 @app.route("/main/stats/get", methods=["GET"])
 def handle_main_stats_get():
     """返回 zOnepush 自身统计数据，并尝试请求本地运行的 QBot (/bot/status/get 或 /bot/api/stats) 聚合完整统计信息"""
-    stats = _load_stats()
+    stats = load_stats()
     
     bot_stats = None
     try:
@@ -1643,16 +1124,17 @@ def receive_push():
     print(json.dumps(msg_dict, ensure_ascii=False, indent=4))
     print("========================================\n")
     with stats_lock:
-        stats = _load_stats()
+        stats = load_stats()
         stats["push_handle_count"] += 1
-        _save_stats(stats)
+        save_stats(stats)
     print("⏱️ [统计模块] push处理次数+1")
 
     if HANDLEPUSH:
         push_res = Handlepush(msg_dict)
         if not push_res:
             print("❌ Handlepush 处理失败，进入待机状态...")
-            enter_standby()
+            if main_enabled:
+                enter_standby()
             
             PerseusErrorMsg(
                 "Handlepush 处理失败", 
@@ -1683,85 +1165,15 @@ def receive_push():
 
 # ==================== 控制路由命令 ====================
 
-@app.route("/stop", methods=["GET", "POST"])
-@app.route("/main/stop", methods=["GET", "POST"])
-def handle_stop():
-    """接收 /stop 请求，进入待机状态"""
-    enter_standby()
-    PerseusNotifyMsg(str({"status": "ok", "message": "服务已进入待机状态"}),"")
-    return format_response({"status": "ok", "message": "服务已进入待机状态"}, 200)
 
-@app.route("/forcestop", methods=["GET", "POST"])
-@app.route("/main/forcestop", methods=["GET", "POST"])
-def force_stop():
-    """接收 /forcestop 请求，进入待机状态"""
-    print("收到forcestop请求")
-    global FORCESTOP
-    enter_standby()
-    FORCESTOP = True
-    PerseusNotifyMsg(str({"status": "ok", "message": "服务已进入待机状态"}),"")
-    return format_response({"status": "ok", "message": "服务已进入待机状态"}, 200)
-
-@app.route("/forcestart", methods=["GET", "POST"])
-@app.route("/main/forcestart", methods=["GET", "POST"])
-def force_start():
-    """接收 /forcestart 请求，进入待机状态"""
-    print("收到forcestart请求")
-    global FORCESTOP
-    enter_standby()
-    FORCESTOP = False
-    try:
-        print("▶️ 收到 /start 请求，正在运行 zMumu.hidemumu()")
-        zMumu.hidemumu()
-        print("▶️ 收到 /start 请求，正在运行 zAlas.start()")
-        zAlas.start()
-        print("正在运行 run_alas_mumu_check...")
-        run_alas_mumu_check()
-        with stats_lock:
-            stats = _load_stats()
-            stats["auto_check_count"] += 1
-            _save_stats(stats)
-        print("⏱️ [统计模块] autocheck处理次数+1")
-    except Exception as e:
-        print(f"⚠️ 运行 run_alas_mumu_check 出现异常: {e}")  
-    start_alas_mumu_check_timer()
-    PerseusNotifyMsg(str({"status": "ok", "message": "服务已恢复"}),"")
-    return format_response({"status": "ok", "message": "服务已恢复"}, 200)
-
-@app.route("/start", methods=["GET", "POST"])
-@app.route("/main/start", methods=["GET", "POST"])
-def handle_start():
-    """接收 /start 请求，恢复运行状态"""
-    global HANDLEPUSH , FORCESTOP
-    if FORCESTOP :
-        return format_response({"status": "error", "message": "服务已被强制禁用"}, 200)
-    else:
-        HANDLEPUSH = True
-        try:
-            print("▶️ 收到 /start 请求，正在运行 zMumu.hidemumu()")
-            zMumu.hidemumu()
-            print("▶️ 收到 /start 请求，正在运行 zAlas.start()")
-            zAlas.start()
-            print("正在运行 run_alas_mumu_check...")
-            run_alas_mumu_check()
-            with stats_lock:
-                stats = _load_stats()
-                stats["auto_check_count"] += 1
-                _save_stats(stats)
-            print("⏱️ [统计模块] autocheck处理次数+1")
-        except Exception as e:
-            print(f"⚠️ 运行 run_alas_mumu_check 出现异常: {e}")
-            
-        start_alas_mumu_check_timer()
-        PerseusNotifyMsg(str({"status": "ok", "message": "服务已重新启动并恢复处理"}),"")
-        return format_response({"status": "ok", "message": "服务已重新启动并恢复处理"}, 200)
 
 @app.route("/shutdown", methods=["GET", "POST"])
 def handle_shutdown():
     """接收 /shutdown 请求，结束定时检查和自身进程"""
     print("🛑 收到 /shutdown 请求，正在关闭服务自身...")
     PerseusNotifyMsg("🛑 收到 /shutdown 请求，正在关闭服务自身...","")
-    stop_timer()
+    if main_enabled:
+        stop_timer()
     
     def delayed_exit():
         time.sleep(0.5)
@@ -1778,7 +1190,8 @@ def handle_restart():
 
     # 1. 优雅停止后台定时任务与清理资源
     try:
-        stop_timer()
+        if main_enabled:
+            stop_timer()
     except Exception as e:
         print(f"⚠️ 重启前清理定时器/待机状态异常: {e}")
 
@@ -1970,12 +1383,31 @@ def handle_pushlog_get(level, span):
 @app.route("/ping", methods=["GET", "POST"])
 @app.route("/main/ping", methods=["GET", "POST"])
 def handle_ping():
-    return format_response({"handlepush": HANDLEPUSH,
+    ap_enabled = False
+    try:
+        if '_is_bp_enabled' in globals():
+            main_enabled = _is_bp_enabled("main_loop_bp")
+    except Exception:
+        pass
+
+    if not main_enabled :
+        return format_response({
+            "handlepush": HANDLEPUSH,
+            "mumu_running": False,
+            "alas_running": False,
+            "bot_running": is_bot_online(),
+            "force_stop": True,
+            "qbot_stop": QBOTSTOP
+        }, 200)
+
+    return format_response({
+        "handlepush": HANDLEPUSH,
         "mumu_running": zMumu.is_mumu_running(),
         "alas_running": zAlas.is_process_running(),
-        "bot_running":is_bot_online(),
+        "bot_running": is_bot_online(),
         "force_stop": FORCESTOP,
-        "qbot_stop": QBOTSTOP}, 200)
+        "qbot_stop": QBOTSTOP
+    }, 200)
 
 @app.route("/getip", methods=["GET"])
 @app.route("/main/getip", methods=["GET"])
@@ -2398,7 +1830,11 @@ def ensure_sakana_js():
 def main():
     request_admin_privileges(max_retries=5)
     kill_port_process(LISTEN_PORT)
-    start_alas_mumu_check_timer()
+    if main_enabled:
+        start_alas_mumu_check_timer()
+    else:
+        logger.info("已跳过start_alas_mumu_check_timer")
+
     ensure_sakana_js()
 
     print(f"OnePush接收服务已启动（已获取管理员权限），监听端口：{LISTEN_PORT}")

@@ -52,19 +52,46 @@ if HAS_LOGURU:
     class LoguruWriter:
         def __init__(self, level="INFO"):
             self.level = level
-            self._buffer = ''
+            self._buffer = ""
 
         def write(self, message):
+            if not message:
+                return 0
+
+            # 统一转换为 str
+            if isinstance(message, bytes):
+                message = message.decode("utf-8", errors="replace")
+            elif not isinstance(message, str):
+                message = str(message)
+
             self._buffer += message
-            while '\n' in self._buffer:
-                line, self._buffer = self._buffer.split('\n', 1)
+
+            # 按行输出
+            while "\n" in self._buffer:
+                line, self._buffer = self._buffer.split("\n", 1)
+
                 if line.strip():
-                    loguru_logger.opt(depth=1).log(self.level, line.strip())
+                    loguru_logger.opt(depth=1).log(
+                        self.level,
+                        line.strip()
+                    )
+
+            return len(message)
 
         def flush(self):
             if self._buffer.strip():
-                loguru_logger.opt(depth=1).log(self.level, self._buffer.strip())
-                self._buffer = ''
+                loguru_logger.opt(depth=1).log(
+                    self.level,
+                    self._buffer.strip()
+                )
+            self._buffer = ""
+
+        def isatty(self):
+            return False
+
+        @property
+        def encoding(self):
+            return "utf-8"
 
     if not isinstance(sys.stdout, LoguruWriter):
         os.makedirs(LOG_DIR, exist_ok=True)
@@ -237,5 +264,5 @@ else:
         log_func = lvl_map.get(str(level).lower(), logger.warning)
         log_func(message)
 
-  if HAS_LOGURU:
+if HAS_LOGURU:
     print("[Success]Loguru启动成功")
