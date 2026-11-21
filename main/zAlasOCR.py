@@ -460,6 +460,7 @@ def check_and_click_updater(
         left, top, right, bottom = screenshot_bbox
 
         if not btn_line:
+            have_btn = False
             print("⚠️ OCR 未识别到更新按钮，使用备用坐标")
 
             # 截图内部相对坐标
@@ -476,6 +477,7 @@ def check_and_click_updater(
             )
 
         else:
+            have_btn = True
             print(f"🎯 识别按钮：【{btn_line['text']}】")
 
             # OCR 截图内部坐标
@@ -507,10 +509,14 @@ def check_and_click_updater(
             if debugmode:
                 print("  🧪 调试模式：跳过实际点击")
             else:
-                click_at(
-                    screen_click_x,
-                    screen_click_y
-                )
+                if click_attempt == 1:
+                    click_at(
+                        screen_click_x,
+                        screen_click_y
+                    )
+                    print(f"click{screen_click_x},{screen_click_y}")
+                else:
+                    print("..不要再点了啦(✿◡‿◡)..")
 
             total_clicked += 1
 
@@ -565,6 +571,8 @@ def check_and_click_updater(
 
                         return True
 
+                    save_screenshot(screenshot_retry)
+                    
                     print("⚠️ 未检测到启动器更新中")
 
                 except Exception as e:

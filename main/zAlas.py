@@ -397,28 +397,39 @@ def start(alas_path=ALAS_PATH, show_window=True,extra:bool=False,target_count:in
                 pass
             return [False, "0008", err_msg]
 
-    if extra :
+    if extra:
         print("正在检查启动器更新")
         try:
-            if debugmode :
-                response = check_and_click_updater(debugmode=debugmode)
-            else:
-                response = check_and_click_updater()
-            if response == 0:
-                try_count = 0
-                while try_count <= 3:
+            success_count = 0
+            try_count = 0
+
+            while try_count < 4:
+                if try_count > 0:
                     time.sleep(1)
-                    print(f"再尝试一次,当前{try_count}")
-                    if debugmode :
-                        response2 = check_and_click_updater(debugmode=debugmode)
-                    else:
-                        response2 = check_and_click_updater()
-                    try_count += 1
-                    print(f"->{response2}")
-            elif not response :
-                print("fail check_and_click_updater")
+                    print(f"再尝试一次,当前第{try_count}次")
+
+                if debugmode:
+                    response = check_and_click_updater(debugmode=debugmode)
+                else:
+                    response = check_and_click_updater()
+
+                print(f"->{response}")
+
+                if response is True:
+                    success_count += 1
+                    print(f"success check_and_click_updater ({success_count}/2)")
+
+                    if success_count >= 2:
+                        print("连续两次检查成功，退出检查")
+                        break
+                else:
+                    print("fail check_and_click_updater")
+
+                try_count += 1
+
             else:
-                print("success check_and_click_updater")
+                print("已达到最大尝试次数，结束检查")
+
         except Exception as e:
             print(f"报错了:{e}")
         target_count = 2

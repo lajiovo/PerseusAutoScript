@@ -41,6 +41,7 @@ def run_alas_mumu_check(stop_event=None):
 
     while True:
         if stop_event and stop_event.is_set():
+            logger.warning(f"⚠ 将跳过进行中的check,开头,{stop_event.is_set()}")
             return False
         # 0. 校验硬重启与 MuMu 重启上限
         if (
@@ -84,6 +85,9 @@ def run_alas_mumu_check(stop_event=None):
                     need_check = True
                 else:
                     print("[Info]网页可以访问，再试试看")
+        if stop_event and stop_event.is_set():
+            logger.warning(f"⚠ 将跳过进行中的check,alas-mumu,{stop_event.is_set()}")
+            return False
         if not zMumu.is_mumu_running():
             print("[Info] 检测到mumu不在运行")
             zMumu.mumu_kill()
@@ -94,6 +98,9 @@ def run_alas_mumu_check(stop_event=None):
             else:
                 print("[Info] mumu正常重启")
                 mumu_restart_count += 1
+        if stop_event and stop_event.is_set():
+            logger.warning(f"⚠ 将跳过进行中的check,mumu-site,{stop_event.is_set()}")
+            return False
         if zAlas.is_site_accessible():
             print(
                 f"[Info] 网页正常，开始运行 Playwright 任务... "
