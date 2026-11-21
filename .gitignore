@@ -16,6 +16,7 @@ servercache/
 bnp/
 rawrar/
 dshqqbot/
+debug/
 
 # 2. 忽略特定扩展名的文件
 *.log

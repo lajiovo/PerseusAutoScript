@@ -340,7 +340,7 @@ def hide(target_count=3):
 # ---------------------------------------------------------------------------
 # 3. Start 启动程序并自动调用 hide()
 # ---------------------------------------------------------------------------
-def start(alas_path=ALAS_PATH, show_window=True,extra:bool=False,target_count:int=3):
+def start(alas_path=ALAS_PATH, show_window=True,extra:bool=False,target_count:int=3,debugmode:bool=False):
     """
     主控启动逻辑：先检测是否已运行，已运行传入 hide(1)，未运行拉起后传入 hide(2)
     返回: [bool, str, str] -> [是否成功, 信息代码, 描述详情]
@@ -400,13 +400,19 @@ def start(alas_path=ALAS_PATH, show_window=True,extra:bool=False,target_count:in
     if extra :
         print("正在检查启动器更新")
         try:
-            response = check_and_click_updater()
+            if debugmode :
+                response = check_and_click_updater(debugmode=debugmode)
+            else:
+                response = check_and_click_updater()
             if response == 0:
                 try_count = 0
                 while try_count <= 3:
                     time.sleep(1)
                     print(f"再尝试一次,当前{try_count}")
-                    response2 = check_and_click_updater()
+                    if debugmode :
+                        response2 = check_and_click_updater(debugmode=debugmode)
+                    else:
+                        response2 = check_and_click_updater()
                     try_count += 1
                     print(f"->{response2}")
             elif not response :
@@ -438,13 +444,16 @@ if __name__ == "__main__":
     print("2->hide")
     print("3->cleanup")
     print("4->start+ocr")
+    print("5->start+ocr (debug)")
     a = input(">>")
     if a == "1" :
         result = start()
-    elif a == "4":
-        result = start(extra=True)
     elif a == "2" :
         result = hide()
     elif a == "3" :
         result = cleanup()
+    elif a == "4":
+        result = start(extra=True)
+    elif a == "5":
+        result = start(extra=True,debugmode=True)
     print(f"\n执行结果: {result}")

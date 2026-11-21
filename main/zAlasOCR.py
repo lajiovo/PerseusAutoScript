@@ -7,6 +7,9 @@ import pytesseract
 from PIL import ImageGrab
 import time
 import re
+import os
+import ctypes
+from datetime import datetime
 from collections import defaultdict
 
 # ==================== 基础配置 ====================
@@ -27,6 +30,14 @@ MIN_HEIGHT = 100
 # DPI 缩放系数 (125% 对应 1.25, 150% 对应 1.5)
 DPI_SCALE = 1.25 
 # ==================================================
+
+def save_screenshot(screenshot):
+    """用来调试的"""
+    # 保存调试截图
+    debug_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "debug")
+    os.makedirs(debug_dir, exist_ok=True)
+    filename = f"ocr_{datetime.now():%Y%m%d_%H%M%S_%f}.png"
+    screenshot.save(os.path.join(debug_dir, filename))
 
 def contains_keyword(lines, keyword, field="text"):
     """检查指定字段是否包含关键词（支持 str / list）"""
@@ -117,58 +128,186 @@ def click_at(x, y):
     except Exception as e:
         print(f"  ❌ 点击失败: {e}")
 
+# ============================================================
+# DPI 坐标处理
+# ============================================================
 
-def check_and_click_updater(trigger_keyword=["isavailable","发现新版本"], button_keyword=["Updatelauncher","CUpdate","更新启动器"],prepare_keyword=["Preparingruntimeenvironment","正在准备运行环境"],updating_keyword=["Updating","启动器更新中"],debugmode:bool=False):
+def enable_dpi_awareness():
     """
-    检查目标窗口中是否出现类似“发现新版本x.x.x,请先更新启动器”的提示，
-    如果匹配成功，则自动寻找并点击按钮（如“C更新启动器”、“更新启动器”等）。
-    首次点击后校验是否处于“启动器更新中”，若是则最小化窗口，否则重试点击。
-    
-    :param trigger_keyword: 提示框中的触发关键词（正则表达式或字符串）
-    :param button_keyword: 需要点击的目标按钮文本关键词
-    :return: 成功执行点击的次数
+    尽可能让当前进程使用 Per-Monitor DPI Awareness。
+    必须尽量在程序创建窗口之前调用。
     """
-    valid_windows = []
+    try:
+        ctypes.windll.shcore.SetProcessDpiAwareness(2)
+        return True
+    except Exception:
+        try:
+            ctypes.windll.user32.SetProcessDPIAware()
+            return True
+        except Exception:
+            return False
 
-    def enum_windows_callback(hwnd, extra):
-        # 1. 必须是可见窗口
-        if not win32gui.IsWindowVisible(hwnd):
-            return
-            
-        title = win32gui.GetWindowText(hwnd).strip()
-        if not title:
-            return
-            
-        # 2. 获取窗口坐标与尺寸
+
+# ============================================================
+# 统一窗口截图函数
+# ============================================================
+
+def capture_window(hwnd, debugmode=False, save=True):
+    """
+    使用物理屏幕坐标获取窗口截图。
+    返回：(screenshot, (left, top, right, bottom))
+    """
+
+    try:
+        if not win32gui.IsWindow(hwnd):
+            return None, None
+
+        # 获取窗口真实屏幕坐标
         rect = win32gui.GetWindowRect(hwnd)
-        left, top, right, bottom = rect
+        left, top, right, bottom = map(int, rect)
+
         width = right - left
         height = bottom - top
-        
-        # 3. 获取该窗口所属的进程名称和 PID
+
+        if width <= 0 or height <= 0:
+            return None, None
+
+        # 使用物理屏幕坐标截图
+        screenshot = ImageGrab.grab(
+            bbox=(left, top, right, bottom),
+            all_screens=True
+        )
+
+        if debugmode:
+            print(
+                f"📸 截图坐标：{left},{top},{right},{bottom}"
+            )
+            print(
+                f"📐 窗口尺寸：{width}x{height} "
+                f"| 实际截图：{screenshot.width}x{screenshot.height}"
+            )
+
+            if save:
+                save_screenshot(screenshot)
+
+        return screenshot, (left, top, right, bottom)
+
+    except Exception as e:
+        print(f"❌ 截图失败：{e}")
+        return None, None
+
+
+# ============================================================
+# 统一 OCR 识别函数
+# ============================================================
+
+def recognize_window(hwnd, debugmode=False, lang="eng"):
+    screenshot, bbox = capture_window(
+        hwnd,
+        debugmode=debugmode
+    )
+
+    if screenshot is None:
+        return None, [], None
+
+    try:
+        data = pytesseract.image_to_data(
+            screenshot,
+            lang=lang,
+            output_type=pytesseract.Output.DICT
+        )
+
+        merged_lines = parse_and_merge_ocr_data(data)
+
+        return screenshot, merged_lines, bbox
+
+    except Exception as e:
+        print(f"❌ OCR 异常：{e}")
+        return screenshot, [], bbox
+
+
+# ============================================================
+# 窗口更新检测及自动点击
+# ============================================================
+
+def check_and_click_updater(
+    trigger_keyword=["isavailable", "发现新版本"],
+    button_keyword=["Updatelauncher", "CUpdate", "更新启动器"],
+    prepare_keyword=["Preparingruntimeenvironment", "正在准备运行环境"],
+    updating_keyword=["Updating", "启动器更新中"],
+    debugmode: bool = False
+):
+    """
+    检查目标窗口是否出现启动器更新提示。
+
+    检测到更新提示后：
+        1. OCR 寻找更新按钮。
+        2. 点击更新按钮。
+        3. 重新截图并 OCR 验证更新状态。
+        4. 检测到更新中后最小化窗口。
+
+    返回：
+        True  : 正常运行或成功进入更新状态
+        False : 更新操作失败
+        0     : 未找到有效窗口
+    """
+
+    enable_dpi_awareness()
+
+    valid_windows = []
+
+    # --------------------------------------------------------
+    # 1. 枚举并筛选目标窗口
+    # --------------------------------------------------------
+
+    def enum_windows_callback(hwnd, extra):
+
+        if not win32gui.IsWindowVisible(hwnd):
+            return
+
+        title = win32gui.GetWindowText(hwnd).strip()
+
+        if not title:
+            return
+
         try:
+            left, top, right, bottom = win32gui.GetWindowRect(hwnd)
+
+            width = right - left
+            height = bottom - top
+
             _, pid = win32process.GetWindowThreadProcessId(hwnd)
+
             proc = psutil.Process(pid)
             pname = proc.name().lower()
-        except Exception:
-            pname = ""
-            pid = 0
 
-        # --- 严格过滤逻辑 ---
+        except Exception:
+            return
+
+        # 进程过滤
         if pname != TARGET_PROCESS.lower():
             return
-            
+
+        # 标题过滤
         if TARGET_TITLE_KEYWORD.lower() not in title.lower():
             return
-            
-        if any(black in title.lower() for black in WINDOW_BLACKLIST):
-            print(f"  [跳过黑名单] 标题: 「{title}」 (进程: {pname})")
+
+        # 黑名单过滤
+        if any(
+            black.lower() in title.lower()
+            for black in WINDOW_BLACKLIST
+        ):
+            print(f"  [跳过黑名单] 标题：{title}")
             return
-            
+
+        # 最小尺寸过滤
         if width < MIN_WIDTH or height < MIN_HEIGHT:
-            print(f"  [跳过尺寸过小] 标题: 「{title}」 尺寸: {width}x{height}")
+            print(
+                f"  [跳过尺寸过小] "
+                f"标题：{title}，尺寸：{width}x{height}"
+            )
             return
-            
+
         valid_windows.append({
             "hwnd": hwnd,
             "title": title,
@@ -180,177 +319,300 @@ def check_and_click_updater(trigger_keyword=["isavailable","发现新版本"], b
     win32gui.EnumWindows(enum_windows_callback, None)
 
     if not valid_windows:
-        print(f"未找到任何同时满足进程 '{TARGET_PROCESS}' 且标题包含 '{TARGET_TITLE_KEYWORD}' 的有效窗口！")
+        print(
+            f"未找到符合条件的窗口！"
+            f"进程：{TARGET_PROCESS}，"
+            f"标题关键词：{TARGET_TITLE_KEYWORD}"
+        )
         return 0
 
-    print(f"✅ 成功精准锁定 {len(valid_windows)} 个目标窗口：\n" + "=" * 65)
+    print(
+        f"✅ 成功精准锁定 {len(valid_windows)} 个目标窗口：\n"
+        + "=" * 65
+    )
+
     total_clicked = 0
 
+    # --------------------------------------------------------
+    # 2. 逐个处理目标窗口
+    # --------------------------------------------------------
+
     for idx, win in enumerate(valid_windows, 1):
+
         print(f"\n【目标窗口 {idx}】")
-        print(f"  - 窗口标题 : {win['title']}")
-        print(f"  - 所属进程 : {win['pname']} (PID: {win['pid']})")
-        print(f"  - 绝对坐标 : 左上角 {win['bbox'][:2]}, 宽高 {win['bbox'][2]-win['bbox'][0]}x{win['bbox'][3]-win['bbox'][1]}")
-        print("-" * 65)
+        print(f"  - 窗口标题：{win['title']}")
+        print(
+            f"  - 所属进程：{win['pname']} "
+            f"(PID: {win['pid']})"
+        )
 
-        hwnd = win['hwnd']
-        
+        hwnd = win["hwnd"]
+
         if not win32gui.IsWindow(hwnd):
-            print(f"  [跳过] 窗口句柄已失效或已被销毁: {hwnd}")
+            print(f"  [跳过] 窗口句柄失效：{hwnd}")
             continue
 
-        # 1. 恢复最小化
-        if win32gui.IsIconic(hwnd):
-            try:
-                win32gui.ShowWindow(hwnd, 9) # SW_RESTORE
+        # ----------------------------------------------------
+        # 3. 恢复窗口
+        # ----------------------------------------------------
+
+        try:
+            if win32gui.IsIconic(hwnd):
+                win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
                 time.sleep(0.3)
-            except Exception:
-                pass
 
-        # 2. 安全地尝试激活并置顶窗口
-        try:
-            if win32gui.IsWindow(hwnd):
-                win32gui.SetForegroundWindow(hwnd)
-                time.sleep(0.5)
-        except Exception as e:
-            print(f"  [提示] 窗口置顶受限或已关闭，跳过此轮：{e}")
-            continue
-
-        # 3. 再次校验并实时获取最新坐标
-        try:
             if not win32gui.IsWindow(hwnd):
                 continue
-            left, top, right, bottom = win32gui.GetWindowRect(hwnd)
-        except Exception:
+
+            win32gui.SetForegroundWindow(hwnd)
+            time.sleep(0.5)
+
+        except Exception as e:
+            print(f"  [提示] 窗口激活失败：{e}")
             continue
 
-        # DPI 坐标缩放计算
-        real_left = int(left * DPI_SCALE)
-        real_top = int(top * DPI_SCALE)
-        real_right = int(right * DPI_SCALE)
-        real_bottom = int(bottom * DPI_SCALE)
+        # ----------------------------------------------------
+        # 4. 初次 OCR 检测
+        # ----------------------------------------------------
 
-        # 进行 OCR 截屏识别与校验（包含 AzurPilot 缺失重试逻辑）
-        azur_attempts = 0
         merged_lines = []
-        while azur_attempts < 2:
-            azur_attempts += 1
-            # 截图并进行 OCR
-            screenshot = ImageGrab.grab(bbox=(real_left, real_top, real_right, real_bottom))
-            # 已放弃中文识别
-            data = pytesseract.image_to_data(screenshot, lang='eng', output_type=pytesseract.Output.DICT)
-            merged_lines = parse_and_merge_ocr_data(data)
 
-            # 1. 如果结果中包含“正在准备运行环境”，直接返回 True
-            if contains_keyword(merged_lines,prepare_keyword):
-                print(f"✅ 窗口 [{win['title']}] 检测到 '正在准备运行环境'，直接返回 True")
+        for attempt in range(1, 3):
+
+            print(f"🔍 正在执行 OCR 检测 ({attempt}/2)...")
+
+            screenshot, merged_lines, screenshot_bbox = recognize_window(
+                hwnd,
+                debugmode=debugmode,
+                lang="eng"
+            )
+
+            if screenshot is None:
+                print("⚠️ 截图失败")
+
+                if attempt < 2:
+                    time.sleep(0.5)
+                    continue
+
+                break
+
+            # 检测准备运行环境
+            if contains_keyword(
+                merged_lines,
+                prepare_keyword
+            ):
+                print(
+                    f"✅ 窗口 [{win['title']}] "
+                    f"检测到正在准备运行环境"
+                )
                 return True
 
-            # 检查是否有 AzurPilot 文本
-            # has_azurpilot = contains_keyword(merged_lines,"Azur"):
-            has_azurpilot = True
-            if has_azurpilot:
+            # 原代码中 AzurPilot 检测被强制设置为 True，
+            # 因此保留原来的跳过行为。
+            break
+
+        if not merged_lines:
+            print("⚠️ OCR 未获取到有效文本")
+
+        # ----------------------------------------------------
+        # 5. 检测更新提示
+        # ----------------------------------------------------
+
+        has_update_notice = contains_keyword(
+            merged_lines,
+            trigger_keyword
+        )
+
+        if not has_update_notice:
+            print(
+                f"ℹ️ 窗口 [{win['title']}] "
+                f"未检测到更新提示信息"
+            )
+            continue
+
+        print(
+            f"⚠️ 窗口 [{win['title']}] "
+            f"检测到启动器更新提示"
+        )
+
+        # --------------------------------------------------------
+        # 寻找更新按钮
+        # --------------------------------------------------------
+
+        btn_line = None
+
+        for line in merged_lines:
+            if contains_keyword([line], button_keyword):
+                btn_line = line
                 break
+
+        # 获取当前截图对应的窗口坐标
+        screenshot, _, screenshot_bbox = recognize_window(
+            hwnd,
+            debugmode=debugmode,
+            lang="eng"
+        )
+
+        if screenshot_bbox is None:
+            print("❌ 无法获取当前窗口截图坐标")
+            return False
+
+        left, top, right, bottom = screenshot_bbox
+
+        if not btn_line:
+            print("⚠️ OCR 未识别到更新按钮，使用备用坐标")
+
+            # 截图内部相对坐标
+            relative_x = 1170
+            relative_y = 771
+
+            # 转换为屏幕绝对坐标
+            screen_click_x = left + relative_x
+            screen_click_y = top + relative_y
+
+            print(
+                f"🎯 备用点击：相对坐标 "
+                f"({relative_x}, {relative_y})"
+            )
+
+        else:
+            print(f"🎯 识别按钮：【{btn_line['text']}】")
+
+            # OCR 截图内部坐标
+            relative_x = btn_line["x"] + btn_line["w"] / 2
+            relative_y = btn_line["y"] + btn_line["h"] / 2
+
+            # 转换为屏幕绝对坐标
+            screen_click_x = left + relative_x
+            screen_click_y = top + relative_y
+
+        print(
+            f"🖱️ 最终屏幕绝对点击坐标："
+            f"({screen_click_x:.1f}, {screen_click_y:.1f})"
+        )
+
+        # ----------------------------------------------------
+        # 8. 最多重试三次
+        # ----------------------------------------------------
+
+        max_retries = 3
+
+        for click_attempt in range(1, max_retries + 1):
+
+            print(
+                f"  👉 第 {click_attempt}/{max_retries} "
+                f"次尝试点击..."
+            )
+
+            if debugmode:
+                print("  🧪 调试模式：跳过实际点击")
             else:
-                print(f"⚠️ 第 {azur_attempts}/2 次未在 OCR 结果中检测到 'AzurPilot'")
-                if azur_attempts < 2:
-                    print("  🔄 尝试重新置顶窗口并再次识别...")
-                    try:
-                        if win32gui.IsWindow(hwnd):
-                            win32gui.SetForegroundWindow(hwnd)
-                            time.sleep(0.5)
-                            win32gui.SetForegroundWindow(hwnd)
-                            time.sleep(0.5)
-                            left, top, right, bottom = win32gui.GetWindowRect(hwnd)
-                            real_left = int(left * DPI_SCALE)
-                            real_top = int(top * DPI_SCALE)
-                            real_right = int(right * DPI_SCALE)
-                            real_bottom = int(bottom * DPI_SCALE)
-                    except Exception as e:
-                        print(f"  ❌ 重置窗口失败: {e}")
+                click_at(
+                    screen_click_x,
+                    screen_click_y
+                )
 
-        
-        # 如果尝试 2 次后仍未检测到 AzurPilot，返回 0
-        # if not any("azur" in line['text'].lower() for line in merged_lines):
-        #     print(f"❌ 尝试 2 次后仍未在 OCR 结果中检索到 'AzurPilot'，失败返回 0")
-        #     return 0
+            total_clicked += 1
 
-        # 检查所有文本行中是否出现了更新提示
-        has_update_notice = contains_keyword(merged_lines,trigger_keyword)
+            time.sleep(1.0)
 
-        if has_update_notice:
-            print(f"⚠️ 窗口 [{win['title']}] 检测到更新提示（匹配词: '{trigger_keyword}'）")
+            # ------------------------------------------------
+            # 9. 更新状态复检
+            # ------------------------------------------------
 
-            # 寻找符合点击条件的按钮（可能包含噪声字符如 "C更新启动器"）
-            btn_line = None
+            try:
 
-            for line in merged_lines:
-                if contains_keyword([line], button_keyword):
-                    btn_line = line
-                    break
+                if not win32gui.IsWindow(hwnd):
+                    print("❌ 更新状态校验失败：窗口已关闭")
+                    continue
 
-            if not btn_line:
-                print(f"❌ 检测到更新提示，但未找到对应的按钮关键词: '{button_keyword}'")
-                return False
-
-            print(f"🎯 找到匹配按钮文本行: 【{btn_line['text']}】")
-
-            # 计算在截图图片上的逻辑像素中心点
-            btn_center_x_ocr = btn_line['x'] + btn_line['w'] / 2
-            btn_center_y_ocr = btn_line['y'] + btn_line['h'] / 2
-
-            # 换算为屏幕真实物理像素坐标（先加屏幕左上偏移，再除以 DPI 缩放回到物理屏幕点）
-            screen_click_x = (real_left + btn_center_x_ocr) / DPI_SCALE
-            screen_click_y = (real_top + btn_center_y_ocr) / DPI_SCALE
-
-            # 重试最多3次点击
-            max_retries = 3
-            for attempt in range(1, max_retries + 1):
-                print(f"  👉 第 {attempt}/{max_retries} 次尝试点击...")
-                if debugmode:
-                    print("Skip click (debug)")
-                else:
-                    click_at(screen_click_x, screen_click_y)
-                total_clicked += 1
-                time.sleep(1.0)  # 等待更新状态响应与界面刷新
-
-                # 再次截屏校验是否在更新中
+                # 尝试激活窗口，但激活失败不影响后续截图
                 try:
                     if win32gui.IsWindow(hwnd):
+                        if win32gui.IsIconic(hwnd):
+                            win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
+
                         win32gui.SetForegroundWindow(hwnd)
                         time.sleep(0.5)
-                        win32gui.SetForegroundWindow(hwnd)
-                        time.sleep(0.5)
-                        left, top, right, bottom = win32gui.GetWindowRect(hwnd)
-                        real_left = int(left * DPI_SCALE)
-                        real_top = int(top * DPI_SCALE)
-                        real_right = int(right * DPI_SCALE)
-                        real_bottom = int(bottom * DPI_SCALE)
-                        
-                        screenshot_retry = ImageGrab.grab(bbox=(real_left, real_top, real_right, real_bottom))
-                        data_retry = pytesseract.image_to_data(screenshot_retry, lang='chi_sim+eng', output_type=pytesseract.Output.DICT)
-                        merged_lines_retry = parse_and_merge_ocr_data(data_retry)
 
-                        # 判断是否存在“启动器更新中”
-                        is_updating = contains_keyword(merged_lines,updating_keyword)
-
-                        if is_updating:
-                            print(f"⏳ 检测到 '启动器更新中'，正在最小化窗口...")
-                            win32gui.ShowWindow(hwnd, win32con.SW_MINIMIZE)
-                            return True
-                        else:
-                            print(f"⚠️ 未检测到 '启动器更新中'。")
                 except Exception as e:
-                    print(f"  ❌ 状态校验异常: {e}")
+                    print(f"⚠️ 窗口激活失败，不影响后续状态校验：{e}")
 
-            # 3次点击后仍未识别到“启动器更新中”
-            print(f"❌ 已达到最大重试次数 ({max_retries} 次)，仍未能进入更新状态。")
-            return False
-        else:
-            print(f"ℹ️ 窗口 [{win['title']}] 未检测到更新提示信息。")
-            return True
+                # 直接进行截图和 OCR
+                try:
+                    screenshot_retry, merged_lines_retry, screenshot_bbox_retry = recognize_window(
+                        hwnd,
+                        debugmode=debugmode,
+                        lang="chi_sim+eng"
+                    )
+
+                    if screenshot_retry is None:
+                        print("⚠️ 状态校验截图失败")
+                        continue
+
+                    is_updating = contains_keyword(
+                        merged_lines_retry,
+                        updating_keyword
+                    )
+
+                    if is_updating:
+                        print("⏳ 检测到启动器更新中，正在最小化窗口...")
+
+                        win32gui.ShowWindow(
+                            hwnd,
+                            win32con.SW_MINIMIZE
+                        )
+
+                        return True
+
+                    print("⚠️ 未检测到启动器更新中")
+
+                except Exception as e:
+                    print(f"❌ 状态校验异常：{e}")
+
+                if screenshot_retry is None:
+                    print("⚠️ 更新状态截图失败")
+                    continue
+
+                # 注意：这里必须使用 merged_lines_retry
+                is_updating = contains_keyword(
+                    merged_lines_retry,
+                    updating_keyword
+                )
+
+                if is_updating:
+
+                    print(
+                        "⏳ 检测到启动器更新中，"
+                        "正在最小化窗口..."
+                    )
+
+                    win32gui.ShowWindow(
+                        hwnd,
+                        win32con.SW_MINIMIZE
+                    )
+
+                    return True
+
+                print("⚠️ 未检测到启动器更新中")
+
+            except Exception as e:
+                print(f"❌ 状态校验异常：{e}")
+
+        # ----------------------------------------------------
+        # 10. 三次点击失败
+        # ----------------------------------------------------
+
+        print(
+            f"❌ 已达到最大重试次数 "
+            f"({max_retries} 次)，"
+            f"仍未能进入更新状态。"
+        )
+
+        return False
 
     return True
+
 
 
 if __name__ == "__main__":
