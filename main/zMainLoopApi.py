@@ -67,81 +67,126 @@ def set_global_states(hp, fs, qbs):
     FORCESTOP = fs
     QBOTSTOP = qbs
 
-def stop_timer():
-    """停止后台定时检查线程"""
-    global timer_event
-    timer_event.set()
+def stop_timer(timeout=10):
+    """停止后台定时检查线程，并等待线程退出"""
+    global timer_thread, timer_event
+
+    with timer_lock:
+        event = timer_event
+        thread = timer_thread
+
+        if event:
+            event.set()
+
+    if thread and thread.is_alive():
+        if thread is not threading.current_thread():
+            thread.join(timeout=timeout)
+
+    if thread and thread.is_alive():
+        logger.warning("⚠️ 定时器线程仍在运行，可能正在执行任务")
+        return False
+
+    with timer_lock:
+        if timer_thread is thread:
+            timer_thread = None
+
+    logger.info("定时器线程已停止")
+    return True
 
 def start_alas_mumu_check_timer():
-    """启动/重启后台定时任务线程：自动执行alas_mumu_check以及Alas/Mumu相关维护"""
+    """启动/重启后台定时任务线程"""
     global timer_thread, timer_event
-    stop_timer()
-    
-    timer_event = threading.Event()
-    
-    def timer_loop():
-        global timer_counter
-        while not timer_event.is_set():
-            if timer_event.wait(120):
-                break
-            try:
-                logger.info("⏰ 触发定时任务: {}", timer_counter)
-                if timer_counter < 0:
-                    timer_counter = 0
-                elif timer_counter < 15:
-                    zMumu.once_hidemumu()
-                    zAlas.once_hidealas()
-                    timer_counter += 1
-                    logger.success("已完成常规隐藏任务 {}", timer_counter)
-                else:
-                    response = run_alas_mumu_check()
-                    if response:
-                        logger.success("自动化检查成功，返回为 {}", response)
+
+    if FORCESTOP :
+        return False
+
+    # 先停止旧线程
+    if not stop_timer(timeout=10):
+        logger.error("旧定时器尚未退出，取消本次启动")
+        return False
+
+    with timer_lock:
+        stop_event = threading.Event()
+        timer_event = stop_event
+
+        def timer_loop(stop_event):
+            global timer_counter,HANDLEPUSH,FORCESTOP
+
+            while not stop_event.is_set():
+
+                # 等待120秒，支持随时响应停止信号
+                if stop_event.wait(120):
+                    break
+                if not HANDLEPUSH:
+                    logger.warning("HANDLEPUSH已关闭但仍在执行循环")
+                    continue
+                try:
+                    logger.info(f"⏰ 触发定时任务: {timer_counter},handp{HANDLEPUSH},fstop{FORCESTOP}")
+                    if timer_counter < 0:
+                        timer_counter = 0
+                    elif timer_counter < 15:
+                        zMumu.once_hidemumu()
+                        zAlas.once_hidealas()
+                        timer_counter += 1
+                        logger.success("已完成常规隐藏任务 {}", timer_counter)
                     else:
-                        global HANDLEPUSH
-                        HANDLEPUSH = False
-                        logger.error("自动化检查报错, HANDLEPUSH已设置为 {}", HANDLEPUSH)
-                    timer_counter = 0
-                    logger.success("已完成完整检查任务")
+                        response = run_alas_mumu_check(stop_event=stop_event)
+                        if response:
+                            logger.success("自动化检查成功，返回为 {}", response)
+                        else:
+                            global HANDLEPUSH
+                            HANDLEPUSH = False
+                            logger.error("自动化检查报错, HANDLEPUSH已设置为 {}", HANDLEPUSH)
+                        timer_counter = 0
+                        logger.success("已完成完整检查任务")
 
-                    # 尝试调用 zOnepush 中的 _load_stats/_save_stats
-                    try:
-                        import zOnepush
-                        if hasattr(zOnepush, "_load_stats") and hasattr(zOnepush, "_save_stats"):
-                            stats = zOnepush._load_stats()
-                            stats["auto_check_count"] += 1
-                            zOnepush._save_stats(stats)
-                    except Exception as ex:
-                        logger.warning("更新统计数据异常: {}", ex)
-
-                    current_dir = os.path.dirname(os.path.abspath(__file__))
-                    log_path = str(os.path.join(current_dir, 'last_checkin.txt'))
-                    today_str = datetime.date.today().isoformat()
-
-                    if not os.path.exists(log_path):
-                        with open(log_path, 'w', encoding='utf-8') as f:
-                            pass
-                        last_date = ''
-                    else:
-                        with open(log_path, 'r', encoding='utf-8') as f:
-                            last_date = f.read().strip()
-
-                    if last_date != today_str:
+                        # 尝试调用 zOnepush 中的 _load_stats/_save_stats
                         try:
-                            if not QBOTSTOP:
-                                # ???
-                                logger.info("正在处理自动化签到")
-                            zPGRJZ.run(headless=True)
-                        except Exception as e:
-                            logger.warning("自动签到异常: {}", e)
-                        with open(log_path, 'w', encoding='utf-8') as f:
-                            f.write(today_str)
-            except Exception as e:
-                logger.error("⚠️ 定时运行 alas_mumu_check 出现异常: {}", e)
-                PerseusErrorMsg("定时运行 alas_mumu_check 出现异常", str(e))
+                            import zOnepush
+                            if hasattr(zOnepush, "_load_stats") and hasattr(zOnepush, "_save_stats"):
+                                stats = zOnepush._load_stats()
+                                stats["auto_check_count"] += 1
+                                zOnepush._save_stats(stats)
+                        except Exception as ex:
+                            logger.warning("更新统计数据异常: {}", ex)
 
-    timer_thread = threading.Thread(target=timer_loop, daemon=True)
-    timer_thread.start()
+                        current_dir = os.path.dirname(os.path.abspath(__file__))
+                        log_path = str(os.path.join(current_dir, 'last_checkin.txt'))
+                        today_str = datetime.date.today().isoformat()
+
+                        if not os.path.exists(log_path):
+                            with open(log_path, 'w', encoding='utf-8') as f:
+                                pass
+                            last_date = ''
+                        else:
+                            with open(log_path, 'r', encoding='utf-8') as f:
+                                last_date = f.read().strip()
+
+                        if last_date != today_str:
+                            try:
+                                if not QBOTSTOP:
+                                    # ???
+                                    logger.info("正在处理自动化签到")
+                                zPGRJZ.run(headless=True)
+                            except Exception as e:
+                                logger.warning("自动签到异常: {}", e)
+                            with open(log_path, 'w', encoding='utf-8') as f:
+                                f.write(today_str)
+                except Exception as e:
+                    logger.error("⚠️ 定时运行 alas_mumu_check 出现异常: {}", e)
+                    PerseusErrorMsg("定时运行 alas_mumu_check 出现异常", str(e))
+                    
+        timer_thread = threading.Thread(
+            target=timer_loop,
+            args=(stop_event,),
+            name="AlasMumuCheckTimer",
+            daemon=True
+        )
+
+        timer_thread.start()
+
+    logger.success("后台定时器已启动")
+    return True
 
 def enter_standby():
     """进入待机状态：停止 loop 并清理进程"""
@@ -175,6 +220,8 @@ def format_response(data, status_code=200):
 @main_loop_bp.route("/stop", methods=["GET", "POST"])
 @main_loop_bp.route("/main/stop", methods=["GET", "POST"])
 def handle_stop():
+    global HANDLEPUSH
+    HANDLEPUSH = False
     enter_standby()
     stop_timer()
     PerseusNotifyMsg(str({"status": "ok", "message": "服务已进入待机状态"}), "")
@@ -183,19 +230,21 @@ def handle_stop():
 @main_loop_bp.route("/forcestop", methods=["GET", "POST"])
 @main_loop_bp.route("/main/forcestop", methods=["GET", "POST"])
 def force_stop():
-    global FORCESTOP
+    global FORCESTOP,HANDLEPUSH
     enter_standby()
     stop_timer()
     FORCESTOP = True
+    HANDLEPUSH = False
     PerseusNotifyMsg(str({"status": "ok", "message": "服务已进入待机状态"}), "")
     return format_response({"status": "ok", "message": "服务已进入待机状态"}, 200)
 
 @main_loop_bp.route("/forcestart", methods=["GET", "POST"])
 @main_loop_bp.route("/main/forcestart", methods=["GET", "POST"])
 def force_start():
-    global FORCESTOP
+    global FORCESTOP,HANDLEPUSH
     enter_standby()
     FORCESTOP = False
+    HANDLEPUSH = True
     try:
         zMumu.hidemumu()
         zAlas.start()
@@ -265,8 +314,14 @@ def receive_push():
                 "data": msg_dict
             }
             return format_response(fail_resp, 500)
-        
-        return format_response(push_res, 200)
+        # 成功分支，返回标准成功结构，不再返回 push_res（bool）
+        ok_resp = {
+            "status": "ok",
+            "code": 200,
+            "message": "Handlepush 处理成功",
+            "data": msg_dict
+        }
+        return format_response(ok_resp, 200)
 
     title = msg_dict.get("title", "")
     body = msg_dict.get("body", "")

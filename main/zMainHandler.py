@@ -15,7 +15,7 @@ def _md_original(title, body):
     return f"\n\n```text\n{raw_text}\n```"
 
 
-def run_alas_mumu_check():
+def run_alas_mumu_check(stop_event=None):
     """
     通用检查与恢复函数
     按 [ "instance", "start", "get_resources", "get_tasks"] 顺序执行 Playwright 操作并根据返回状态自动恢复。
@@ -40,6 +40,8 @@ def run_alas_mumu_check():
     standard_task_list =  [ "instance", "start", "get_resources", "get_tasks","get_screenshot"]
 
     while True:
+        if stop_event and stop_event.is_set():
+            return False
         # 0. 校验硬重启与 MuMu 重启上限
         if (
             alas_hard_restart_count >= max_hard_restarts

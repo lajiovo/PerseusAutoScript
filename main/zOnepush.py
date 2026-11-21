@@ -698,7 +698,7 @@ def start_qbot_process():
     except Exception as e:
         print(f"❌ 启动 QBot 进程失败: {e}")
 
-
+stats_lock = threading.Lock()
 def _runtime_persistence_loop():
     """后台线程：每 10 分钟自动将运行时长（秒数）累加并持久化一次"""
     interval = 600  # 10 分钟 = 600 秒
