@@ -118,7 +118,7 @@ def click_at(x, y):
         print(f"  ❌ 点击失败: {e}")
 
 
-def check_and_click_updater(trigger_keyword=["isavailable","发现新版本"], button_keyword=["Updatelauncher","更新启动器"],prepare_keyword=["Preparingruntimeenvironment","正在准备运行环境"],updating_keyword=["Updating","启动器更新中"]):
+def check_and_click_updater(trigger_keyword=["isavailable","发现新版本"], button_keyword=["Updatelauncher","CUpdate","更新启动器"],prepare_keyword=["Preparingruntimeenvironment","正在准备运行环境"],updating_keyword=["Updating","启动器更新中"],debugmode:bool=False):
     """
     检查目标窗口中是否出现类似“发现新版本x.x.x,请先更新启动器”的提示，
     如果匹配成功，则自动寻找并点击按钮（如“C更新启动器”、“更新启动器”等）。
@@ -259,6 +259,8 @@ def check_and_click_updater(trigger_keyword=["isavailable","发现新版本"], b
                         if win32gui.IsWindow(hwnd):
                             win32gui.SetForegroundWindow(hwnd)
                             time.sleep(0.5)
+                            win32gui.SetForegroundWindow(hwnd)
+                            time.sleep(0.5)
                             left, top, right, bottom = win32gui.GetWindowRect(hwnd)
                             real_left = int(left * DPI_SCALE)
                             real_top = int(top * DPI_SCALE)
@@ -281,8 +283,9 @@ def check_and_click_updater(trigger_keyword=["isavailable","发现新版本"], b
 
             # 寻找符合点击条件的按钮（可能包含噪声字符如 "C更新启动器"）
             btn_line = None
+
             for line in merged_lines:
-                if contains_keyword(merged_lines,button_keyword):
+                if contains_keyword([line], button_keyword):
                     btn_line = line
                     break
 
@@ -304,13 +307,20 @@ def check_and_click_updater(trigger_keyword=["isavailable","发现新版本"], b
             max_retries = 3
             for attempt in range(1, max_retries + 1):
                 print(f"  👉 第 {attempt}/{max_retries} 次尝试点击...")
-                click_at(screen_click_x, screen_click_y)
+                if debugmode:
+                    print("Skip click (debug)")
+                else:
+                    click_at(screen_click_x, screen_click_y)
                 total_clicked += 1
                 time.sleep(1.0)  # 等待更新状态响应与界面刷新
 
                 # 再次截屏校验是否在更新中
                 try:
                     if win32gui.IsWindow(hwnd):
+                        win32gui.SetForegroundWindow(hwnd)
+                        time.sleep(0.5)
+                        win32gui.SetForegroundWindow(hwnd)
+                        time.sleep(0.5)
                         left, top, right, bottom = win32gui.GetWindowRect(hwnd)
                         real_left = int(left * DPI_SCALE)
                         real_top = int(top * DPI_SCALE)
@@ -344,4 +354,5 @@ def check_and_click_updater(trigger_keyword=["isavailable","发现新版本"], b
 
 
 if __name__ == "__main__":
-    check_and_click_updater()
+    check_and_click_updater(debugmode=True)
+    # check_and_click_updater()

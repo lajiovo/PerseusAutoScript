@@ -95,7 +95,7 @@ def stop_timer(timeout=10):
 
 def start_alas_mumu_check_timer():
     """启动/重启后台定时任务线程"""
-    global timer_thread, timer_event
+    global timer_thread, timer_event,HANDLEPUSH,FORCESTOP
 
     if FORCESTOP :
         return False
@@ -134,7 +134,6 @@ def start_alas_mumu_check_timer():
                         if response:
                             logger.success("自动化检查成功，返回为 {}", response)
                         else:
-                            global HANDLEPUSH
                             HANDLEPUSH = False
                             logger.error("自动化检查报错, HANDLEPUSH已设置为 {}", HANDLEPUSH)
                         timer_counter = 0
