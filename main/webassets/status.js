@@ -134,10 +134,17 @@ async function loadAllStatusData() {
         if (tasksRes.ok) {
             const jsonFull = await tasksRes.json();
             const tData = jsonFull.data || jsonFull;
+            const tasks = tData.tasks || [];
             const groups = tData.groups || {};
-            const running = groups.running || tData.running || [];
-            const pending = groups.pending || tData.queued || [];
-            const waiting = groups.waiting || tData.waiting || [];
+
+            // 如果 groups 存在但不包含任务，强制回退到 tasks 过滤
+            const hasGroups = groups.running?.length > 0 || groups.pending?.length > 0 || groups.waiting?.length > 0;
+            
+            const running = hasGroups ? (groups.running || []) : (Array.isArray(tasks) ? tasks.filter(t => t.status === 'running') : []);
+            const pending = hasGroups ? (groups.pending || groups.queued || []) : (Array.isArray(tasks) ? tasks.filter(t => t.status === 'pending' || t.status === 'queued') : []);
+            const waiting = hasGroups ? (groups.waiting || []) : (Array.isArray(tasks) ? tasks.filter(t => t.status === 'waiting') : []);
+            
+            console.log('任务调试:', { tasksCount: tasks.length, runningCount: running.length, pendingCount: pending.length, waitingCount: waiting.length });
             const timeEl = document.getElementById('tasksUpdatedTime') || document.querySelector('#section-status #tasksUpdatedTime');
             if (timeEl && (tData.updated_at || tData.timestamp)) {
                 timeEl.textContent = '更新时间: ' + (tData.updated_at || new Date(tData.timestamp).toLocaleString());

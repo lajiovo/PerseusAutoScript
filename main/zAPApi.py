@@ -178,7 +178,7 @@ def parse_dashboard_html(html_content):
                 value_html = value_match.group(1)
 
                 content_match = re.search(
-                    r'<span[^>]*class="[^"]*\bresource-value-content\b[^"]*"[^>]*>(.*?)</span\s*>\s*</span>',
+                    r'<span[^>]*class="[^"]*\bresource-value-content\b[^"]*"[^>]*>(.*?)</span>',
                     value_html,
                     re.DOTALL | re.IGNORECASE
                 )
