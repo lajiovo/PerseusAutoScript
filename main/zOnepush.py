@@ -26,6 +26,7 @@ import zCpolar
 from zLK import crawl_lightnovel_to_epub
 from zConfig import get_config
 import zPlaywrightNew
+from random import randint
 
 # 根据配置文件中的开关条件性导入并注册 Blueprint，失败时报错并跳过
 app = Flask(__name__)
@@ -179,6 +180,10 @@ def schedule_check(time_ranges=["09:00-12:00", "16:00-18:30"]):
     """
     global SCHEDULESTOP
 
+    debug_id  = randint(1,100)
+    # debug
+    logger.info(f"👇id:{debug_id},sche:{SCHEDULESTOP},push:{zMainLoopApi.HANDLEPUSH}")
+
     now = datetime.datetime.now().time()
     current_minutes = now.hour * 60 + now.minute
 
@@ -233,7 +238,7 @@ def schedule_check(time_ranges=["09:00-12:00", "16:00-18:30"]):
                 except Exception as e:
                     logger.error(f"❌Schedule stop error: {e}")
 
-    logger.info(f"sche:{SCHEDULESTOP},time:{time_matched},push:{zMainLoopApi.HANDLEPUSH}")
+    logger.info(f"👆id:{debug_id},sche:{SCHEDULESTOP},time:{time_matched},push:{zMainLoopApi.HANDLEPUSH}")
     return time_matched
 
 def parse_bool(val):
@@ -634,7 +639,7 @@ def stop_musicdl_services():
 stats_lock = threading.Lock()
 def _runtime_persistence_loop():
     """后台线程：每 10 分钟自动将运行时长（秒数）累加并持久化一次"""
-    interval = 600  # 10 分钟 = 600 秒
+    interval = 300  # 10 分钟 = 600 秒
     while True:
         time.sleep(interval)
         try:
@@ -642,7 +647,7 @@ def _runtime_persistence_loop():
                 stats = zMainLoopApi.load_stats()
                 stats["total_runtime_seconds"] += interval
                 zMainLoopApi.save_stats(stats)
-            print("⏱️ [统计模块] 累计运行时长已更新并持久化 (+10分钟)")
+            print(f"⏱️ [统计模块] 累计运行时长已更新并持久化 (+{interval}s)")
         except Exception as e:
             print(f"⚠️ 运行时长持久化线程异常: {e}")
         if main_enabled:
@@ -652,8 +657,28 @@ def _runtime_persistence_loop():
             except Exception as e:
                 logger.error(f"⚠️ 日程检查异常: {e}")
 
+_runtime_thread = None
+
+def start_runtime_thread():
+    global _runtime_thread
+
+    if _runtime_thread is not None and _runtime_thread.is_alive():
+        logger.warning("统计线程已经运行，跳过重复启动")
+        return
+
+    _runtime_thread = threading.Thread(
+        target=_runtime_persistence_loop,
+        name="RuntimePersistence",
+        daemon=True
+    )
+    _runtime_thread.start()
+
+    logger.success(
+        f"统计线程启动成功，ID={_runtime_thread.ident}"
+    )
+    
 # 启动后台累计运行时长持久化线程
-threading.Thread(target=_runtime_persistence_loop, daemon=True).start()
+# threading.Thread(target=_runtime_persistence_loop, daemon=True).start()
 
 def format_response(result_data, status_code=200):
     """统一构建 JSON 响应"""
@@ -1647,7 +1672,7 @@ def main():
 
     # 启动运行时调度持久化循环
     try:
-        start_runtime_scheduler_thread()
+        start_runtime_thread()
     except Exception as e:
         logger.warning("启动运行时调度持久化循环异常: {}", e)
 
