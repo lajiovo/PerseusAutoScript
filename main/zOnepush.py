@@ -18,66 +18,7 @@ import win32gui
 import win32con
 import win32clipboard
 import asyncio
-
-# 在当前脚本所在目录的上级目录下读取或创建另外一个用于控制 Blueprint 开启状态的 toml 配置文件
-_current_dir = Path(__file__).resolve().parent
-_parent_dir = _current_dir.parent
-_blueprint_config_path = _parent_dir / "blueprint_config.toml"
-
-# 如果配置文件不存在，则默认全部关闭并创建该 toml 文件
-if not _blueprint_config_path.exists():
-    _default_blueprint_config = """# Blueprint 功能开关配置文件
-# 默认全部为 false (关闭)
-
-[blueprints]
-lk_bp = false
-inovel_bp = false
-lk_cache_viewer_bp = false
-log_bp = false
-p_ans_bp = false
-bnp_bp = false
-codestatus_bp = false
-ans_bp = false
-"""
-    try:
-        with open(_blueprint_config_path, "w", encoding="utf-8") as f:
-            f.write(_default_blueprint_config)
-        logger.info("已自动创建默认 Blueprint 配置文件: {}", _blueprint_config_path)
-    except Exception as _e:
-        logger.warning("创建默认 Blueprint 配置文件失败: {}", _e)
-
-# 读取 blueprint_config.toml 配置
-_bp_config_data = {}
-try:
-    if _blueprint_config_path.exists():
-        try:
-            import tomllib
-            with open(_blueprint_config_path, "rb") as f:
-                _bp_config_data = tomllib.load(f)
-        except ImportError:
-            try:
-                import tomli
-                with open(_blueprint_config_path, "rb") as f:
-                    _bp_config_data = tomli.load(f)
-            except ImportError:
-                # 降级使用 yaml 库读取 toml
-                from ruamel.yaml import YAML
-                _y = YAML()
-                with open(_blueprint_config_path, "r", encoding="utf-8") as f:
-                    _bp_config_data = _y.load(f) or {}
-except Exception as _e:
-    logger.warning("读取 Blueprint 配置文件异常: {}", _e)
-
-_bp_switches = _bp_config_data.get("blueprints", {})
-
-def _is_bp_enabled(name: str) -> bool:
-    val = _bp_switches.get(name, False)
-    if isinstance(val, bool):
-        return val
-    if isinstance(val, str):
-        return val.lower() in ("true", "1", "yes")
-    return bool(val)
-
+from zBPLoader import is_bp_enabled
 from zBarkCustom import PerseusNotifyMsg, PerseusErrorMsg,PerseusWarningMsg
 import zMusicDL
 from zFfmpeg import process_audio as ffmrun
@@ -86,45 +27,12 @@ from zLK import crawl_lightnovel_to_epub
 from zConfig import get_config
 import zPlaywrightNew
 
-
-# 检查并引入 zAZSchedulerApi 用于运行时分时段调度控制
-# _runtime_scheduler_thread = None
-
-# def _runtime_persistence_loop():
-"""后台运行持久化调度循环：如果激活了 schedule 且到达指定时间，请求 127.0.0.1:25566/start"""
-"""
-    while True:
-        try:
-            time.sleep(30)
-            try:
-                import zAZSchedulerApi
-                can_run, reason = zAZSchedulerApi.check_can_run_now()
-                if can_run:
-                    # 尝试向本地服务发送 /start 请求
-                    try:
-                        requests.get("http://127.0.0.1:25566/start", timeout=3)
-                        logger.info("🟢 [AZScheduler 调度] 满足运行时间，已自动请求 http://127.0.0.1:25566/start")
-                    except Exception as req_ex:
-                        logger.debug("请求 127.0.0.1:25566/start 失败: {}", req_ex)
-            except Exception as inner_e:
-                logger.debug("运行时调度循环内部异常: {}", inner_e)
-        except Exception as e:
-            logger.debug("运行时调度循环异常: {}", e)
-
-def start_runtime_scheduler_thread():
-    global _runtime_scheduler_thread
-    if _runtime_scheduler_thread is None or not _runtime_scheduler_thread.is_alive():
-        _runtime_scheduler_thread = threading.Thread(target=_runtime_persistence_loop, daemon=True)
-        _runtime_scheduler_thread.start()
-        logger.success("已成功启动后台运行时任务调度持久化循环 (_runtime_persistence_loop)")
-"""
-
 # 根据配置文件中的开关条件性导入并注册 Blueprint，失败时报错并跳过
 app = Flask(__name__)
 # 配置请求大小限制
 app.config['MAX_CONTENT_LENGTH'] = 2 * 1024 * 1024
 
-if _is_bp_enabled("lk_bp"):
+if is_bp_enabled("lk_bp"):
     try:
         from zLKserver import lk_bp
         app.register_blueprint(lk_bp)
@@ -132,7 +40,7 @@ if _is_bp_enabled("lk_bp"):
     except Exception as e:
         logger.error("加载 Blueprint [lk_bp] 失败: {}", e)
 
-if _is_bp_enabled("inovel_bp"):
+if is_bp_enabled("inovel_bp"):
     try:
         from zInovelServer import inovel_bp
         app.register_blueprint(inovel_bp)
@@ -140,7 +48,7 @@ if _is_bp_enabled("inovel_bp"):
     except Exception as e:
         logger.error("加载 Blueprint [inovel_bp] 失败: {}", e)
 
-if _is_bp_enabled("lk_cache_viewer_bp"):
+if is_bp_enabled("lk_cache_viewer_bp"):
     try:
         from zLKCacheViewerServer import lk_cache_viewer_bp
         app.register_blueprint(lk_cache_viewer_bp)
@@ -148,7 +56,7 @@ if _is_bp_enabled("lk_cache_viewer_bp"):
     except Exception as e:
         logger.error("加载 Blueprint [lk_cache_viewer_bp] 失败: {}", e)
 
-if _is_bp_enabled("log_bp"):
+if is_bp_enabled("log_bp"):
     try:
         from zLogApi import log_bp
         app.register_blueprint(log_bp)
@@ -156,7 +64,7 @@ if _is_bp_enabled("log_bp"):
     except Exception as e:
         logger.error("加载 Blueprint [log_bp] 失败: {}", e)
 
-if _is_bp_enabled("p_ans_bp"):
+if is_bp_enabled("p_ans_bp"):
     try:
         from zPAnsApi import p_ans_bp
         app.register_blueprint(p_ans_bp)
@@ -164,7 +72,7 @@ if _is_bp_enabled("p_ans_bp"):
     except Exception as e:
         logger.error("加载 Blueprint [p_ans_bp] 失败: {}", e)
 
-if _is_bp_enabled("bnp_bp"):
+if is_bp_enabled("bnp_bp"):
     try:
         from zBNPApi import bnp_bp
         app.register_blueprint(bnp_bp)
@@ -172,7 +80,7 @@ if _is_bp_enabled("bnp_bp"):
     except Exception as e:
         logger.error("加载 Blueprint [bnp_bp] 失败: {}", e)
 
-if _is_bp_enabled("codestatus_bp"):
+if is_bp_enabled("codestatus_bp"):
     try:
         from zCodeStatusApi import codestatus_bp
         app.register_blueprint(codestatus_bp)
@@ -180,7 +88,7 @@ if _is_bp_enabled("codestatus_bp"):
     except Exception as e:
         logger.error("加载 Blueprint [codestatus_bp] 失败: {}", e)
 
-if _is_bp_enabled("ans_bp"):
+if is_bp_enabled("ans_bp"):
     try:
         from zAnsApi import ans_bp
         app.register_blueprint(ans_bp)
@@ -188,7 +96,7 @@ if _is_bp_enabled("ans_bp"):
     except Exception as e:
         logger.error("加载 Blueprint [ans_bp] 失败: {}", e)
 
-if _is_bp_enabled("main_loop_bp"):
+if is_bp_enabled("main_loop_bp"):
     main_enabled = True
     try:
         import zMainLoopApi
@@ -203,7 +111,7 @@ else:
     main_enabled = False
     import zMainLoopApi.load_stats,zMainLoopApi.save_stats
 
-if _is_bp_enabled("ap_bp"):
+if is_bp_enabled("ap_bp"):
     try:
         from zAPApi import ap_bp
         app.register_blueprint(ap_bp)
@@ -211,7 +119,7 @@ if _is_bp_enabled("ap_bp"):
     except Exception as e:
         logger.error("加载 Blueprint [ap_bp] 失败: {}", e)
 
-if _is_bp_enabled("qbot_bp"):
+if is_bp_enabled("qbot_bp"):
     try:
         import zQbotApi
         qbot_enableed = True
@@ -223,14 +131,6 @@ if _is_bp_enabled("qbot_bp"):
         qbot_enableed = False
 else:
     qbot_enableed = False
-
-if _is_bp_enabled("az_scheduler_bp"):
-    try:
-        from zAZSchedulerApi import az_scheduler_bp
-        app.register_blueprint(az_scheduler_bp)
-        logger.success("成功加载并注册 Blueprint: az_scheduler_bp")
-    except Exception as e:
-        logger.error("加载 Blueprint [az_scheduler_bp] 失败: {}", e)
 
 # 监听端口
 LISTEN_PORT = get_config("pushserver.listen_port", default=25566)
@@ -1206,8 +1106,8 @@ def handle_pushlog_get(level, span):
 def handle_ping():
     ap_enabled = False
     try:
-        if '_is_bp_enabled' in globals():
-            main_enabled = _is_bp_enabled("main_loop_bp")
+        if 'is_bp_enabled' in globals():
+            main_enabled = is_bp_enabled("main_loop_bp")
     except Exception:
         pass
 
@@ -1256,11 +1156,37 @@ def handle_get_ip():
 @app.route("/main/pwupdate", methods=["GET", "POST"])
 @app.route("/pwupdate", methods=["GET", "POST"])
 def run_screeen_shot():
+    def task():
+        try:
+            response = zPlaywrightNew.main([
+                "instance",
+                "get_resources",
+                "get_tasks",
+                "get_screenshot"
+            ])
+            print(f"PWUPDATE 执行完成: {response}")
+            PerseusNotifyMsg("PWUPDATE 执行完成",response)
+        except Exception as e:
+            print(f"PWUPDATE 执行异常: {e}")
+
     try:
-        response = zPlaywrightNew.main(["instance", "get_resources", "get_tasks","get_screenshot"])
-        return format_response({"status":"ok","message":str(response)}, 200)
-    except Exception: 
-        return format_response({"status":"error","message":str(Exception)}, 200)
+        thread = threading.Thread(
+            target=task,
+            daemon=True,
+            name="PWUpdateThread"
+        )
+        thread.start()
+
+        return format_response({
+            "status": "ok",
+            "message": "任务已提交至后台线程"
+        }, 200)
+
+    except Exception as e:
+        return format_response({
+            "status": "error",
+            "message": str(e)
+        }, 200)
 
 
 @app.route("/servercache/<path:filepath>", methods=["GET"])
