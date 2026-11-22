@@ -95,20 +95,24 @@ async function loadAllStatusData() {
             const resources = apData.resources || [];
             const container = document.getElementById('resourceMonitorContainer') || document.querySelector('#section-status #resourceMonitorContainer');
             const timeEl = document.getElementById('resourceUpdatedTime') || document.querySelector('#section-status #resourceUpdatedTime');
-            if (timeEl && apData.updated_at) timeEl.textContent = '更新时间: ' + apData.updated_at;
+            if (timeEl && (apData.updated_at || apData.timestamp)) {
+                timeEl.textContent = '更新时间: ' + (apData.updated_at || new Date(apData.timestamp).toLocaleString());
+            }
 
             if (container) {
                 if (resources.length > 0) {
                     container.innerHTML = resources.map(item => {
-                        const timeDisplay = item.formatted_time || item.time_text || '刚刚';
+                        const timeDisplay = item.formatted_time || item.time_str || '刚刚';
                         const iconHtml = item.icon ? `<img src="${item.icon}" class="w-6 h-6 object-contain inline-block mr-2" alt="">` : '';
-                        const limitText = item.limit ? `<small class="text-slate-400 ml-1">${item.limit}</small>` : '';
+                        const currentVal = item.current !== undefined ? item.current : (item.amount || 0);
+                        const maxVal = item.max !== undefined ? item.max : 0;
+                        const limitText = maxVal > 0 ? `<small class="text-slate-400 ml-1">/ ${maxVal}</small>` : (item.limit ? `<small class="text-slate-400 ml-1">${item.limit}</small>` : '');
                         return `
                             <div class="bg-slate-900/60 p-3 rounded-xl border border-slate-800 flex items-center justify-between text-xs">
                                 <div class="flex items-center">
                                     ${iconHtml}
                                     <span class="font-bold text-slate-200">${item.name || '资源'}</span>
-                                    <span class="ml-3 px-2 py-0.5 rounded text-xs bg-indigo-950/60 text-indigo-300 font-mono">${item.amount || '0'}${limitText}</span>
+                                    <span class="ml-3 px-2 py-0.5 rounded text-xs bg-indigo-950/60 text-indigo-300 font-mono">${currentVal}${limitText}</span>
                                 </div>
                                 <div class="text-[11px] font-mono text-slate-400">
                                     <i class="fa-regular fa-clock mr-1"></i>${timeDisplay}
@@ -130,11 +134,14 @@ async function loadAllStatusData() {
         if (tasksRes.ok) {
             const jsonFull = await tasksRes.json();
             const tData = jsonFull.data || jsonFull;
-            const running = tData.running || [];
-            const queued = tData.queued || [];
-            const waiting = tData.waiting || [];
+            const groups = tData.groups || {};
+            const running = groups.running || tData.running || [];
+            const pending = groups.pending || tData.queued || [];
+            const waiting = groups.waiting || tData.waiting || [];
             const timeEl = document.getElementById('tasksUpdatedTime') || document.querySelector('#section-status #tasksUpdatedTime');
-            if (timeEl && tData.updated_at) timeEl.textContent = '更新时间: ' + tData.updated_at;
+            if (timeEl && (tData.updated_at || tData.timestamp)) {
+                timeEl.textContent = '更新时间: ' + (tData.updated_at || new Date(tData.timestamp).toLocaleString());
+            }
 
             const container = document.getElementById('tasksMonitorContainer') || document.querySelector('#section-status #tasksMonitorContainer');
             if (container) {
@@ -142,19 +149,23 @@ async function loadAllStatusData() {
                 if (running.length > 0) {
                     htmlBuf += `<div class="mb-3"><span class="text-[10px] font-bold text-emerald-400 uppercase">🟢 运行中 (${running.length})</span><div class="space-y-1.5 mt-1.5">`;
                     running.forEach(t => {
+                        const title = t.name || t.title || '未知任务';
+                        const timeText = t.formatted_time || t.time_str || t.time_text || '';
                         htmlBuf += `<div class="bg-emerald-950/30 p-2.5 rounded-lg border border-emerald-800/50 flex items-center justify-between text-xs">
-                            <span class="font-medium text-emerald-200">${t.title}</span>
-                            <span class="text-[10px] font-mono text-emerald-400">${t.formatted_time || t.time_text}</span>
+                            <span class="font-medium text-emerald-200">${title}</span>
+                            <span class="text-[10px] font-mono text-emerald-400">${timeText}</span>
                         </div>`;
                     });
                     htmlBuf += `</div></div>`;
                 }
-                if (queued.length > 0) {
-                    htmlBuf += `<div class="mb-3"><span class="text-[10px] font-bold text-amber-400 uppercase">🟡 队列中 (${queued.length})</span><div class="space-y-1.5 mt-1.5">`;
-                    queued.forEach(t => {
+                if (pending.length > 0) {
+                    htmlBuf += `<div class="mb-3"><span class="text-[10px] font-bold text-amber-400 uppercase">🟡 队列中 (${pending.length})</span><div class="space-y-1.5 mt-1.5">`;
+                    pending.forEach(t => {
+                        const title = t.name || t.title || '未知任务';
+                        const timeText = t.formatted_time || t.time_str || t.time_text || '';
                         htmlBuf += `<div class="bg-amber-950/30 p-2.5 rounded-lg border border-amber-800/50 flex items-center justify-between text-xs">
-                            <span class="font-medium text-amber-200">${t.title}</span>
-                            <span class="text-[10px] font-mono text-amber-400">${t.formatted_time || t.time_text}</span>
+                            <span class="font-medium text-amber-200">${title}</span>
+                            <span class="text-[10px] font-mono text-amber-400">${timeText}</span>
                         </div>`;
                     });
                     htmlBuf += `</div></div>`;
@@ -162,14 +173,16 @@ async function loadAllStatusData() {
                 if (waiting.length > 0) {
                     htmlBuf += `<div><span class="text-[10px] font-bold text-slate-400 uppercase">⚪ 等待中 (${waiting.length})</span><div class="space-y-1.5 mt-1.5">`;
                     waiting.forEach(t => {
+                        const title = t.name || t.title || '未知任务';
+                        const timeText = t.formatted_time || t.time_str || t.time_text || '';
                         htmlBuf += `<div class="bg-slate-900/60 p-2.5 rounded-lg border border-slate-800 flex items-center justify-between text-xs">
-                            <span class="font-medium text-slate-300">${t.title}</span>
-                            <span class="text-[10px] font-mono text-slate-400">${t.formatted_time || t.time_text}</span>
+                            <span class="font-medium text-slate-300">${title}</span>
+                            <span class="text-[10px] font-mono text-slate-400">${timeText}</span>
                         </div>`;
                     });
                     htmlBuf += `</div></div>`;
                 }
-                if (running.length === 0 && queued.length === 0 && waiting.length === 0) {
+                if (running.length === 0 && pending.length === 0 && waiting.length === 0) {
                     container.innerHTML = '<p class="text-xs text-slate-500 text-center py-6">当前无活跃任务</p>';
                 } else {
                     container.innerHTML = htmlBuf;

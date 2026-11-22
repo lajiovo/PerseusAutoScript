@@ -165,6 +165,7 @@ if _is_bp_enabled("main_loop_bp"):
         logger.success("成功加载并注册 Blueprint: main_loop_bp")
     except Exception as e:
         logger.error("加载 Blueprint [main_loop_bp] 失败: {}", e)
+        main_enabled = False
 else:
     main_enabled = False
     import zMainLoopApi.load_stats,zMainLoopApi.save_stats
@@ -177,15 +178,21 @@ if _is_bp_enabled("ap_bp"):
     except Exception as e:
         logger.error("加载 Blueprint [ap_bp] 失败: {}", e)
 
+if _is_bp_enabled("qbot_bp"):
+    try:
+        import zQbotApi
+        qbot_enableed = True
+        from zQbotApi import qbot_bp, is_bot_online
+        app.register_blueprint(qbot_bp)
+        logger.success("成功加载并注册 Blueprint: qbot_bp")
+    except Exception as e:
+        logger.error("加载 Blueprint [qbot_bp] 失败: {}", e)
+        qbot_enableed = False
+else:
+    qbot_enableed = False
+
 # 监听端口
 LISTEN_PORT = get_config("pushserver.listen_port", default=25566)
-
-# QBot 相关配置
-PYTHONW_PATH = get_config("pushserver.qbot.pythonw_path")
-QBOT_SCRIPT_PATH = get_config("pushserver.qbot.script_path")
-QBOT_IDENTIFIER = get_config("pushserver.qbot.identifier")
-
-QBOTSTOP = False
 
 # 2. 新增 MusicDL 相关配置与全局变量
 # MusicDL 配置
@@ -612,92 +619,6 @@ def stop_musicdl_services():
         print("⏸️ 正在关闭/重置 ffm 线程引用...")
         ffmpeg_thread = None
 
-# ==================== QBot 进程精准查杀与无窗口启动 ====================
-
-# ==================== QBot 进程精准查杀与无窗口启动（零弹窗版） ====================
-
-def kill_qbot_process():
-    """查找并精准查杀带有识别标记的 QBot 进程（彻底无弹窗）"""
-    if not sys.platform.startswith("win"):
-        return
-
-    try:
-        # 1. 设置静默运行参数，彻底隐藏子进程控制台窗口
-        startupinfo = subprocess.STARTUPINFO()
-        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-        startupinfo.wShowWindow = 0  # SW_HIDE
-        creationflags = subprocess.CREATE_NO_WINDOW
-
-        ps_command = f'Get-CimInstance Win32_Process | Where-Object {{ $_.CommandLine -like "*{QBOT_IDENTIFIER}*" }} | Select-Object -ExpandProperty ProcessId'
-        
-        proc = subprocess.Popen(
-            ["powershell", "-NoProfile", "-NonInteractive", "-Command", ps_command],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            startupinfo=startupinfo,
-            creationflags=creationflags,
-            text=True
-        )
-        output, _ = proc.communicate()
-
-        if output and output.strip():
-            pids = output.strip().splitlines()
-            for pid in pids:
-                pid = pid.strip()
-                if pid.isdigit():
-                    print(f"🧹 找到指定的 QBot 进程 (PID: {pid})，正在静默结束...")
-                    # 杀进程同样传入静默参数，防止 taskkill 弹窗
-                    subprocess.run(
-                        ["taskkill", "/F", "/PID", pid],
-                        stdout=subprocess.DEVNULL,
-                        stderr=subprocess.DEVNULL,
-                        startupinfo=startupinfo,
-                        creationflags=creationflags
-                    )
-            time.sleep(0.5)
-        else:
-            print("🔍 未检测到正在运行的 QBot 目标进程。")
-    except Exception as e:
-        print(f"⚠️ 清理 QBot 进程时发生异常: {e}")
-
-def start_qbot_process():
-    """先精准清理，然后使用 pythonw 无窗口启动 QBot"""
-    # 1. 启动前先精准查杀旧进程
-    try:
-        kill_qbot_process()
-    except Exception as e:
-        print(f"❌ 清理旧进程时发生错误: {e}")
-
-    # 2. 检查路径有效性
-    if not os.path.exists(PYTHONW_PATH):
-        print(f"❌ 未找到 pythonw.exe 路径: {PYTHONW_PATH}")
-        raise FileNotFoundError(f"未找到 pythonw.exe 路径: {PYTHONW_PATH}")
-    if not os.path.exists(QBOT_SCRIPT_PATH):
-        print(f"❌ 未找到脚本文件路径: {QBOT_SCRIPT_PATH}")
-        raise FileNotFoundError(f"未找到脚本文件路径: {QBOT_SCRIPT_PATH}")
-
-    try:
-        # 3. 构建启动命令（确保在启动尝试前定义 cmd）
-        cmd = [PYTHONW_PATH, QBOT_SCRIPT_PATH, QBOT_IDENTIFIER]
-        working_dir = os.path.dirname(QBOT_SCRIPT_PATH)
-
-        # 4. 设置 Windows 彻底无窗口标志
-        startupinfo = subprocess.STARTUPINFO()
-        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-        startupinfo.wShowWindow = 0
-        creationflags = subprocess.CREATE_NO_WINDOW | subprocess.DETACHED_PROCESS
-
-        print(f"🚀 正在使用 pythonw 后台静默启动 QBot: {QBOT_SCRIPT_PATH}")
-        subprocess.Popen(
-            cmd,
-            cwd=working_dir,
-            startupinfo=startupinfo,
-            creationflags=creationflags,
-            close_fds=True
-        )
-    except Exception as e:
-        print(f"❌ 启动 QBot 进程失败: {e}")
-
 stats_lock = threading.Lock()
 def _runtime_persistence_loop():
     """后台线程：每 10 分钟自动将运行时长（秒数）累加并持久化一次"""
@@ -861,6 +782,10 @@ def handle_main_stats_get():
                         bot_stats = bot_data.get("data")
         except Exception:
             pass
+    if qbot_enableed :
+        qbotstop = zQbotApi.QBOTSTOP
+    else:
+        qbotstop = True
     if not main_enabled :
         return format_response({
             "status": "ok",
@@ -869,7 +794,7 @@ def handle_main_stats_get():
             "alas_running": False,
             "bot_running":is_bot_online(),
             "force_stop": True,
-            "qbot_stop": QBOTSTOP,
+            "qbot_stop": qbotstop,
             "zOnepush": {
                 "auto_check_count": stats["auto_check_count"],
                 "push_handle_count": stats["push_handle_count"],
@@ -879,6 +804,11 @@ def handle_main_stats_get():
             "qbot": bot_stats
         }, 200)
 
+    if qbot_enableed :
+        qbotstop = zQbotApi.QBOTSTOP
+    else:
+        qbotstop = True
+
     return format_response({
         "status": "ok",
         "handlepush": zMainLoopApi.HANDLEPUSH,
@@ -886,7 +816,7 @@ def handle_main_stats_get():
         "alas_running": zAlas.is_process_running(),
         "bot_running":is_bot_online(),
         "force_stop": zMainLoopApi.FORCESTOP,
-        "qbot_stop": QBOTSTOP,
+        "qbot_stop": qbotstop,
         "zOnepush": {
             "auto_check_count": stats["auto_check_count"],
             "push_handle_count": stats["push_handle_count"],
@@ -895,24 +825,6 @@ def handle_main_stats_get():
         },
         "qbot": bot_stats
     }, 200)
-
-@app.route("/main/bot/get", methods=["GET"])
-def handle_main_bot_get():
-    """请求本地 http://127.0.0.1:25567/bot/status/get 获取 QBot 统计并返回给前端"""
-    try:
-        
-        req = urllib.request.Request("http://127.0.0.1:25567/bot/status/get", method="GET")
-        with urllib.request.urlopen(req, timeout=0.2) as resp:
-            body = resp.read().decode("utf-8")
-            data = json.loads(body)
-            return format_response(data, resp.status)
-    except Exception as e:
-        return format_response({
-            "status": "error",
-            "message": f"获取 QBot 状态失败: {str(e)}"
-        }, 502)
-
-
 
 # ==================== 剪切板缓存与文件管理 (servercache/clipboard) ====================
 
@@ -1185,94 +1097,6 @@ def handle_restart():
     threading.Thread(target=delayed_restart, daemon=True).start()
     return format_response({"status": "ok", "message": "服务正在重新启动（已触发提权重新拉起进程）"}, 200)
 
-# ==================== 新增：Bot 启动与关闭路由 ====================
-
-@app.route("/qbot/start", methods=["GET", "POST"])
-@app.route("/qbot/restart", methods=["GET", "POST"])
-@app.route("/main/qbot/start", methods=["GET", "POST"])
-@app.route("/main/qbot/restart", methods=["GET", "POST"])
-def handle_bot_start():
-    """接收 /qbot/start 请求：先杀死旧的 QBot 进程，再用 pythonw 后台无窗口拉起"""
-    try:
-        global QBOTSTOP
-        QBOTSTOP = False
-        start_qbot_process()
-        return format_response({
-            "status": "ok", 
-            "message": "QBot 启动成功（已完成启动前旧进程清理，无窗口运行中）"
-        }, 200)
-    except Exception as e:
-        print(f"❌ QBot 启动失败: {e}")
-        return format_response({
-            "status": "error", 
-            "message": f"QBot 启动失败: {str(e)}"
-        }, 500)
-
-@app.route("/qbot/forcestop", methods=["GET", "POST"])
-@app.route("/main/qbot/forcestop", methods=["GET", "POST"])
-def qbotfstop():
-    global QBOTSTOP
-    """接收 /qbot/forcestop 请求"""
-    QBOTSTOP = True
-    kill_qbot_process()
-    return format_response({
-        "status": "ok", 
-        "message": "已强制结束QBOT进程"
-    }, 200)
-
-@app.route("/qbot/shutdown", methods=["GET", "POST"])
-@app.route("/main/qbot/shutdown", methods=["GET", "POST"])
-def handle_bot_shutdown():
-    """接收 /qbot/shutdown 请求：精准结束 QBot 进程"""
-    PerseusErrorMsg("","收到 bot/shutdown 请求：将结束 QBot 进程")
-    try:
-        kill_qbot_process()
-        return format_response({
-            "status": "ok", 
-            "message": "QBot 进程已精准清理/关闭"
-        }, 200)
-    except Exception as e:
-        print(f"❌ QBot 查杀关闭失败: {e}")
-        return format_response({
-            "status": "error", 
-            "message": f"QBot 查杀失败: {str(e)}"
-        }, 500)
-
-@app.route("/bot", defaults={"subpath": ""}, methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"])
-@app.route("/bot/<path:subpath>", methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"])
-def proxy_bot(subpath):
-    # 拼接完整的目标 URL
-    target_url = f"{TARGET_BASE_URL}/{subpath}" if subpath else TARGET_BASE_URL
-    
-    # 过滤掉原请求的 Host 头，防止目标服务器识别错误
-    headers = {key: value for key, value in request.headers if key.lower() != 'host'}
-    
-    try:
-        # 使用 requests 转发请求（支持 GET、POST 及其他所有方法）
-        resp = requests.request(
-            method=request.method,
-            url=target_url,
-            headers=headers,
-            data=request.get_data(),
-            cookies=request.cookies,
-            params=request.args,
-            allow_redirects=False,
-            timeout=30
-        )
-        
-        # 过滤掉底层的传输头（Hop-by-hop headers）
-        excluded_headers = ['content-encoding', 'content-length', 'transfer-encoding', 'connection']
-        response_headers = [
-            (name, value) for name, value in resp.raw.headers.items() 
-            if name.lower() not in excluded_headers
-        ]
-        
-        # 返回从目标服务器得到的内容和状态码
-        return Response(resp.content, resp.status_code, response_headers)
-        
-    except requests.exceptions.RequestException as e:
-        return {"error": f"Proxy error: {str(e)}"}, 500
-
 # ==================== Web 帮助与运行路由 ====================
 
 @app.route("/pushlog/add", methods=["GET", "POST"])
@@ -1346,6 +1170,11 @@ def handle_ping():
     except Exception:
         pass
 
+    if qbot_enableed :
+        qbotstop = zQbotApi.QBOTSTOP
+    else:
+        qbotstop = True
+
     if not main_enabled :
         return format_response({
             "handlepush": False,
@@ -1353,7 +1182,7 @@ def handle_ping():
             "alas_running": False,
             "bot_running": is_bot_online(),
             "force_stop": True,
-            "qbot_stop": QBOTSTOP
+            "qbot_stop": qbotstop
         }, 200)
 
     return format_response({
@@ -1362,7 +1191,7 @@ def handle_ping():
         "alas_running": zAlas.is_process_running(),
         "bot_running": is_bot_online(),
         "force_stop": zMainLoopApi.FORCESTOP,
-        "qbot_stop": QBOTSTOP
+        "qbot_stop": qbotstop
     }, 200)
 
 @app.route("/getip", methods=["GET"])

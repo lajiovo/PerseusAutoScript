@@ -9,6 +9,7 @@ import zAlas
 import zMumu
 import zPGRJZ
 from zBarkCustom import PerseusErrorMsg, PerseusNotifyMsg
+import zQbotApi
 
 main_loop_bp = Blueprint("main_loop_bp", __name__)
 
@@ -62,10 +63,10 @@ def increment_stat(key, amount=1):
             save_stats(stats)
 
 def set_global_states(hp, fs, qbs):
-    global HANDLEPUSH, FORCESTOP, QBOTSTOP
+    global HANDLEPUSH, FORCESTOP
     HANDLEPUSH = hp
     FORCESTOP = fs
-    QBOTSTOP = qbs
+    zQbotApi.QBOTSTOP = qbs
 
 def stop_timer(timeout=10):
     """停止后台定时检查线程，并等待线程退出"""
@@ -163,8 +164,9 @@ def start_alas_mumu_check_timer():
 
                         if last_date != today_str:
                             try:
-                                if not QBOTSTOP:
-                                    # ???
+                                if not zQbotApi.QBOTSTOP:
+                                    logger.info("执行Qbot重启")
+                                    zQbotApi.start_qbot_process()
                                     logger.info("正在处理自动化签到")
                                 zPGRJZ.run(headless=True)
                             except Exception as e:
