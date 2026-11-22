@@ -17,6 +17,7 @@ bnp/
 rawrar/
 dshqqbot/
 debug/
+status-plugin-bundle/
 
 # 2. 忽略特定扩展名的文件
 *.log

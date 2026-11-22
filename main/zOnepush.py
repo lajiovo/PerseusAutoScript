@@ -208,14 +208,13 @@ def schedule_check(time_ranges=["09:00-12:00", "16:00-18:30"]):
         except (ValueError, AttributeError):
             continue
 
-    logger.info(f"sche:{SCHEDULESTOP},time:{time_matched},push:{zMainLoopApi.HANDLEPUSH}")
-
     # 状态判定
     if SCHEDULESTOP is True:
         if zMainLoopApi.HANDLEPUSH is False:
             if time_matched:
                 try:
                     zMainLoopApi.start_alas_mumu_check_timer()
+                    SCHEDULESTOP = False
                     logger.success("Schedule start success")
                 except Exception as e:
                     logger.error(f"❌Schedule start error: {e}")
@@ -229,10 +228,12 @@ def schedule_check(time_ranges=["09:00-12:00", "16:00-18:30"]):
                 try:
                     zMainLoopApi.enter_standby()
                     zMainLoopApi.stop_timer()
+                    SCHEDULESTOP = True
                     logger.success("Schedule stop success")
                 except Exception as e:
                     logger.error(f"❌Schedule stop error: {e}")
 
+    logger.info(f"sche:{SCHEDULESTOP},time:{time_matched},push:{zMainLoopApi.HANDLEPUSH}")
     return time_matched
 
 def parse_bool(val):
