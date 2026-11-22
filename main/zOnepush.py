@@ -165,6 +165,76 @@ cpurls = []
 # 目标转发的基础地址
 TARGET_BASE_URL = "http://127.0.0.1:25567/bot"
 
+# 关于计划任务
+SCHEDULESTOP = False
+MYSCHEDULE = ["09:00-12:00", "16:00-18:30"]
+def schedule_check(time_ranges=["09:00-12:00", "16:00-18:30"]):
+    """
+    时间调度判定
+
+    time_ranges 示例：
+    ["09:00-12:00", "16:00-18:30"]
+
+    根据 SCHEDULESTOP 和 HANDLEPUSH 状态分支。
+    """
+    global SCHEDULESTOP
+
+    now = datetime.datetime.now().time()
+    current_minutes = now.hour * 60 + now.minute
+
+    # 判断当前时间是否命中任意时间段
+    time_matched = False
+
+    for time_range in time_ranges:
+        try:
+            start_str, end_str = time_range.split("-")
+
+            start_hour, start_minute = map(int, start_str.split(":"))
+            end_hour, end_minute = map(int, end_str.split(":"))
+
+            start = start_hour * 60 + start_minute
+            end = end_hour * 60 + end_minute
+
+            if start <= end:
+                matched = start <= current_minutes <= end
+            else:
+                # 支持跨午夜，例如 23:00-02:00
+                matched = current_minutes >= start or current_minutes <= end
+
+            if matched:
+                time_matched = True
+                break
+
+        except (ValueError, AttributeError):
+            continue
+
+    logger.info(f"sche:{SCHEDULESTOP},time:{time_matched},push:{zMainLoopApi.HANDLEPUSH}")
+
+    # 状态判定
+    if SCHEDULESTOP is True:
+        if zMainLoopApi.HANDLEPUSH is False:
+            if time_matched:
+                try:
+                    zMainLoopApi.start_alas_mumu_check_timer()
+                    logger.success("Schedule start success")
+                except Exception as e:
+                    logger.error(f"❌Schedule start error: {e}")
+        else:
+            SCHEDULESTOP = False
+            logger.info("schedule recovered.")
+
+    else:
+        if zMainLoopApi.HANDLEPUSH is True:
+            if not time_matched:
+                try:
+                    zMainLoopApi.enter_standby()
+                    zMainLoopApi.stop_timer()
+                    logger.success("Schedule stop success")
+                except Exception as e:
+                    logger.error(f"❌Schedule stop error: {e}")
+
+    return time_matched
+
 def parse_bool(val):
     if isinstance(val, bool):
         return val
@@ -574,6 +644,12 @@ def _runtime_persistence_loop():
             print("⏱️ [统计模块] 累计运行时长已更新并持久化 (+10分钟)")
         except Exception as e:
             print(f"⚠️ 运行时长持久化线程异常: {e}")
+        if main_enabled:
+            try:
+                schedule_check(MYSCHEDULE)
+                logger.info("⏱ 日程检查完成")
+            except Exception as e:
+                logger.error(f"⚠️ 日程检查异常: {e}")
 
 # 启动后台累计运行时长持久化线程
 threading.Thread(target=_runtime_persistence_loop, daemon=True).start()
