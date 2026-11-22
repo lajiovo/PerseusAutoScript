@@ -118,6 +118,25 @@ def start_alas_mumu_check_timer():
                 # 等待120秒，支持随时响应停止信号
                 if stop_event.wait(120):
                     break
+
+                # 结合任务规划（zAZSchedulerApi）检查总开关与时间规划
+                """
+                try:
+                    import zAZSchedulerApi
+                    can_run, reason = zAZSchedulerApi.check_can_run_now()
+                    if not can_run:
+                        logger.info("⏳ 任务规划拦截：当前不允许运行 ({})，停止接下来的任务并请求 /stop", reason)
+                        # 如果 schedule 激活且到达指定停止时间或者超时，请求 http://127.0.0.1:25566/stop
+                        try:
+                            import requests
+                            requests.get("http://127.0.0.1:25566/stop", timeout=3)
+                        except Exception as req_ex:
+                            logger.debug("请求 127.0.0.1:25566/stop 异常: {}", req_ex)
+                        continue
+                except Exception as e:
+                    logger.debug("检查任务规划状态异常: {}", e)
+                """
+
                 if not HANDLEPUSH:
                     logger.warning("HANDLEPUSH已关闭但仍在执行循环")
                     continue

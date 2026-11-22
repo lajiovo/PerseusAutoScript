@@ -86,6 +86,39 @@ from zLK import crawl_lightnovel_to_epub
 from zConfig import get_config
 import zPlaywrightNew
 
+
+# 检查并引入 zAZSchedulerApi 用于运行时分时段调度控制
+# _runtime_scheduler_thread = None
+
+# def _runtime_persistence_loop():
+"""后台运行持久化调度循环：如果激活了 schedule 且到达指定时间，请求 127.0.0.1:25566/start"""
+"""
+    while True:
+        try:
+            time.sleep(30)
+            try:
+                import zAZSchedulerApi
+                can_run, reason = zAZSchedulerApi.check_can_run_now()
+                if can_run:
+                    # 尝试向本地服务发送 /start 请求
+                    try:
+                        requests.get("http://127.0.0.1:25566/start", timeout=3)
+                        logger.info("🟢 [AZScheduler 调度] 满足运行时间，已自动请求 http://127.0.0.1:25566/start")
+                    except Exception as req_ex:
+                        logger.debug("请求 127.0.0.1:25566/start 失败: {}", req_ex)
+            except Exception as inner_e:
+                logger.debug("运行时调度循环内部异常: {}", inner_e)
+        except Exception as e:
+            logger.debug("运行时调度循环异常: {}", e)
+
+def start_runtime_scheduler_thread():
+    global _runtime_scheduler_thread
+    if _runtime_scheduler_thread is None or not _runtime_scheduler_thread.is_alive():
+        _runtime_scheduler_thread = threading.Thread(target=_runtime_persistence_loop, daemon=True)
+        _runtime_scheduler_thread.start()
+        logger.success("已成功启动后台运行时任务调度持久化循环 (_runtime_persistence_loop)")
+"""
+
 # 根据配置文件中的开关条件性导入并注册 Blueprint，失败时报错并跳过
 app = Flask(__name__)
 # 配置请求大小限制
@@ -190,6 +223,14 @@ if _is_bp_enabled("qbot_bp"):
         qbot_enableed = False
 else:
     qbot_enableed = False
+
+if _is_bp_enabled("az_scheduler_bp"):
+    try:
+        from zAZSchedulerApi import az_scheduler_bp
+        app.register_blueprint(az_scheduler_bp)
+        logger.success("成功加载并注册 Blueprint: az_scheduler_bp")
+    except Exception as e:
+        logger.error("加载 Blueprint [az_scheduler_bp] 失败: {}", e)
 
 # 监听端口
 LISTEN_PORT = get_config("pushserver.listen_port", default=25566)
@@ -1600,6 +1641,12 @@ def main():
         zMainLoopApi.start_alas_mumu_check_timer()
     else:
         logger.info("已跳过start_alas_mumu_check_timer")
+
+    # 启动运行时调度持久化循环
+    try:
+        start_runtime_scheduler_thread()
+    except Exception as e:
+        logger.warning("启动运行时调度持久化循环异常: {}", e)
 
     ensure_sakana_js()
 

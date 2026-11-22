@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Perseus 任务规划与运行看板 - AZScheduler</title>
+    <link rel="stylesheet" href="./schedule.css">
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+</head>
+<body>
+    <div class="ambient-glow"></div>
+    <div class="container">
+        <!-- 头部导航 -->
+        <header class="header">
+            <div class="header-content">
+                <div class="title-wrapper">
+                    <div class="logo-icon">⏳</div>
+                    <div>
+                        <h1>任务规划与运行控制中心</h1>
+                        <p class="subtitle">管理总开关、每日分时段运行规划、特殊日期设置及实时状态监控</p>
+                    </div>
+                </div>
+                <div class="header-actions">
+                    <div id="master-status-badge" class="badge-running">
+                        <span class="pulse-dot"></span>
+                        <span id="master-status-text">系统状态检查中...</span>
+                    </div>
+                    <button id="btn-refresh" class="btn btn-secondary">🔄 刷新数据</button>
+                </div>
+            </div>
+        </header>
+
+        <!-- 核心控制面板 Grid -->
+        <div class="dashboard-grid">
+            <!-- 卡片 1: 总开关与默认规划 (支持分时段) -->
+            <div class="card bento-card">
+                <div class="card-header">
+                    <h3>⚡ 总开关与默认分时段规划</h3>
+                    <span class="tag">基础控制</span>
+                </div>
+                <div class="card-body">
+                    <form id="config-form">
+                        <div class="form-group toggle-group">
+                            <label for="master_enabled">
+                                <span class="label-title">任务规划总开关</span>
+                                <span class="label-desc">开启后所有定时与调度规划生效</span>
+                            </label>
+                            <label class="switch">
+                                <input type="checkbox" id="master_enabled" name="master_enabled">
+                                <span class="slider round"></span>
+                            </label>
+                        </div>
+
+                        <div class="form-group toggle-group">
+                            <label for="default_enabled">
+                                <span class="label-title">默认安排开关</span>
+                                <span class="label-desc">未特殊设置的普通日常是否默认允许运行</span>
+                            </label>
+                            <label class="switch">
+                                <input type="checkbox" id="default_enabled" name="default_enabled">
+                                <span class="slider round"></span>
+                            </label>
+                        </div>
+
+                        <div class="form-group">
+                            <label>默认每日允许运行的时段列表（支持多时段）</label>
+                            <div id="default-intervals-container" style="margin-bottom: 10px;">
+                                <!-- 动态渲染时段输入 -->
+                            </div>
+                            <button type="button" id="btn-add-interval" class="btn btn-secondary" style="padding: 6px 12px; font-size: 13px;">➕ 添加时段</button>
+                        </div>
+
+                        <div class="form-group" style="margin-top: 16px;">
+                            <label for="daily_limit_minutes">当日运行时间上限（分钟）</label>
+                            <input type="number" id="daily_limit_minutes" name="daily_limit_minutes" min="1" max="1440" class="form-control">
+                        </div>
+
+                        <button type="submit" class="btn btn-primary btn-block" style="margin-top: 10px;">💾 保存基础与默认配置</button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- 卡片 2: 今日运行状态与看板概览 -->
+            <div class="card bento-card">
+                <div class="card-header">
+                    <h3>📊 今日运行状态看板</h3>
+                    <span class="tag" id="today-date-tag">-</span>
+                </div>
+                <div class="card-body">
+                    <div class="metrics-grid">
+                        <div class="metric-item">
+                            <div class="metric-icon">⏱️</div>
+                            <div class="metric-content">
+                                <span class="metric-label">今日已运行时间</span>
+                                <span id="today-runtime" class="metric-val">-</span>
+                            </div>
+                        </div>
+                        <div class="metric-item">
+                            <div class="metric-icon">🚦</div>
+                            <div class="metric-content">
+                                <span class="metric-label">当前运行裁决</span>
+                                <span id="today-can-run" class="metric-val">-</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="status-reason-box" id="status-reason-box">
+                        <strong>裁决原因 / 说明：</strong> <span id="status-reason-text">-</span>
+                    </div>
+
+                    <div class="manual-report-box">
+                        <h4>手动测试/状态上报模拟</h4>
+                        <div class="form-row">
+                            <input type="number" id="report-mins" placeholder="增加分钟数" value="10" class="form-control" style="width: 130px;">
+                            <select id="report-status" class="form-control" style="width: 140px;">
+                                <option value="running">运行中 (running)</option>
+                                <option value="completed">已完成 (completed)</option>
+                                <option value="paused">已暂停 (paused)</option>
+                                <option value="stopped">已停止 (stopped)</option>
+                            </select>
+                            <button id="btn-report" class="btn btn-success">📤 提交上报</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 卡片 3: 近一个月特殊情况设置 (具体修改) -->
+        <div class="card bento-card full-width">
+            <div class="card-header">
+                <h3>📅 近一个月特殊情况设置（具体修改）</h3>
+                <span class="tag">个性化调整</span>
+            </div>
+            <div class="card-body">
+                <p class="section-desc">您可以为特定日期单独设置开关、分时段或运行上限。</p>
+                
+                <div class="specific-date-builder">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>选择日期</label>
+                            <input type="date" id="spec-date" class="form-control">
+                        </div>
+                        <div class="form-group">
+                            <label>是否允许运行</label>
+                            <select id="spec-enabled" class="form-control">
+                                <option value="true">允许运行 (Enabled)</option>
+                                <option value="false">禁止运行 (Disabled)</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="flex: 2;">
+                            <label>特殊时段配置（格式 HH:MM ~ HH:MM）</label>
+                            <div id="spec-intervals-container">
+                                <div class="form-row" style="margin-bottom: 6px;">
+                                    <input type="time" class="form-control spec-start-time" value="08:00" style="width: 110px;">
+                                    <span>~</span>
+                                    <input type="time" class="form-control spec-end-time" value="23:30" style="width: 110px;">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>当日上限(分钟)</label>
+                            <input type="number" id="spec-limit" value="300" class="form-control">
+                        </div>
+                        <div class="form-group" style="display: flex; align-items: flex-end;">
+                            <button id="btn-save-spec" class="btn btn-primary">➕ 添加/更新特例</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="table-responsive">
+                    <table class="data-table" id="spec-table">
+                        <thead>
+                            <tr>
+                                <th>日期</th>
+                                <th>状态</th>
+                                <th>允许时段列表</th>
+                                <th>当日运行上限</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- 动态填充 -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- 卡片 4: 往期运行情况与统计图表 -->
+        <div class="card bento-card full-width">
+            <div class="card-header">
+                <h3>📈 往期运行情况与历史趋势</h3>
+                <span class="tag">历史看板</span>
+            </div>
+            <div class="card-body">
+                <div id="history-chart" style="width: 100%; height: 380px;"></div>
+                
+                <div class="table-responsive" style="margin-top: 20px;">
+                    <table class="data-table" id="history-table">
+                        <thead>
+                            <tr>
+                                <th>日期</th>
+                                <th>累计运行时间 (分钟)</th>
+                                <th>最终状态</th>
+                                <th>最后更新/说明</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- 动态填充 -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="./schedule.js"></script>
+</body>
+</html>
