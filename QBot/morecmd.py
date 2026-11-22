@@ -113,8 +113,9 @@ class MoreCommandSystem:
             resp = requests.get(url, timeout=5)
             if resp.status_code == 200:
                 data = resp.json()
-                resources = data.get("resources", [])
-                updated_at = data.get("updated_at", "未知时间")
+                ap_data = data.get("data") or data
+                resources = ap_data.get("resources", [])
+                updated_at = ap_data.get("updated_at") or ap_data.get("timestamp") or "未知时间"
                 
                 if not resources:
                     return f"📊 【资源监控状态】\n暂无资源监控数据。\n更新时间: {updated_at}"
@@ -122,9 +123,11 @@ class MoreCommandSystem:
                 lines = [f"📊 【资源监控状态】(更新于 {updated_at})"]
                 for item in resources:
                     name = item.get("name", "未知资源")
-                    amount = item.get("amount", "0")
-                    time_str = item.get("formatted_time") or item.get("time_text", "未知")
-                    lines.append(f"• {name}: {amount} (时间: {time_str})")
+                    current = item.get("current") if item.get("current") is not None else item.get("amount", "0")
+                    max_val = item.get("max")
+                    time_str = item.get("formatted_time") or item.get("time_str") or "刚刚"
+                    val_str = f"{current}/{max_val}" if max_val else str(current)
+                    lines.append(f"• {name}: {val_str} ({time_str})")
                 
                 return "\n".join(lines)
             else:
@@ -139,33 +142,27 @@ class MoreCommandSystem:
             resp = requests.get(url, timeout=5)
             if resp.status_code == 200:
                 data = resp.json()
-                running = data.get("running", [])
-                queued = data.get("queued", [])
-                waiting = data.get("waiting", [])
-                updated_at = data.get("updated_at", "未知时间")
+                t_data = data.get("data") or data
+                tasks = t_data.get("tasks", [])
+                groups = t_data.get("groups", {})
+                
+                running = groups.get("running") or t_data.get("running") or [t for t in tasks if t.get("status") == "running"]
+                queued = groups.get("pending") or groups.get("queued") or t_data.get("queued") or [t for t in tasks if t.get("status") in ("pending", "queued")]
+                waiting = groups.get("waiting") or t_data.get("waiting") or [t for t in tasks if t.get("status") == "waiting"]
+                
+                updated_at = t_data.get("updated_at") or t_data.get("timestamp") or "未知时间"
                 
                 lines = [f"⚙️ 【任务状态总览】(更新于 {updated_at})"]
                 
-                lines.append(f"\n🚀 运行中任务 ({len(running)}):")
-                if running:
-                    for t in running:
-                        lines.append(f"  - {t.get('title')} [{t.get('formatted_time')}]")
-                else:
-                    lines.append("  (无)")
-                    
-                lines.append(f"\n📦 队列中任务 ({len(queued)}):")
-                if queued:
-                    for t in queued:
-                        lines.append(f"  - {t.get('title')} [{t.get('formatted_time')}]")
-                else:
-                    lines.append("  (无)")
-                    
-                lines.append(f"\n⏳ 等待中任务 ({len(waiting)}):")
-                if waiting:
-                    for t in waiting:
-                        lines.append(f"  - {t.get('title')} [{t.get('formatted_time')}]")
-                else:
-                    lines.append("  (无)")
+                for title, queue, icon in [("运行中", running, "🚀"), ("队列中", queued, "📦"), ("等待中", waiting, "⏳")]:
+                    lines.append(f"\n{icon} {title} ({len(queue)}):")
+                    if queue:
+                        for t in queue:
+                            t_name = t.get("name") or t.get("title") or "未知任务"
+                            t_time = t.get("formatted_time") or t.get("time_str") or "无时间"
+                            lines.append(f"  - {t_name} [{t_time}]")
+                    else:
+                        lines.append("  (无)")
                     
                 return "\n".join(lines)
             else:
