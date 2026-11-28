@@ -91,52 +91,76 @@ def parse_relative_or_absolute_time(time_str):
 
     return int(now.timestamp() * 1000), now.strftime("%Y-%m-%d %H:%M:%S")
 
+
 def parse_dashboard_html(html_content):
     """解析新版 ALAS 仪表盘资源 HTML"""
+    import os
+    import re
+    import html as html_lib
+    import urllib.request
+
     if not html_content:
         return {"resources": [], "raw_html": ""}
 
     resources = []
 
+    def clean_text(value):
+        """清理 HTML 标签、实体及空白字符"""
+        value = re.sub(r"<[^>]+>", "", value or "")
+        value = html_lib.unescape(value)
+        return re.sub(r"\s+", " ", value).strip()
+
+    def parse_number(value):
+        """提取数值，支持千位分隔符"""
+        number = re.sub(r"[^\d]", "", value or "")
+        return int(number) if number else 0
+
     try:
+        # ① 获取所有资源节点
         items = re.findall(
-            r'<section[^>]*class="[^"]*\bresource-merged-item\b[^"]*"[^>]*>(.*?)</section>',
+            r'<section\b(?=[^>]*\bclass=["\'][^"\']*\bresource-merged-item\b[^"\']*["\'])[^>]*>(.*?)</section>',
             html_content,
             re.DOTALL | re.IGNORECASE
         )
 
         for item_html in items:
-            res_item = {}
+            res_item = {
+                "name": "未知资源",
+                "current": 0,
+                "max": None,
+                "icon": None,
+                "time_str": "",
+                "timestamp": None,
+                "formatted_time": None
+            }
 
-            # ① 资源名称
+            # ② 资源名称
             heading_match = re.search(
-                r'<div[^>]*class="[^"]*\bresource-heading\b[^"]*"[^>]*>(.*?)</div>',
+                r'<div\b[^>]*\bclass=["\'][^"\']*\bresource-heading\b[^"\']*["\'][^>]*>(.*?)</div>',
                 item_html,
                 re.DOTALL | re.IGNORECASE
             )
 
-            name = "未知资源"
             if heading_match:
-                span_match = re.search(
-                    r'<span[^>]*>(.*?)</span>',
+                name_match = re.search(
+                    r'<span\b[^>]*>(.*?)</span>',
                     heading_match.group(1),
                     re.DOTALL | re.IGNORECASE
                 )
-                if span_match:
-                    name = re.sub(r'<[^>]+>', '', span_match.group(1)).strip()
 
-            res_item["name"] = name
+                if name_match:
+                    res_item["name"] = clean_text(name_match.group(1))
 
-            # ② 资源图标
+            # ③ 资源图标
             img_match = re.search(
-                r'<img[^>]*src=["\']([^"\']+)["\']',
+                r'<img\b[^>]*\bsrc=["\']([^"\']+)["\']',
                 item_html,
-                re.DOTALL | re.IGNORECASE
+                re.IGNORECASE
             )
 
             if img_match:
-                src = img_match.group(1)
-                basename = os.path.basename(src.split('?')[0])
+                src = html_lib.unescape(img_match.group(1))
+                basename = os.path.basename(src.split("?")[0])
 
                 if basename:
                     res_item["icon"] = f"/ap/file/{basename}"
@@ -144,11 +168,18 @@ def parse_dashboard_html(html_content):
 
                     if not os.path.exists(icon_path):
                         try:
-                            icon_url = (
-                                f"http://127.0.0.1:22267/{basename}"
-                                if src.startswith("./") or not src.startswith("http")
-                                else src
-                            )
+                            # 相对路径默认从 ALAS WebUI 根目录获取
+                            if src.startswith("./"):
+                                icon_url = (
+                                    f"http://127.0.0.1:22267/"
+                                    f"{src[2:]}"
+                                )
+                            elif not src.startswith(("http://", "https://")):
+                                icon_url = (
+                                    f"http://127.0.0.1:22267/{src.lstrip('/')}"
+                                )
+                            else:
+                                icon_url = src
 
                             req = urllib.request.Request(
                                 icon_url,
@@ -157,19 +188,21 @@ def parse_dashboard_html(html_content):
 
                             with urllib.request.urlopen(req, timeout=2) as resp:
                                 if resp.status == 200:
-                                    icon_data = resp.read()
                                     with open(icon_path, "wb") as f_icon:
-                                        f_icon.write(icon_data)
+                                        f_icon.write(resp.read())
 
                         except Exception as e:
-                            logger.warning("下载图标 {} 失败: {}", basename, e)
+                            logger.warning(
+                                "下载图标 {} 失败: {}", basename, e
+                            )
 
-            # ③ 资源数值
+            
+            # ④ 资源数值
             current_val = 0
-            max_val = 0
+            max_val = None
 
             value_match = re.search(
-                r'<div[^>]*class="[^"]*\bresource-value\b[^"]*"[^>]*>(.*?)</div>',
+                r'<div\b[^>]*\bclass=["\'][^"\']*\bresource-value\b[^"\']*["\'][^>]*>(.*?)</div>',
                 item_html,
                 re.DOTALL | re.IGNORECASE
             )
@@ -177,88 +210,47 @@ def parse_dashboard_html(html_content):
             if value_match:
                 value_html = value_match.group(1)
 
-                content_match = re.search(
-                    r'<span[^>]*class="[^"]*\bresource-value-content\b[^"]*"[^>]*>(.*?)</span>',
+                # 优先提取 resource-value-content 内部的第一个数字 span
+                current_match = re.search(
+                    r'<span\b[^>]*>([\d,]+)</span>',
+                    value_html,
+                    re.IGNORECASE
+                )
+
+                if current_match:
+                    current_val = parse_number(current_match.group(1))
+
+                # 提取最大值，兼容没有 small 的资源
+                max_match = re.search(
+                    r'<small\b[^>]*>(.*?)</small>',
                     value_html,
                     re.DOTALL | re.IGNORECASE
                 )
 
-                if content_match:
-                    content_html = content_match.group(1)
-
-                    # 当前值：内部第一个 span
-                    current_match = re.search(
-                        r'<span[^>]*>(.*?)</span>',
-                        content_html,
-                        re.DOTALL | re.IGNORECASE
-                    )
-
-                    if current_match:
-                        current_text = re.sub(
-                            r'<[^>]+>', '', current_match.group(1)
-                        ).strip()
-
-                        current_num = re.sub(r'[^\d]', '', current_text)
-                        current_val = int(current_num) if current_num else 0
-
-                    # 最大值：small 标签
-                    max_match = re.search(
-                        r'<small[^>]*>(.*?)</small>',
-                        content_html,
-                        re.DOTALL | re.IGNORECASE
-                    )
-
-                    if max_match:
-                        max_text = re.sub(
-                            r'<[^>]+>', '', max_match.group(1)
-                        ).strip()
-
-                        max_num = re.sub(r'[^\d]', '', max_text)
-                        max_val = int(max_num) if max_num else 0
-
-                else:
-                    # 兼容旧版资源 HTML
-                    spans = re.findall(
-                        r'<span[^>]*>(.*?)</span>',
-                        value_html,
-                        re.DOTALL | re.IGNORECASE
-                    )
-
-                    nums = []
-                    for s in spans:
-                        cleaned = re.sub(r'<[^>]+>', '', s).strip()
-                        if cleaned:
-                            nums.append(cleaned)
-
-                    if nums:
-                        current_num = re.sub(r'[^\d]', '', nums[0])
-                        current_val = int(current_num) if current_num else 0
-
-                    if len(nums) >= 2:
-                        max_num = re.sub(r'[^\d]', '', nums[1])
-                        max_val = int(max_num) if max_num else 0
+                if max_match:
+                    max_val = parse_number(clean_text(max_match.group(1)))
 
             res_item["current"] = current_val
             res_item["max"] = max_val
 
-            # ④ 更新时间
+
+            # ⑤ 更新时间
             foot_match = re.search(
-                r'<div[^>]*class="[^"]*\bresource-foot\b[^"]*"[^>]*>(.*?)</div>',
+                r'<div\b[^>]*\bclass=["\'][^"\']*\bresource-foot\b[^"\']*["\'][^>]*>(.*?)</div>',
                 item_html,
                 re.DOTALL | re.IGNORECASE
             )
 
-            time_str = ""
             if foot_match:
-                time_str = re.sub(
-                    r'<[^>]+>', '', foot_match.group(1)
-                ).strip()
+                time_str = clean_text(foot_match.group(1))
+                res_item["time_str"] = time_str
 
-            ts, formatted_time = parse_relative_or_absolute_time(time_str)
+                ts, formatted_time = parse_relative_or_absolute_time(
+                    time_str
+                )
 
-            res_item["time_str"] = time_str
-            res_item["timestamp"] = ts
-            res_item["formatted_time"] = formatted_time
+                res_item["timestamp"] = ts
+                res_item["formatted_time"] = formatted_time
 
             resources.append(res_item)
 
@@ -268,12 +260,14 @@ def parse_dashboard_html(html_content):
         }
 
     except Exception as e:
-        logger.error("解析仪表盘 HTML 异常: {}", e)
+        logger.exception("解析仪表盘 HTML 异常")
+
         return {
-            "resources": [],
+            "resources": resources,
             "raw_html": html_content,
             "error": str(e)
         }
+
 
 def parse_tasks_html(html_content):
     """解析新版 ALAS 调度与任务列表 HTML"""

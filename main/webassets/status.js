@@ -105,8 +105,8 @@ async function loadAllStatusData() {
                         const timeDisplay = item.formatted_time || item.time_str || '刚刚';
                         const iconHtml = item.icon ? `<img src="${item.icon}" class="w-6 h-6 object-contain inline-block mr-2" alt="">` : '';
                         const currentVal = item.current !== undefined ? item.current : (item.amount || 0);
-                        const maxVal = item.max !== undefined ? item.max : 0;
-                        const limitText = maxVal > 0 ? `<small class="text-slate-400 ml-1">/ ${maxVal}</small>` : (item.limit ? `<small class="text-slate-400 ml-1">${item.limit}</small>` : '');
+                        const maxVal = item.max;
+                        const limitText = (maxVal !== undefined && maxVal !== null) ? `<small class="text-slate-400 ml-1">/ ${maxVal}</small>` : '';
                         return `
                             <div class="bg-slate-900/60 p-3 rounded-xl border border-slate-800 flex items-center justify-between text-xs">
                                 <div class="flex items-center">
