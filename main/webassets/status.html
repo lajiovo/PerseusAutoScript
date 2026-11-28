@@ -46,6 +46,9 @@
             </div>
         </div>
         <div class="flex items-center gap-3">
+            <button onclick="reparseAllData()" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-purple-600 hover:bg-purple-700 text-white transition-all shadow-sm flex items-center gap-1.5">
+                <i class="fa-solid fa-wand-magic-sparkles"></i> 重新解析数据
+            </button>
             <button onclick="loadAllStatusData()" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-600 hover:bg-indigo-700 text-white transition-all shadow-sm flex items-center gap-1.5">
                 <i class="fa-solid fa-rotate"></i> 刷新全部数据
             </button>
@@ -134,7 +137,12 @@
                     <h3 class="font-bold text-sm text-indigo-400 flex items-center gap-2">
                         <i class="fa-solid fa-server"></i> 资源监控解析内容
                     </h3>
-                    <span id="resourceUpdatedTime" class="text-[10px] text-slate-400 font-mono">更新时间: --</span>
+                    <div class="flex items-center gap-2">
+                        <button onclick="reparseAllData()" class="px-2 py-1 rounded text-[10px] font-medium bg-purple-600 hover:bg-purple-700 text-white transition-all flex items-center gap-1">
+                            <i class="fa-solid fa-wand-magic-sparkles"></i> 重新解析
+                        </button>
+                        <span id="resourceUpdatedTime" class="text-[10px] text-slate-400 font-mono">更新时间: --</span>
+                    </div>
                 </div>
                 <div id="resourceMonitorContainer" class="space-y-2 max-h-96 overflow-y-auto pr-1 flex-grow">
                     <p class="text-xs text-slate-500 text-center py-6">正在加载资源监控数据...</p>
@@ -147,7 +155,12 @@
                     <h3 class="font-bold text-sm text-purple-400 flex items-center gap-2">
                         <i class="fa-solid fa-list-check"></i> 任务队列状态监控
                     </h3>
-                    <span id="tasksUpdatedTime" class="text-[10px] text-slate-400 font-mono">更新时间: --</span>
+                    <div class="flex items-center gap-2">
+                        <button onclick="reparseAllData()" class="px-2 py-1 rounded text-[10px] font-medium bg-purple-600 hover:bg-purple-700 text-white transition-all flex items-center gap-1">
+                            <i class="fa-solid fa-wand-magic-sparkles"></i> 重新解析
+                        </button>
+                        <span id="tasksUpdatedTime" class="text-[10px] text-slate-400 font-mono">更新时间: --</span>
+                    </div>
                 </div>
                 <div id="tasksMonitorContainer" class="space-y-3 max-h-96 overflow-y-auto pr-1 flex-grow">
                     <p class="text-xs text-slate-500 text-center py-6">正在加载任务状态数据...</p>

@@ -218,6 +218,7 @@ def schedule_check(time_ranges=["09:00-12:00", "16:00-18:30"]):
         if zMainLoopApi.HANDLEPUSH is False:
             if time_matched:
                 try:
+                    zMainLoopApi.HANDLEPUSH=True
                     zMainLoopApi.start_alas_mumu_check_timer()
                     SCHEDULESTOP = False
                     logger.success("Schedule start success")

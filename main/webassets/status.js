@@ -221,6 +221,22 @@ async function loadAllStatusData() {
     }
 }
 
+async function reparseAllData() {
+    try {
+        const res = await fetch('/main/ap/reparse', { method: 'POST' });
+        const data = await res.json();
+        if (res.ok && data.status === 'ok') {
+            alert('重新解析成功！');
+            loadAllStatusData();
+        } else {
+            alert('重新解析失败: ' + (data.message || '未知错误'));
+        }
+    } catch (e) {
+        console.error('重新解析异常:', e);
+        alert('重新解析异常: ' + e.message);
+    }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     loadAllStatusData();
     setInterval(loadAllStatusData, 10000);

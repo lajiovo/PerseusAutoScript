@@ -140,29 +140,29 @@ def parse_dashboard_html(html_content):
 
                 if basename:
                     res_item["icon"] = f"/ap/file/{basename}"
+                    icon_path = os.path.join(AP_DIR, basename)
 
-                    try:
-                        icon_url = (
-                            f"http://127.0.0.1:22267/{basename}"
-                            if src.startswith("./") or not src.startswith("http")
-                            else src
-                        )
+                    if not os.path.exists(icon_path):
+                        try:
+                            icon_url = (
+                                f"http://127.0.0.1:22267/{basename}"
+                                if src.startswith("./") or not src.startswith("http")
+                                else src
+                            )
 
-                        req = urllib.request.Request(
-                            icon_url,
-                            headers={"User-Agent": "Mozilla/5.0"}
-                        )
+                            req = urllib.request.Request(
+                                icon_url,
+                                headers={"User-Agent": "Mozilla/5.0"}
+                            )
 
-                        with urllib.request.urlopen(req, timeout=2) as resp:
-                            if resp.status == 200:
-                                icon_data = resp.read()
-                                icon_path = os.path.join(AP_DIR, basename)
+                            with urllib.request.urlopen(req, timeout=2) as resp:
+                                if resp.status == 200:
+                                    icon_data = resp.read()
+                                    with open(icon_path, "wb") as f_icon:
+                                        f_icon.write(icon_data)
 
-                                with open(icon_path, "wb") as f_icon:
-                                    f_icon.write(icon_data)
-
-                    except Exception as e:
-                        logger.warning("下载图标 {} 失败: {}", basename, e)
+                        except Exception as e:
+                            logger.warning("下载图标 {} 失败: {}", basename, e)
 
             # ③ 资源数值
             current_val = 0
@@ -300,138 +300,103 @@ def parse_tasks_html(html_content):
     }
 
     try:
-        # ① 提取任务分组
-        group_pattern = re.compile(
-            r'<section\b([^>]*\bclass=["\'][^"\']*\brail-queue-group\b[^"\']*["\'][^>]*)>(.*?)</section>',
+        # 直接匹配所有的任务节点（无论是否在 rail-queue-group 内）
+        task_pattern = re.compile(
+            r'<a\b([^>]*\bclass=["\'][^"\']*?\btask\b[^"\']*["\'][^>]*)>(.*?)</a>',
             re.DOTALL | re.IGNORECASE
         )
-
-        groups = re.finditer(group_pattern, html_content)
-
-        for group_match in groups:
-            attrs = group_match.group(1)
-            group_html = group_match.group(2)
-
-            # 分组类型
-            class_match = re.search(
-                r'class=["\']([^"\']*)["\']',
-                attrs,
-                re.IGNORECASE
-            )
-
-            classes = class_match.group(1).split() if class_match else []
-
-            group_type = next(
-                (x for x in ("running", "pending", "waiting") if x in classes),
-                "unknown"
-            )
-
-            # ② 分组名称
-            label_match = re.search(
-                r'aria-label=["\']([^"\']*)["\']',
-                attrs,
-                re.IGNORECASE
-            )
-
-            group_name = label_match.group(1) if label_match else group_type
-
-            # ③ 提取任务
+        
+        matches = list(re.finditer(task_pattern, html_content))
+        if not matches:
+            # 兼容 rail-task-item
             task_pattern = re.compile(
-                r'<a\b([^>]*\bclass=["\'][^"\']*\brail-task-item\b[^"\']*["\'][^>]*)>(.*?)</a>',
+                r'<a\b([^>]*\bclass=["\'][^"\']*?\brail-task-item\b[^"\']*["\'][^>]*)>(.*?)</a>',
+                re.DOTALL | re.IGNORECASE
+            )
+            matches = list(re.finditer(task_pattern, html_content))
+
+        for task_match in matches:
+            task_attrs = task_match.group(1)
+            task_html = task_match.group(2)
+
+            # 任务 ID
+            id_match = re.search(
+                r'data-task=["\']([^"\']*)["\']',
+                task_attrs,
+                re.IGNORECASE
+            )
+            task_id = id_match.group(1) if id_match else ""
+
+            # 任务名称
+            name_match = re.search(
+                r'<strong[^>]*>(.*?)</strong>',
+                task_html,
+                re.DOTALL | re.IGNORECASE
+            )
+            task_name = ""
+            if name_match:
+                task_name = re.sub(r'<[^>]+>', '', name_match.group(1)).strip()
+
+            # 任务时间
+            time_match = re.search(
+                r'<small[^>]*>(.*?)</small>',
+                task_html,
+                re.DOTALL | re.IGNORECASE
+            )
+            time_str = ""
+            if time_match:
+                time_str = re.sub(r'<[^>]+>', '', time_match.group(1)).strip()
+
+            # 任务状态与分组推断
+            status = "waiting"
+            status_text = "等待中"
+            group_type = "waiting"
+            group_name = "等待中"
+
+            state_match = re.search(
+                r'<span\b([^>]*\bclass=["\'][^"\']*?\btask-state\b[^"\']*["\'][^>]*)>(.*?)</span>',
+                task_html,
                 re.DOTALL | re.IGNORECASE
             )
 
-            for task_match in re.finditer(task_pattern, group_html):
-                task_attrs = task_match.group(1)
-                task_html = task_match.group(2)
+            if state_match:
+                state_attrs = state_match.group(1)
+                state_text_raw = re.sub(r'<[^>]+>', '', state_match.group(2)).strip()
+                if state_text_raw:
+                    status_text = state_text_raw
 
-                # 任务 ID
-                id_match = re.search(
-                    r'data-task=["\']([^"\']*)["\']',
-                    task_attrs,
-                    re.IGNORECASE
-                )
+                if "running" in state_attrs.lower() or "运行" in status_text or "进行" in status_text:
+                    status = "running"
+                    group_type = "running"
+                    group_name = "运行中"
+                elif "pending" in state_attrs.lower() or "queued" in state_attrs.lower() or "待" in status_text or "排队" in status_text:
+                    status = "pending"
+                    group_type = "pending"
+                    group_name = "待运行"
+                else:
+                    status = "waiting"
+                    group_type = "waiting"
+                    group_name = "等待中"
 
-                task_id = id_match.group(1) if id_match else ""
+            ts, formatted_time = parse_relative_or_absolute_time(time_str)
 
-                # 任务名称
-                name_match = re.search(
-                    r'<strong[^>]*>(.*?)</strong>',
-                    task_html,
-                    re.DOTALL | re.IGNORECASE
-                )
+            task = {
+                "id": task_id,
+                "name": task_name,
+                "time_str": time_str,
+                "timestamp": ts,
+                "formatted_time": formatted_time,
+                "status": status,
+                "status_text": status_text,
+                "group": group_type,
+                "group_name": group_name
+            }
 
-                task_name = ""
-                if name_match:
-                    task_name = re.sub(
-                        r'<[^>]+>', '', name_match.group(1)
-                    ).strip()
-
-                # 任务时间
-                time_match = re.search(
-                    r'<small[^>]*>(.*?)</small>',
-                    task_html,
-                    re.DOTALL | re.IGNORECASE
-                )
-
-                time_str = ""
-                if time_match:
-                    time_str = re.sub(
-                        r'<[^>]+>', '', time_match.group(1)
-                    ).strip()
-
-                # ④ 任务状态
-                state_match = re.search(
-                    r'<span\b([^>]*\bclass=["\'][^"\']*\btask-state\b[^"\']*["\'][^>]*)>(.*?)</span>',
-                    task_html,
-                    re.DOTALL | re.IGNORECASE
-                )
-
-                status = group_type
-                status_text = group_name
-
-                if state_match:
-                    state_attrs = state_match.group(1)
-
-                    state_class = re.search(
-                        r'class=["\']([^"\']*)["\']',
-                        state_attrs,
-                        re.IGNORECASE
-                    )
-
-                    if state_class:
-                        state_classes = state_class.group(1).split()
-                        status = next(
-                            (
-                                x for x in ("running", "pending", "waiting")
-                                if x in state_classes
-                            ),
-                            group_type
-                        )
-
-                    status_text = re.sub(
-                        r'<[^>]+>', '', state_match.group(2)
-                    ).strip()
-
-                # ⑤ 时间转换
-                ts, formatted_time = parse_relative_or_absolute_time(time_str)
-
-                task = {
-                    "id": task_id,
-                    "name": task_name,
-                    "time_str": time_str,
-                    "timestamp": ts,
-                    "formatted_time": formatted_time,
-                    "status": status,
-                    "status_text": status_text,
-                    "group": group_type,
-                    "group_name": group_name
-                }
-
-                result["tasks"].append(task)
-
-                if group_type in result["groups"]:
-                    result["groups"][group_type].append(task)
+            result["tasks"].append(task)
+            if group_type in result["groups"]:
+                result["groups"][group_type].append(task)
+            else:
+                result["groups"]["waiting"].append(task)
 
         return result
 
@@ -491,6 +456,57 @@ def handle_ap_set2():
         return format_response({"status": "error", "message": "缺少 html 内容"}, 400)
     except Exception as e:
         logger.error("handle_ap_set2 异常: {}", e)
+        return format_response({"status": "error", "message": str(e)}, 500)
+
+@ap_bp.route("/main/ap/reparse", methods=["GET", "POST"])
+@ap_bp.route("/ap/reparse", methods=["GET", "POST"])
+def handle_ap_reparse():
+    """重新从缓存的 HTML 文件及 tasks_data.json 中的 raw_html 解析资源和任务数据"""
+    try:
+        results = {}
+        
+        # 1. 重新解析仪表盘/资源 HTML (来自 dashboard.html)
+        html_path = get_ap_html_path()
+        if os.path.exists(html_path):
+            with open(html_path, "r", encoding="utf-8") as f:
+                html_content = f.read()
+            parsed_dashboard = parse_dashboard_html(html_content)
+            with open(get_dashboard_json_path(), "w", encoding="utf-8") as f:
+                json.dump(parsed_dashboard, f, ensure_ascii=False, indent=2)
+            results["dashboard"] = "success"
+        else:
+            results["dashboard"] = "dashboard.html not found"
+
+        # 2. 重新解析任务 HTML (优先从 tasks_data.json 的 raw_html 读取，其次从 dashboard.html 或 tasks.html)
+        tasks_json_path = get_tasks_json_path()
+        tasks_content = ""
+        if os.path.exists(tasks_json_path):
+            try:
+                with open(tasks_json_path, "r", encoding="utf-8") as f:
+                    t_json = json.load(f)
+                    if isinstance(t_json, dict) and t_json.get("raw_html"):
+                        tasks_content = t_json.get("raw_html")
+            except Exception:
+                pass
+
+        if not tasks_content:
+            tasks_html_path = os.path.join(AP_DIR, "tasks.html")
+            target_tasks_html = tasks_html_path if os.path.exists(tasks_html_path) else html_path
+            if os.path.exists(target_tasks_html):
+                with open(target_tasks_html, "r", encoding="utf-8") as f:
+                    tasks_content = f.read()
+
+        if tasks_content:
+            parsed_tasks = parse_tasks_html(tasks_content)
+            with open(tasks_json_path, "w", encoding="utf-8") as f:
+                json.dump(parsed_tasks, f, ensure_ascii=False, indent=2)
+            results["tasks"] = "success"
+        else:
+            results["tasks"] = "tasks html not found"
+
+        return format_response({"status": "ok", "message": "重新解析完成", "results": results}, 200)
+    except Exception as e:
+        logger.error("handle_ap_reparse 异常: {}", e)
         return format_response({"status": "error", "message": str(e)}, 500)
 
 @ap_bp.route("/main/ap/get", methods=["GET"])
